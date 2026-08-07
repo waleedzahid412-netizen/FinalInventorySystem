@@ -1,0 +1,368 @@
+@model InventorySystem.ViewModels.Returns.ProcessManualSalesReturnViewModel
+@{
+    ViewData["Title"] = "Process Manual Sales Return";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header Toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">
+                <i class="bi bi-pencil-square me-2 text-warning"></i> Process Manual / Direct Sales Return
+            </h1>
+            <p class="text-muted small mb-0">Return items directly to warehouse inventory without referencing a sales invoice.</p>
+        </div>
+        <div>
+            <a asp-action="CustomerReturns" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to Sales Returns
+            </a>
+        </div>
+    </div>
+
+    <form id="manualReturnForm">
+        <div class="row">
+            <!-- MAIN RETURN DETAILS & ITEMS -->
+            <div class="col-lg-8">
+                <!-- Header Info Card -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-info-circle me-2"></i> Header Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="selectCustomer" class="form-label fw-bold small">Customer <span class="text-danger">*</span></label>
+                                <select id="selectCustomer" class="form-select" required>
+                                    <option value="">-- Select Customer --</option>
+                                    @foreach (var c in Model.Customers)
+                                    {
+                                        <option value="@c.Value">@c.Text</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="selectWarehouse" class="form-label fw-bold small">Restock Warehouse <span class="text-danger">*</span></label>
+                                <select id="selectWarehouse" class="form-select" required>
+                                    <option value="">-- Select Warehouse --</option>
+                                    @foreach (var w in Model.Warehouses)
+                                    {
+                                        <option value="@w.Value">@w.Text</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-12">
+                                <label for="headerReason" class="form-label fw-bold small">Remarks / Return Reason</label>
+                                <textarea id="headerReason" class="form-control" rows="2" placeholder="Reason for direct/manual return..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Refund Settlement Selection Card -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-wallet2 me-2"></i> Refund Settlement Method</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-check p-3 border rounded bg-light">
+                                    <input class="form-check-input" type="radio" name="settlementMethod" id="settlementAccount" value="ACCOUNT_ADJUSTMENT" checked>
+                                    <label class="form-check-label fw-bold ms-2" for="settlementAccount">
+                                        <i class="bi bi-person-badge text-primary me-1"></i> Adjust in Customer Account
+                                    </label>
+                                    <p class="text-muted small mb-0 mt-1">Posts a Customer Ledger Credit to reduce the customer's outstanding balance.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check p-3 border rounded bg-light">
+                                    <input class="form-check-input" type="radio" name="settlementMethod" id="settlementCash" value="CASH">
+                                    <label class="form-check-label fw-bold ms-2" for="settlementCash">
+                                        <i class="bi bi-cash-stack text-success me-1"></i> Cash Refund
+                                    </label>
+                                    <p class="text-muted small mb-0 mt-1">Cash paid out to customer directly. <strong>No Customer Ledger credit</strong> will be created.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items Table Card -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-box-seam me-2"></i> Returned Products</h6>
+                        <button type="button" id="btnAddRow" class="btn btn-sm btn-success">
+                            <i class="bi bi-plus-lg me-1"></i> Add Product Line
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table id="manualItemsTable" class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 30%;">Product</th>
+                                        <th style="width: 20%;">Unit</th>
+                                        <th style="width: 15%;" class="text-center">Qty</th>
+                                        <th style="width: 15%;" class="text-end">Return Price ($)</th>
+                                        <th style="width: 15%;" class="text-end">Line Total ($)</th>
+                                        <th style="width: 5%;" class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic Rows Inserted Here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUMMARY CARD -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm border-0 sticky-top" style="top: 20px;">
+                    <div class="card-header bg-warning text-dark py-3">
+                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-calculator me-2"></i> Manual Return Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Gross Return Value:</span>
+                            <span class="fw-bold" id="lblGrossReturn">$0.00</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-2 text-muted">
+                            <span>Discount Clawback:</span>
+                            <span>$0.00</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-3 text-muted">
+                            <span>Promo Free Item Penalty:</span>
+                            <span>$0.00</span>
+                        </div>
+
+                        <hr />
+
+                        <div class="p-3 bg-light rounded border mb-4">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold fs-6">NET REFUND AMOUNT:</span>
+                                <span class="fw-bold fs-4 text-success" id="lblNetRefund">$0.00</span>
+                            </div>
+                            <div id="lblSettlementSummary" class="small text-muted mt-2 fw-semibold">
+                                <i class="bi bi-info-circle me-1"></i> Will post Credit to Customer Account
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="button" id="btnSubmitManualReturn" class="btn btn-warning btn-lg fw-bold text-dark">
+                                <i class="bi bi-check-circle-fill me-2"></i> Process Manual Return
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            const productsList = [
+                @foreach (var p in Model.Products)
+                {
+                    <text>{ id: @p.Value, text: '@Html.Raw(p.Text)' },</text>
+                }
+            ];
+
+            function addProductRow() {
+                let optionsHtml = '<option value="">-- Select Product --</option>';
+                productsList.forEach(p => {
+                    optionsHtml += `<option value="${p.id}">${p.text}</option>`;
+                });
+
+                const rowHtml = `
+                    <tr class="item-row">
+                        <td>
+                            <select class="form-select form-select-sm select-product" required>
+                                ${optionsHtml}
+                            </select>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm select-unit" required disabled>
+                                <option value="">-- Select Unit --</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input type="number" min="0.001" step="any" class="form-control form-control-sm text-center input-qty" value="1" />
+                        </td>
+                        <td>
+                            <input type="number" min="0" step="0.01" class="form-control form-control-sm text-end input-price" value="0.00" />
+                        </td>
+                        <td class="text-end fw-bold line-total">$0.00</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-row" title="Remove Line">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                $('#manualItemsTable tbody').append(rowHtml);
+                recalculateTotals();
+            }
+
+            // Load Product Units on product change
+            $(document).on('change', '.select-product', function () {
+                const $row = $(this).closest('tr');
+                const productId = $(this).val();
+                const $unitSelect = $row.find('.select-unit');
+
+                $unitSelect.empty().append('<option value="">-- Loading... --</option>').prop('disabled', true);
+
+                if (!productId) {
+                    $unitSelect.empty().append('<option value="">-- Select Unit --</option>');
+                    return;
+                }
+
+                $.getJSON('/Returns/GetProductUnits', { productId: productId }, function (units) {
+                    $unitSelect.empty();
+                    if (units && units.length > 0) {
+                        units.forEach(u => {
+                            $unitSelect.append(`<option value="${u.productUnitId}">${u.unitName}</option>`);
+                        });
+                        $unitSelect.prop('disabled', false);
+                    } else {
+                        $unitSelect.append('<option value="">No Units Found</option>');
+                    }
+                });
+            });
+
+            function recalculateTotals() {
+                let grossTotal = 0;
+                $('#manualItemsTable tbody tr').each(function () {
+                    const $row = $(this);
+                    const qty = parseFloat($row.find('.input-qty').val()) || 0;
+                    const price = parseFloat($row.find('.input-price').val()) || 0;
+                    const lineTotal = Math.round(qty * price * 100) / 100;
+                    $row.find('.line-total').text('$' + lineTotal.toFixed(2));
+                    grossTotal += lineTotal;
+                });
+
+                $('#lblGrossReturn').text('$' + grossTotal.toFixed(2));
+                $('#lblNetRefund').text('$' + grossTotal.toFixed(2));
+            }
+
+            $(document).on('input change', '.input-qty, .input-price', function () {
+                recalculateTotals();
+            });
+
+            $(document).on('click', '.btn-remove-row', function () {
+                $(this).closest('tr').remove();
+                recalculateTotals();
+            });
+
+            $('#btnAddRow').on('click', function () {
+                addProductRow();
+            });
+
+            // Settlement Method Radio Change
+            $('input[name="settlementMethod"]').on('change', function () {
+                const val = $(this).val();
+                if (val === 'CASH') {
+                    $('#lblSettlementSummary').html('<i class="bi bi-cash-stack me-1 text-success"></i> Cash paid out to customer (No Ledger Credit)');
+                } else {
+                    $('#lblSettlementSummary').html('<i class="bi bi-person-badge me-1 text-primary"></i> Will post Credit to Customer Account');
+                }
+            });
+
+            // Initial row
+            addProductRow();
+
+            // Submit Manual Return
+            $('#btnSubmitManualReturn').on('click', function () {
+                const customerId = $('#selectCustomer').val();
+                const warehouseId = $('#selectWarehouse').val();
+                const settlementMethod = $('input[name="settlementMethod"]:checked').val();
+
+                if (!customerId) {
+                    alert('Please select a customer.');
+                    return;
+                }
+                if (!warehouseId) {
+                    alert('Please select a restock warehouse.');
+                    return;
+                }
+
+                const items = [];
+                let hasInvalidItem = false;
+
+                $('#manualItemsTable tbody tr').each(function () {
+                    const $row = $(this);
+                    const prodId = parseInt($row.find('.select-product').val());
+                    const unitId = parseInt($row.find('.select-unit').val());
+                    const qty = parseFloat($row.find('.input-qty').val()) || 0;
+                    const price = parseFloat($row.find('.input-price').val()) || 0;
+
+                    if (!prodId || !unitId || qty <= 0 || price < 0) {
+                        hasInvalidItem = true;
+                        return false;
+                    }
+
+                    items.push({
+                        productId: prodId,
+                        productUnitId: unitId,
+                        quantity: qty,
+                        manualReturnUnitPrice: price,
+                        reason: 'Manual Sales Return',
+                        returnCondition: 'Sellable'
+                    });
+                });
+
+                if (hasInvalidItem || items.length === 0) {
+                    alert('Please complete all product lines with valid products, units, positive quantities, and valid return prices.');
+                    return;
+                }
+
+                if (!confirm('Are you sure you want to finalize this Manual Sales Return?\n\n- Products will be restocked into inventory.\n- Return record will be generated.')) {
+                    return;
+                }
+
+                const $btn = $(this);
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span> Processing Manual Return...');
+
+                const payload = {
+                    customerId: parseInt(customerId),
+                    warehouseId: parseInt(warehouseId),
+                    returnDate: new Date().toISOString(),
+                    reason: $('#headerReason').val(),
+                    settlementMethod: settlementMethod,
+                    items: items
+                };
+
+                $.ajax({
+                    url: '/Returns/ProcessManualSalesReturn',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload),
+                    success: function (res) {
+                        if (res.success && res.returnId) {
+                            window.location.href = '/Returns/SalesReturnDetails/' + res.returnId;
+                        } else {
+                            alert(res.message || 'Error processing manual sales return.');
+                            $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Process Manual Return');
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        console.error('ProcessManualSalesReturn AJAX Error:', status, error, xhr.responseText);
+                        let msg = 'HTTP ' + xhr.status + ' (' + error + ')';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            msg += ': ' + xhr.responseJSON.message;
+                        } else if (xhr.responseText) {
+                            msg += ': ' + xhr.responseText.substring(0, 300);
+                        }
+                        alert('Failed to process manual sales return:\n' + msg);
+                        $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Process Manual Return');
+                    }
+                });
+            });
+        });
+    </script>
+}

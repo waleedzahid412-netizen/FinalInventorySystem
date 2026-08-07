@@ -1,0 +1,53 @@
+@model InventorySystem.DTOs.Common.PagedResult<InventorySystem.DTOs.Customers.CustomerPaymentHistoryDto>
+
+@if (Model == null || !Model.Items.Any())
+{
+    <div class="alert alert-info my-3">
+        <i class="bi bi-info-circle me-2"></i> No payment receipts found for this customer.
+    </div>
+}
+else
+{
+    <div class="table-responsive my-3">
+        <table class="table table-hover align-middle border">
+            <thead class="table-light">
+                <tr>
+                    <th>Payment ID</th>
+                    <th>Payment Date</th>
+                    <th>Invoice #</th>
+                    <th>Method</th>
+                    <th>Reference #</th>
+                    <th class="text-end">Amount (PKR)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var pmt in Model.Items)
+                {
+                    <tr>
+                        <td class="fw-semibold">#PMT-@pmt.CustomerPaymentID.ToString("D5")</td>
+                        <td>@pmt.PaymentDate.ToString("dd MMM yyyy")</td>
+                        <td>@pmt.InvoiceNumber</td>
+                        <td><span class="badge bg-secondary">@pmt.PaymentMethod</span></td>
+                        <td>@(pmt.ReferenceNumber ?? "-")</td>
+                        <td class="text-end fw-bold text-success">@pmt.Amount.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav aria-label="Payment history pagination">
+            <ul class="pagination pagination-sm justify-content-center">
+                @for (int p = 1; p <= Model.TotalPages; p++)
+                {
+                    int currentPage = p;
+                    <li class="page-item @(p == Model.PageNumber ? "active" : "")">
+                        <button type="button" class="page-link" onclick="loadPaymentTab(@ViewBag.CustomerID, @currentPage)">@p</button>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+}

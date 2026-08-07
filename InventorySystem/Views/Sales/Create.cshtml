@@ -1,0 +1,908 @@
+@model InventorySystem.ViewModels.Sales.CreateSalesViewModel
+@{
+    ViewData["Title"] = "Create Sales Invoice";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Breadcrumb & Header -->
+    <div class="mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-action="Index">Sales Invoices</a></li>
+                <li class="breadcrumb-item active">New Sales Invoice</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-receipt me-2 text-primary"></i> Create Sales Invoice</h1>
+        <p class="text-muted small mb-0">Select a customer, add products, verify trade prices and real-time inventory, then finalize the sale.</p>
+    </div>
+
+    <!-- Form Validation Error Banner -->
+    <div id="formValidationAlert" class="alert alert-danger shadow-sm d-none mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong id="formValidationErrorText">Please select all required fields and resolve stock errors before finalizing.</strong>
+    </div>
+
+    <form id="createSalesForm" asp-action="Create" method="post" novalidate>
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="ItemsJson" id="ItemsJson" />
+        <input type="hidden" asp-for="AppliedDiscountRuleID" id="AppliedDiscountRuleID" />
+
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger shadow-sm" role="alert"></div>
+
+        <!-- Section 1: Customer & Warehouse Header -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-person-bounding-box me-2"></i> Header Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="CustomerID" class="form-label fw-semibold"></label>
+                        <select asp-for="CustomerID" asp-items="Model.Customers" class="form-select" id="customerSelect" required>
+                            <option value="">-- Select Customer --</option>
+                        </select>
+                        <div class="invalid-feedback">Please select a customer.</div>
+
+                        <!-- Customer Info Card (AJAX loaded) -->
+                        <div id="customerInfoCard" class="card bg-light border-0 mt-2 d-none">
+                            <div class="card-body p-2 small">
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted">Shop Name:</span>
+                                    <span id="infoShopName" class="fw-semibold"></span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted">Area:</span>
+                                    <span id="infoArea" class="fw-semibold"></span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted">Credit Limit:</span>
+                                    <span id="infoCreditLimit" class="fw-bold"></span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted">Outstanding:</span>
+                                    <span id="infoOutstanding" class="fw-bold text-danger"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Credit Limit Warning Alert (Non-blocking warning) -->
+                        <div id="creditLimitAlert" class="alert alert-warning border-warning mt-2 p-2 small d-none mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            <strong>Credit Warning:</strong> Customer balance exceeds credit limit. Sale is permitted.
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="WarehouseID" class="form-label fw-semibold"></label>
+                        <select asp-for="WarehouseID" asp-items="Model.Warehouses" class="form-select" id="warehouseSelect" required>
+                            <option value="">-- Select Warehouse --</option>
+                        </select>
+                        <div class="invalid-feedback">Please select a destination warehouse.</div>
+                        <div class="form-text small">Warehouse from which physical stock will be deducted.</div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="DeliveryPersonID" class="form-label fw-semibold"></label>
+                        <select asp-for="DeliveryPersonID" asp-items="Model.DeliveryPersons" class="form-select">
+                            <option value="">-- Select Delivery Agent (Optional) --</option>
+                        </select>
+                        <span asp-validation-for="DeliveryPersonID" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="InvoiceNumber" class="form-label fw-semibold"></label>
+                        <input asp-for="InvoiceNumber" class="form-control bg-light" value="Auto-generated on save" readonly />
+                        <span class="form-text small text-muted">Invoice # is assigned automatically upon finalization.</span>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="InvoiceDate" class="form-label fw-semibold"></label>
+                        <input asp-for="InvoiceDate" class="form-control" type="date" required />
+                        <div class="invalid-feedback">Please select a valid invoice date.</div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="Remarks" class="form-label fw-semibold"></label>
+                        <input asp-for="Remarks" class="form-control" placeholder="Optional notes or remarks" />
+                        <span asp-validation-for="Remarks" class="text-danger small"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Line Items Grid -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-cart-check me-2"></i> Sold Line Items</h5>
+                <button type="button" class="btn btn-sm btn-success" id="btnAddRow">
+                    <i class="bi bi-plus-lg me-1"></i> Add Product
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle mb-0" id="itemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 32%;">Product <span class="text-danger">*</span></th>
+                                <th style="width: 22%;">Packaging Unit <span class="text-danger">*</span></th>
+                                <th style="width: 14%;">Quantity <span class="text-danger">*</span></th>
+                                <th style="width: 16%;">Unit Trade Price <span class="text-danger">*</span></th>
+                                <th style="width: 12%;" class="text-end">Total</th>
+                                <th style="width: 4%;" class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsTableBody">
+                            <!-- Dynamic Rows Inserted by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white py-3">
+                <div class="row justify-content-end">
+                    <div class="col-md-5">
+                        <div class="d-flex justify-content-between mb-2 fs-6">
+                            <span class="fw-semibold">Subtotal:</span>
+                            <span id="lblSubTotal" class="fw-bold">PKR 0.00</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 fs-6">
+                            <span class="fw-semibold">Applied Discount:</span>
+                            <span id="lblDiscountTotal" class="fw-bold text-success">PKR 0.00</span>
+                        </div>
+                        <div id="appliedDiscountBadgeContainer" class="mb-2 d-none">
+                            <div class="alert alert-success p-2 small d-flex justify-content-between align-items-center mb-0">
+                                <div>
+                                    <i class="bi bi-tag-fill me-1"></i> <strong id="lblAppliedDiscountName"></strong>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="btnRemoveDiscount">Remove</button>
+                            </div>
+                        </div>
+                        <hr class="my-2" />
+                        <div class="d-flex justify-content-between fs-4 fw-bold text-primary">
+                            <span>Grand Total:</span>
+                            <span id="lblGrandTotal">PKR 0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Promotions & Discounts Suggestions Engine Card -->
+        <div class="card shadow-sm border-0 mb-4" id="promotionsCard">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="card-title h6 mb-0 text-success fw-bold">
+                    <i class="bi bi-stars me-2"></i> Promotional & Discount Suggestions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="promotionSuggestionsContainer">
+                    <div class="text-muted small">
+                        <i class="bi bi-info-circle me-1"></i> Add products to your cart to view eligible promotional schemes and order discount suggestions.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex justify-content-between mb-5">
+            <a asp-action="Index" class="btn btn-outline-secondary px-4">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+            <button type="button" class="btn btn-primary btn-lg px-5 shadow" id="btnOpenConfirmModal">
+                <i class="bi bi-check-circle me-1"></i> Finalize Sales Invoice
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Finalize Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title h6" id="confirmModalLabel"><i class="bi bi-shield-check me-2"></i> Finalize Sales Invoice Confirmation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-4">
+                <div class="alert alert-warning border-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Important:</strong> Once finalized, this Sales Invoice will be <strong>permanently immutable</strong>.
+                </div>
+                <p class="mb-2">Finalization will execute the following atomic actions:</p>
+                <ul class="small mb-0">
+                    <li>Deduct physical stock immediately from selected Warehouse in <strong>Base Units</strong> for all normal and free items</li>
+                    <li>Record <strong>Inventory Transactions</strong> (Outward Movement)</li>
+                    <li>Apply active discount/promotion snapshot records</li>
+                    <li>Debit the <strong>Customer Ledger</strong> for the exact post-discount Grand Total</li>
+                    <li>Increase Customer's <strong>Outstanding Balance</strong></li>
+                </ul>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary px-4" id="btnConfirmFinalize">
+                    <span id="btnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                    <i id="btnIcon" class="bi bi-check-lg me-1"></i> Finalize Now
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            let rowCounter = 0;
+            let productsList = [];
+            let currentAppliedDiscount = null; // { id, name, amount }
+            let evaluationDebounceTimer = null;
+
+            // Load active products list immediately on page load
+            fetch('/Sales/GetProducts')
+                .then(res => res.json())
+                .then(data => {
+                    productsList = data || [];
+                    addRow(); // Add initial empty product row
+                })
+                .catch(err => {
+                    console.error('Failed to load products list:', err);
+                    addRow();
+                });
+
+            // Customer selection AJAX info lookup & validation
+            const customerSelect = document.getElementById('customerSelect');
+            customerSelect.addEventListener('change', function () {
+                validateField(this, 'Please select a customer.');
+                const customerId = this.value;
+                const card = document.getElementById('customerInfoCard');
+                const alertBox = document.getElementById('creditLimitAlert');
+
+                if (!customerId) {
+                    card.classList.add('d-none');
+                    alertBox.classList.add('d-none');
+                    return;
+                }
+
+                fetch(`/Sales/GetCustomerInfo?customerId=${customerId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data) {
+                            document.getElementById('infoShopName').textContent = data.shopName || 'N/A';
+                            document.getElementById('infoArea').textContent = (data.areaName ? data.areaName + ' ' : '') + (data.subAreaName || '');
+                            document.getElementById('infoCreditLimit').textContent = data.creditLimit > 0 ? 'PKR ' + data.creditLimit.toFixed(2) : 'No Limit';
+                            document.getElementById('infoOutstanding').textContent = 'PKR ' + data.currentOutstanding.toFixed(2);
+                            card.classList.remove('d-none');
+
+                            if (data.exceedsCreditLimit) {
+                                alertBox.classList.remove('d-none');
+                            } else {
+                                alertBox.classList.add('d-none');
+                            }
+                        }
+                    })
+                    .catch(err => console.error('Failed to fetch customer info:', err));
+            });
+            customerSelect.addEventListener('blur', function () { validateField(this, 'Please select a customer.'); });
+
+            // Warehouse selection & validation
+            const warehouseSelect = document.getElementById('warehouseSelect');
+            warehouseSelect.addEventListener('change', function () {
+                validateField(this, 'Please select a destination warehouse.');
+                // Re-validate stock for all grid rows when warehouse changes
+                validateAllRowsStock();
+            });
+            warehouseSelect.addEventListener('blur', function () { validateField(this, 'Please select a destination warehouse.'); });
+
+            document.getElementById('btnAddRow').addEventListener('click', function () {
+                addRow();
+            });
+
+            function validateField(element, errorMsg) {
+                if (!element) return true;
+                if (!element.value || element.value === '' || element.value === '0') {
+                    element.classList.add('is-invalid');
+                    let feedback = element.nextElementSibling;
+                    if (!feedback || !feedback.classList.contains('invalid-feedback')) {
+                        feedback = document.createElement('div');
+                        feedback.className = 'invalid-feedback';
+                        element.parentNode.appendChild(feedback);
+                    }
+                    feedback.textContent = errorMsg;
+                    checkGlobalFormValidity();
+                    return false;
+                } else {
+                    element.classList.remove('is-invalid');
+                    checkGlobalFormValidity();
+                    return true;
+                }
+            }
+
+            function getProductOptionsHtml() {
+                let options = '<option value="">-- Select Product --</option>';
+                productsList.forEach(p => {
+                    options += `<option value="${p.id}">${p.name}</option>`;
+                });
+                return options;
+            }
+
+            function addRow(prefillData = null) {
+                rowCounter++;
+                const rowId = `row_${rowCounter}`;
+                const productOptions = getProductOptionsHtml();
+                const isFreeItem = prefillData && prefillData.itemType === 'FREE';
+                const qtyVal = (prefillData && prefillData.quantity !== undefined) ? parseFloat(prefillData.quantity) : 1;
+
+                const html = `
+                    <tr id="${rowId}" class="${isFreeItem ? 'table-warning promo-free-item-row' : ''}" data-item-type="${isFreeItem ? 'FREE' : 'NORMAL'}" data-promo-id="${prefillData?.promotionId || ''}">
+                        <td>
+                            <select class="form-select form-select-sm product-select" data-row-id="${rowId}" ${isFreeItem ? 'disabled' : ''}>
+                                ${productOptions}
+                            </select>
+                            <div class="invalid-feedback">Please select a product.</div>
+                            ${isFreeItem ? '<span class="badge bg-success mt-1"><i class="bi bi-gift me-1"></i> PROMO FREE ITEM</span>' : ''}
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm unit-select" data-row-id="${rowId}" ${isFreeItem ? 'disabled' : ''}>
+                                <option value="">-- Select Unit --</option>
+                            </select>
+                            <div class="invalid-feedback">Please select a unit.</div>
+                            <div class="form-text small text-info conversion-preview mt-1" id="preview_${rowId}"></div>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm qty-input" data-row-id="${rowId}" min="0.001" step="any" value="${qtyVal}" ${isFreeItem ? 'readonly' : ''} />
+                            <div class="stock-err-container" id="stockErr_${rowId}"></div>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" ${isFreeItem ? 'readonly' : ''} />
+                        </td>
+                        <td class="text-end fw-bold line-total" id="total_${rowId}">
+                            0.00
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove" data-row-id="${rowId}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+
+                document.getElementById('itemsTableBody').insertAdjacentHTML('beforeend', html);
+                attachRowEvents(rowId);
+
+                if (prefillData) {
+                    const row = document.getElementById(rowId);
+                    const productSelect = row.querySelector('.product-select');
+                    productSelect.value = prefillData.productId;
+                    loadUnitsAndSetPrice(rowId, prefillData.productId, prefillData.unitId, qtyVal, isFreeItem);
+                } else {
+                    calculateTotals();
+                }
+            }
+
+            function attachRowEvents(rowId) {
+                const row = document.getElementById(rowId);
+                const productSelect = row.querySelector('.product-select');
+                const unitSelect = row.querySelector('.unit-select');
+                const qtyInput = row.querySelector('.qty-input');
+                const costInput = row.querySelector('.cost-input');
+                const btnRemove = row.querySelector('.btn-remove');
+
+                productSelect.addEventListener('change', function () {
+                    validateField(this, 'Please select a product.');
+                    const productId = this.value;
+                    unitSelect.innerHTML = '<option value="">Loading...</option>';
+
+                    if (!productId) {
+                        unitSelect.innerHTML = '<option value="">-- Select Unit --</option>';
+                        costInput.value = '0.00';
+                        updateConversionPreview(rowId);
+                        calculateTotals();
+                        validateRowStock(rowId);
+                        return;
+                    }
+
+                    loadUnitsAndSetPrice(rowId, productId, null, parseFloat(qtyInput.value) || 1, false);
+                });
+                productSelect.addEventListener('blur', function () { validateField(this, 'Please select a product.'); });
+
+                unitSelect.addEventListener('change', function () {
+                    validateField(this, 'Please select a unit.');
+                    const productId = productSelect.value;
+                    const unitId = this.value;
+
+                    if (productId && unitId && row.getAttribute('data-item-type') !== 'FREE') {
+                        fetch(`/Sales/GetProductUnitPrice?productId=${productId}&productUnitId=${unitId}`)
+                            .then(res => res.json())
+                            .then(priceInfo => {
+                                if (priceInfo && priceInfo.unitPrice !== undefined) {
+                                    costInput.value = priceInfo.unitPrice.toFixed(2);
+                                }
+                                updateConversionPreview(rowId);
+                                calculateTotals();
+                                validateRowStock(rowId);
+                            })
+                            .catch(err => {
+                                updateConversionPreview(rowId);
+                                calculateTotals();
+                                validateRowStock(rowId);
+                            });
+                    } else {
+                        updateConversionPreview(rowId);
+                        calculateTotals();
+                        validateRowStock(rowId);
+                    }
+                });
+                unitSelect.addEventListener('blur', function () { validateField(this, 'Please select a unit.'); });
+
+                qtyInput.addEventListener('input', function () {
+                    calculateTotals();
+                    validateRowStock(rowId);
+                });
+                qtyInput.addEventListener('change', function () {
+                    calculateTotals();
+                    validateRowStock(rowId);
+                });
+
+                costInput.addEventListener('input', calculateTotals);
+
+                btnRemove.addEventListener('click', function () {
+                    const rows = document.querySelectorAll('#itemsTableBody tr');
+                    if (rows.length <= 1) {
+                        alert('Sales invoice must have at least one line item.');
+                        return;
+                    }
+                    row.remove();
+                    calculateTotals();
+                    checkGlobalFormValidity();
+                });
+            }
+
+            // Step 2: Live Row Stock Validation (UI)
+            function validateRowStock(rowId) {
+                const row = document.getElementById(rowId);
+                if (!row) return;
+
+                const productSelect = row.querySelector('.product-select');
+                const unitSelect = row.querySelector('.unit-select');
+                const qtyInput = row.querySelector('.qty-input');
+                const errContainer = document.getElementById(`stockErr_${rowId}`);
+
+                const productId = parseInt(productSelect.value) || 0;
+                const warehouseId = parseInt(warehouseSelect.value) || 0;
+                const unitId = parseInt(unitSelect.value) || 0;
+                const qty = parseFloat(qtyInput.value) || 0;
+
+                if (productId <= 0 || warehouseId <= 0 || unitId <= 0 || qty <= 0) {
+                    qtyInput.classList.remove('is-invalid');
+                    if (errContainer) errContainer.innerHTML = '';
+                    checkGlobalFormValidity();
+                    return;
+                }
+
+                fetch(`/Sales/GetAvailableStock?productId=${productId}&warehouseId=${warehouseId}&productUnitId=${unitId}`)
+                    .then(res => res.json())
+                    .then(stockInfo => {
+                        if (stockInfo) {
+                            const available = stockInfo.availableStock;
+                            const unitName = stockInfo.unitName;
+
+                            if (qty > available) {
+                                qtyInput.classList.add('is-invalid');
+                                if (errContainer) {
+                                    errContainer.innerHTML = `<span class="stock-err-msg text-danger small fw-bold mt-1 d-block"><i class="bi bi-exclamation-triangle-fill me-1"></i> Insufficient stock! Available: ${available} ${unitName}</span>`;
+                                }
+                            } else {
+                                qtyInput.classList.remove('is-invalid');
+                                if (errContainer) errContainer.innerHTML = '';
+                            }
+                        }
+                        checkGlobalFormValidity();
+                    })
+                    .catch(err => {
+                        console.error('Failed to fetch available stock:', err);
+                        checkGlobalFormValidity();
+                    });
+            }
+
+            function validateAllRowsStock() {
+                const rows = document.querySelectorAll('#itemsTableBody tr');
+                rows.forEach(row => {
+                    validateRowStock(row.id);
+                });
+            }
+
+            function checkGlobalFormValidity() {
+                const btn = document.getElementById('btnOpenConfirmModal');
+                const hasCustomer = customerSelect.value && customerSelect.value !== '';
+                const hasWarehouse = warehouseSelect.value && warehouseSelect.value !== '';
+                const hasInvalidInputs = document.querySelectorAll('#createSalesForm .is-invalid').length > 0;
+                const hasStockErrors = document.querySelectorAll('.stock-err-msg').length > 0;
+
+                if (!hasCustomer || !hasWarehouse || hasInvalidInputs || hasStockErrors) {
+                    btn.classList.add('btn-secondary');
+                    btn.classList.remove('btn-primary');
+                    btn.title = 'Please fix form validation errors or stock availability before finalizing.';
+                } else {
+                    btn.classList.add('btn-primary');
+                    btn.classList.remove('btn-secondary');
+                    btn.title = 'Finalize Sales Invoice';
+                }
+            }
+
+            function loadUnitsAndSetPrice(rowId, productId, targetUnitId, qty, isFreeItem) {
+                const row = document.getElementById(rowId);
+                const unitSelect = row.querySelector('.unit-select');
+                const costInput = row.querySelector('.cost-input');
+
+                fetch(`/Sales/GetProductUnits?productId=${productId}`)
+                    .then(res => res.json())
+                    .then(units => {
+                        let options = '<option value="">-- Select Unit --</option>';
+                        units.forEach(u => {
+                            options += `<option value="${u.productUnitID}" data-conv="${u.conversionToBaseUnit}">${u.unitName} (${u.conversionToBaseUnit} Base Units)</option>`;
+                        });
+                        unitSelect.innerHTML = options;
+
+                        if (targetUnitId) {
+                            unitSelect.value = targetUnitId;
+                        } else if (units.length > 0) {
+                            unitSelect.selectedIndex = 1;
+                        }
+
+                        const selectedUnitId = unitSelect.value;
+                        if (!isFreeItem && selectedUnitId) {
+                            fetch(`/Sales/GetProductUnitPrice?productId=${productId}&productUnitId=${selectedUnitId}`)
+                                .then(res => res.json())
+                                .then(priceInfo => {
+                                    if (priceInfo && priceInfo.unitPrice !== undefined) {
+                                        costInput.value = priceInfo.unitPrice.toFixed(2);
+                                    }
+                                    updateConversionPreview(rowId);
+                                    calculateTotals();
+                                    validateRowStock(rowId);
+                                });
+                        } else {
+                            if (isFreeItem) costInput.value = '0.00';
+                            updateConversionPreview(rowId);
+                            calculateTotals();
+                            validateRowStock(rowId);
+                        }
+                    })
+                    .catch(err => console.error('Failed to load units:', err));
+            }
+
+            function updateConversionPreview(rowId) {
+                const row = document.getElementById(rowId);
+                if (!row) return;
+                const unitSelect = row.querySelector('.unit-select');
+                const qtyInput = row.querySelector('.qty-input');
+                const previewDiv = document.getElementById(`preview_${rowId}`);
+
+                const selectedOpt = unitSelect.options[unitSelect.selectedIndex];
+                const convFactor = selectedOpt ? parseFloat(selectedOpt.getAttribute('data-conv') || '1') : 1;
+                const qty = parseFloat(qtyInput.value) || 0;
+                const totalBaseUnits = qty * convFactor;
+
+                if (convFactor > 1 && totalBaseUnits > 0) {
+                    previewDiv.textContent = `= ${totalBaseUnits.toLocaleString()} Base Units`;
+                } else {
+                    previewDiv.textContent = '';
+                }
+            }
+
+            function calculateTotals() {
+                let subTotal = 0;
+                const rows = document.querySelectorAll('#itemsTableBody tr');
+
+                rows.forEach(row => {
+                    const rowId = row.id;
+                    const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+                    const price = parseFloat(row.querySelector('.cost-input').value) || 0;
+                    const isFree = row.getAttribute('data-item-type') === 'FREE';
+                    const effectivePrice = isFree ? 0 : price;
+
+                    const lineTotal = qty * effectivePrice;
+                    document.getElementById(`total_${rowId}`).textContent = lineTotal.toFixed(2);
+
+                    if (!isFree) {
+                        subTotal += lineTotal;
+                    }
+                    updateConversionPreview(rowId);
+                });
+
+                document.getElementById('lblSubTotal').textContent = 'PKR ' + subTotal.toFixed(2);
+
+                // Recalculate discount if applied
+                let discountAmount = 0;
+                if (currentAppliedDiscount) {
+                    discountAmount = currentAppliedDiscount.amount;
+                    document.getElementById('lblDiscountTotal').textContent = 'PKR ' + discountAmount.toFixed(2);
+                    document.getElementById('lblAppliedDiscountName').textContent = currentAppliedDiscount.name + ` (-PKR ${discountAmount.toFixed(2)})`;
+                    document.getElementById('appliedDiscountBadgeContainer').classList.remove('d-none');
+                    document.getElementById('AppliedDiscountRuleID').value = currentAppliedDiscount.id;
+                } else {
+                    document.getElementById('lblDiscountTotal').textContent = 'PKR 0.00';
+                    document.getElementById('appliedDiscountBadgeContainer').classList.add('d-none');
+                    document.getElementById('AppliedDiscountRuleID').value = '';
+                }
+
+                const grandTotal = Math.max(0, subTotal - discountAmount);
+                document.getElementById('lblGrandTotal').textContent = 'PKR ' + grandTotal.toFixed(2);
+
+                // Trigger debounced promotions evaluation
+                triggerPromotionsEvaluation(subTotal);
+            }
+
+            // Remove Order Discount button event
+            document.getElementById('btnRemoveDiscount').addEventListener('click', function () {
+                currentAppliedDiscount = null;
+                calculateTotals();
+            });
+
+            // Feature 4: Debounced Promotions & Discounts Evaluation
+            function triggerPromotionsEvaluation(subTotal) {
+                clearTimeout(evaluationDebounceTimer);
+                evaluationDebounceTimer = setTimeout(() => {
+                    evaluatePromotions(subTotal);
+                }, 300);
+            }
+
+            function evaluatePromotions(subTotal) {
+                const rows = document.querySelectorAll('#itemsTableBody tr');
+                const cartItems = [];
+
+                rows.forEach(row => {
+                    const productId = parseInt(row.querySelector('.product-select').value) || 0;
+                    const unitId = parseInt(row.querySelector('.unit-select').value) || 0;
+                    const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+                    const price = parseFloat(row.querySelector('.cost-input').value) || 0;
+                    const itemType = row.getAttribute('data-item-type') || 'NORMAL';
+
+                    if (productId > 0 && unitId > 0 && qty > 0) {
+                        cartItems.push({
+                            ProductID: productId,
+                            ProductUnitID: unitId,
+                            Quantity: qty,
+                            UnitPrice: price,
+                            ItemType: itemType
+                        });
+                    }
+                });
+
+                if (cartItems.length === 0) {
+                    document.getElementById('promotionSuggestionsContainer').innerHTML = `
+                        <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Add products to cart to view eligible promotional schemes.</div>`;
+                    syncFreeItemsWithEligiblePromotions([]);
+                    return;
+                }
+
+                const payload = {
+                    CustomerID: parseInt(customerSelect.value) || 0,
+                    WarehouseID: parseInt(document.getElementById('warehouseSelect').value) || 0,
+                    SubTotal: subTotal,
+                    Items: cartItems
+                };
+
+                fetch('/Sales/EvaluatePromotionsAndDiscounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    renderPromotionSuggestions(data);
+                    syncFreeItemsWithEligiblePromotions(data);
+                })
+                .catch(err => console.error('Failed to evaluate promotions:', err));
+            }
+
+            function syncFreeItemsWithEligiblePromotions(data) {
+                const eligiblePromoIds = (data.promotions || []).map(p => parseInt(p.promotionID));
+                const freeRows = document.querySelectorAll('#itemsTableBody tr[data-item-type="FREE"]');
+                let removedAny = false;
+
+                freeRows.forEach(row => {
+                    const rowPromoId = parseInt(row.getAttribute('data-promo-id'));
+                    if (rowPromoId > 0 && !eligiblePromoIds.includes(rowPromoId)) {
+                        row.remove();
+                        removedAny = true;
+                    }
+                });
+
+                if (removedAny) {
+                    calculateTotals();
+                }
+            }
+
+            function renderPromotionSuggestions(data) {
+                const container = document.getElementById('promotionSuggestionsContainer');
+                let html = '';
+
+                const hasPromos = data.promotions && data.promotions.length > 0;
+                const hasDiscounts = data.discounts && data.discounts.length > 0;
+
+                if (!hasPromos && !hasDiscounts) {
+                    container.innerHTML = `
+                        <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> No promotional schemes or order discounts eligible for current cart items.</div>`;
+                    return;
+                }
+
+                if (hasPromos) {
+                    html += '<h6 class="fw-bold text-success mb-2"><i class="bi bi-gift-fill me-1"></i> Eligible Promotional Schemes</h6>';
+                    data.promotions.forEach(p => {
+                        const isAlreadyApplied = document.querySelector(`#itemsTableBody tr[data-promo-id="${p.promotionID}"]`) !== null;
+
+                        html += `
+                            <div class="alert alert-success border-success d-flex justify-content-between align-items-center p-2 mb-2">
+                                <div>
+                                    <strong class="d-block">${p.title}</strong>
+                                    <span class="small">${p.message}</span>
+                                </div>
+                                ${isAlreadyApplied ? `
+                                    <button type="button" class="btn btn-sm btn-secondary px-3 disabled">
+                                        <i class="bi bi-check-circle me-1"></i> Promotion Applied
+                                    </button>
+                                ` : `
+                                    <button type="button" class="btn btn-sm btn-success px-3 btn-apply-promo" 
+                                        data-promo-id="${p.promotionID}"
+                                        data-free-product-id="${p.freeProductID}"
+                                        data-free-unit-id="${p.freeUnitID}"
+                                        data-reward-qty="${p.rewardQuantity}">
+                                        <i class="bi bi-plus-circle me-1"></i> Apply Promotion
+                                    </button>
+                                `}
+                            </div>
+                        `;
+                    });
+                }
+
+                if (hasDiscounts) {
+                    html += '<h6 class="fw-bold text-primary mt-3 mb-2"><i class="bi bi-tag-fill me-1"></i> Eligible Order Level Discounts</h6>';
+                    data.discounts.forEach(d => {
+                        const isDiscountApplied = currentAppliedDiscount && currentAppliedDiscount.id === d.discountRuleID;
+
+                        html += `
+                            <div class="alert alert-primary border-primary d-flex justify-content-between align-items-center p-2 mb-2">
+                                <div>
+                                    <strong class="d-block">${d.ruleName}</strong>
+                                    <span class="small">${d.message}</span>
+                                </div>
+                                ${isDiscountApplied ? `
+                                    <button type="button" class="btn btn-sm btn-secondary px-3 disabled">
+                                        <i class="bi bi-check-circle me-1"></i> Discount Applied
+                                    </button>
+                                ` : `
+                                    <button type="button" class="btn btn-sm btn-primary px-3 btn-apply-discount" 
+                                        data-discount-id="${d.discountRuleID}"
+                                        data-discount-name="${d.ruleName}"
+                                        data-discount-amount="${d.calculatedDiscountAmount}">
+                                        <i class="bi bi-check-circle me-1"></i> Apply Order Discount
+                                    </button>
+                                `}
+                            </div>
+                        `;
+                    });
+                }
+
+                container.innerHTML = html;
+
+                document.querySelectorAll('.btn-apply-promo').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        const promoId = parseInt(this.getAttribute('data-promo-id'));
+                        const productId = parseInt(this.getAttribute('data-free-product-id'));
+                        const unitId = parseInt(this.getAttribute('data-free-unit-id'));
+                        const qty = parseFloat(this.getAttribute('data-reward-qty'));
+
+                        if (isNaN(qty) || qty <= 0) {
+                            console.error('Invalid reward quantity:', qty);
+                            return;
+                        }
+
+                        const existingRow = document.querySelector(`#itemsTableBody tr[data-promo-id="${promoId}"]`);
+                        if (existingRow) {
+                            alert('This promotion has already been applied to the invoice.');
+                            return;
+                        }
+
+                        addRow({
+                            productId: productId,
+                            unitId: unitId,
+                            quantity: qty,
+                            itemType: 'FREE',
+                            promotionId: promoId
+                        });
+                    });
+                });
+
+                document.querySelectorAll('.btn-apply-discount').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        const discountId = parseInt(this.getAttribute('data-discount-id'));
+                        const discountName = this.getAttribute('data-discount-name');
+                        const discountAmount = parseFloat(this.getAttribute('data-discount-amount'));
+
+                        currentAppliedDiscount = {
+                            id: discountId,
+                            name: discountName,
+                            amount: discountAmount
+                        };
+
+                        calculateTotals();
+                    });
+                });
+            }
+
+            // Step 3: Immediate Form Field & Stock Validation Sweep before Modal
+            const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+            document.getElementById('btnOpenConfirmModal').addEventListener('click', function () {
+                const alertBanner = document.getElementById('formValidationAlert');
+                const alertText = document.getElementById('formValidationErrorText');
+                alertBanner.classList.add('d-none');
+
+                // Validate Header Required Fields
+                const isCustomerValid = validateField(customerSelect, 'Please select a customer.');
+                const isWarehouseValid = validateField(warehouseSelect, 'Please select a destination warehouse.');
+
+                // Validate Grid Rows
+                const rows = document.querySelectorAll('#itemsTableBody tr');
+                const items = [];
+                let hasRowErrors = false;
+
+                rows.forEach(row => {
+                    const productSelect = row.querySelector('.product-select');
+                    const unitSelect = row.querySelector('.unit-select');
+                    const qtyInput = row.querySelector('.qty-input');
+                    const priceInput = row.querySelector('.cost-input');
+
+                    const isProdValid = validateField(productSelect, 'Please select a product.');
+                    const isUnitValid = validateField(unitSelect, 'Please select a unit.');
+
+                    const productId = parseInt(productSelect.value) || 0;
+                    const unitId = parseInt(unitSelect.value) || 0;
+                    const qty = parseFloat(qtyInput.value) || 0;
+                    const price = parseFloat(priceInput.value) || 0;
+                    const itemType = row.getAttribute('data-item-type') || 'NORMAL';
+                    const promoIdAttr = row.getAttribute('data-promo-id');
+                    const promoId = promoIdAttr ? parseInt(promoIdAttr) : null;
+
+                    if (!isProdValid || !isUnitValid || qty <= 0) {
+                        hasRowErrors = true;
+                    }
+
+                    items.push({
+                        ProductID: productId,
+                        ProductUnitID: unitId,
+                        Quantity: qty,
+                        UnitPrice: itemType === 'FREE' ? 0 : price,
+                        DiscountAmount: 0,
+                        ItemType: itemType,
+                        PromotionID: promoId
+                    });
+                });
+
+                const hasStockErrors = document.querySelectorAll('.stock-err-msg').length > 0;
+                const hasInvalidFields = document.querySelectorAll('#createSalesForm .is-invalid').length > 0;
+
+                if (!isCustomerValid || !isWarehouseValid || hasRowErrors || hasStockErrors || hasInvalidFields || items.length === 0) {
+                    if (hasStockErrors) {
+                        alertText.textContent = 'Stock availability error! One or more line items exceed physical warehouse stock.';
+                    } else {
+                        alertText.textContent = 'Please select all required fields and correct grid errors before finalizing.';
+                    }
+                    alertBanner.classList.remove('d-none');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                }
+
+                document.getElementById('ItemsJson').value = JSON.stringify(items);
+                confirmModal.show();
+            });
+
+            document.getElementById('btnConfirmFinalize').addEventListener('click', function () {
+                const btn = this;
+                btn.disabled = true;
+                document.getElementById('btnSpinner').classList.remove('d-none');
+                document.getElementById('btnIcon').classList.add('d-none');
+
+                document.getElementById('createSalesForm').submit();
+            });
+        });
+    </script>
+}

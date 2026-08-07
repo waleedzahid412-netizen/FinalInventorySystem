@@ -1,0 +1,286 @@
+@model InventorySystem.ViewModels.Products.EditProductViewModel
+
+@{
+    ViewData["Title"] = "Edit Product - " + Model.ProductName;
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">Edit Product</h1>
+            <p class="text-muted small mb-0">Update product catalog details, selling price, and packaging unit conversions.</p>
+        </div>
+        <div>
+            <a asp-action="Details" asp-route-id="@Model.ProductID" class="btn btn-outline-info me-2">
+                <i class="bi bi-eye me-1"></i> View Details
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to Catalog
+            </a>
+        </div>
+    </div>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger shadow-sm mb-4">
+            <h6 class="fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill me-1"></i> Validation Errors</h6>
+            @Html.ValidationSummary(false, "", new { @class = "mb-0" })
+        </div>
+    }
+
+    <form asp-action="Edit" asp-route-id="@Model.ProductID" method="post" id="editProductForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="ProductID" />
+
+        <!-- System Code Banner -->
+        <div class="card shadow-sm border-0 mb-4 bg-light">
+            <div class="card-body py-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small">System Code:</span>
+                    <span class="font-monospace fw-bold text-primary fs-5 ms-2">@Model.ProductCode</span>
+                </div>
+                <div>
+                    <span class="badge @(Model.IsActive ? "bg-success" : "bg-secondary") px-3 py-2">
+                        @(Model.IsActive ? "Active Product" : "Inactive Product")
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 1: Basic Information -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-info-circle me-2"></i> Basic Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="ProductName" class="form-label fw-semibold"></label>
+                        <input asp-for="ProductName" class="form-control" />
+                        <span asp-validation-for="ProductName" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="SKU" class="form-label fw-semibold"></label>
+                        <input asp-for="SKU" class="form-control" />
+                        <span asp-validation-for="SKU" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Barcode" class="form-label fw-semibold"></label>
+                        <input asp-for="Barcode" class="form-control" />
+                        <span asp-validation-for="Barcode" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="CategoryID" class="form-label fw-semibold"></label>
+                        <select asp-for="CategoryID" asp-items="Model.Categories" class="form-select"></select>
+                        <span asp-validation-for="CategoryID" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="CompanyID" class="form-label fw-semibold"></label>
+                        <select asp-for="CompanyID" asp-items="Model.Companies" class="form-select">
+                            <option value="">-- Select Company (Supplier) --</option>
+                        </select>
+                        <span asp-validation-for="CompanyID" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="BaseUnitID" class="form-label fw-semibold"></label>
+                        <select asp-for="BaseUnitID" asp-items="Model.AvailableUnits" class="form-select" disabled></select>
+                        <input type="hidden" asp-for="BaseUnitID" />
+                        <div class="form-text small">Base unit cannot be modified once product is created.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Pricing & Controls -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-tags me-2"></i> Pricing & Inventory Controls</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="BaseSellingPrice" class="form-label fw-semibold"></label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input asp-for="BaseSellingPrice" type="number" step="0.01" class="form-control" />
+                        </div>
+                        <span asp-validation-for="BaseSellingPrice" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="AveragePurchaseCost" class="form-label fw-semibold"></label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input asp-for="AveragePurchaseCost" type="number" step="0.01" class="form-control" />
+                        </div>
+                        <span asp-validation-for="AveragePurchaseCost" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="ReorderLevel" class="form-label fw-semibold"></label>
+                        <input asp-for="ReorderLevel" type="number" class="form-control" />
+                        <span asp-validation-for="ReorderLevel" class="text-danger small"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Product Packaging Units -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-box-seam me-2"></i> Available Packaging Units</h5>
+                    <small class="text-muted">Modify conversion factors and default packaging units.</small>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="addUnitRowBtn">
+                    <i class="bi bi-plus-lg me-1"></i> Add Packaging Unit
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0" id="productUnitsTable">
+                        <thead class="bg-light text-muted small text-uppercase">
+                            <tr>
+                                <th style="width: 25%;">Unit</th>
+                                <th style="width: 20%;">Conversion to Base</th>
+                                <th style="width: 15%;">Purchase Price</th>
+                                <th style="width: 15%;">Selling Price</th>
+                                <th style="width: 10%;" class="text-center">Default Purchase</th>
+                                <th style="width: 10%;" class="text-center">Default Sales</th>
+                                <th style="width: 5%;" class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="unitRowsContainer">
+                            @if (Model.Units != null)
+                            {
+                                for (int i = 0; i < Model.Units.Count; i++)
+                                {
+                                    <tr data-index="@i">
+                                        <input type="hidden" name="Units[@i].ProductUnitID" value="@Model.Units[i].ProductUnitID" />
+                                        <td>
+                                            <select name="Units[@i].UnitID" class="form-select form-select-sm unit-select" required>
+                                                <option value="">-- Select Unit --</option>
+                                                @foreach (var u in Model.AvailableUnits)
+                                                {
+                                                    <option value="@u.Value" selected="@(u.Value == Model.Units[i].UnitID.ToString())">@u.Text</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.0001" name="Units[@i].ConversionToBaseUnit" value="@Model.Units[i].ConversionToBaseUnit" class="form-control form-control-sm" required />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="Units[@i].PurchasePrice" value="@Model.Units[i].PurchasePrice" class="form-control form-control-sm" placeholder="Optional" />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="Units[@i].SellingPrice" value="@Model.Units[i].SellingPrice" class="form-control form-control-sm" placeholder="Optional" />
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" name="Units[@i].IsDefaultPurchaseUnit" value="true" class="form-check-input default-purchase-check" @(Model.Units[i].IsDefaultPurchaseUnit ? "checked" : "") />
+                                            <input type="hidden" name="Units[@i].IsDefaultPurchaseUnit" value="false" />
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" name="Units[@i].IsDefaultSalesUnit" value="true" class="form-check-input default-sales-check" @(Model.Units[i].IsDefaultSalesUnit ? "checked" : "") />
+                                            <input type="hidden" name="Units[@i].IsDefaultSalesUnit" value="false" />
+                                        </td>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-sm btn-outline-danger remove-row-btn"><i class="bi bi-trash"></i></button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 4: Status & Submit -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div class="form-check form-switch">
+                    <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" id="isActiveSwitch">
+                    <label class="form-check-label fw-semibold" for="isActiveSwitch">Product Available for Purchase & Sales</label>
+                </div>
+                <div class="d-flex gap-2">
+                    <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i> Update Product</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const container = document.getElementById('unitRowsContainer');
+            const addBtn = document.getElementById('addUnitRowBtn');
+
+            let unitOptionsHtml = '';
+            @if (Model.AvailableUnits != null)
+            {
+                foreach (var item in Model.AvailableUnits)
+                {
+                    <text>unitOptionsHtml += `<option value="@item.Value">@item.Text</option>`;</text>
+                }
+            }
+
+            addBtn.addEventListener('click', function () {
+                const index = container.children.length;
+                const tr = document.createElement('tr');
+                tr.setAttribute('data-index', index);
+                tr.innerHTML = `
+                    <input type="hidden" name="Units[${index}].ProductUnitID" value="0" />
+                    <td>
+                        <select name="Units[${index}].UnitID" class="form-select form-select-sm unit-select" required>
+                            <option value="">-- Select Unit --</option>
+                            ${unitOptionsHtml}
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" step="0.0001" name="Units[${index}].ConversionToBaseUnit" value="1" class="form-control form-control-sm" required />
+                    </td>
+                    <td>
+                        <input type="number" step="0.01" name="Units[${index}].PurchasePrice" class="form-control form-control-sm" placeholder="Optional" />
+                    </td>
+                    <td>
+                        <input type="number" step="0.01" name="Units[${index}].SellingPrice" class="form-control form-control-sm" placeholder="Optional" />
+                    </td>
+                    <td class="text-center">
+                        <input type="checkbox" name="Units[${index}].IsDefaultPurchaseUnit" value="true" class="form-check-input default-purchase-check" />
+                        <input type="hidden" name="Units[${index}].IsDefaultPurchaseUnit" value="false" />
+                    </td>
+                    <td class="text-center">
+                        <input type="checkbox" name="Units[${index}].IsDefaultSalesUnit" value="true" class="form-check-input default-sales-check" />
+                        <input type="hidden" name="Units[${index}].IsDefaultSalesUnit" value="false" />
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-row-btn"><i class="bi bi-trash"></i></button>
+                    </td>
+                `;
+
+                container.appendChild(tr);
+                bindRowEvents(tr);
+            });
+
+            function bindRowEvents(tr) {
+                tr.querySelector('.remove-row-btn').addEventListener('click', function () {
+                    tr.remove();
+                    reindexRows();
+                });
+            }
+
+            function reindexRows() {
+                Array.from(container.children).forEach((tr, index) => {
+                    tr.setAttribute('data-index', index);
+                    tr.querySelectorAll('input, select').forEach(input => {
+                        if (input.name) {
+                            input.name = input.name.replace(/Units\[\d+\]/, `Units[${index}]`);
+                        }
+                    });
+                });
+            }
+
+            Array.from(container.children).forEach(bindRowEvents);
+        });
+    </script>
+}

@@ -1,0 +1,236 @@
+@model InventorySystem.ViewModels.Companies.CompanyListViewModel
+@{
+    ViewData["Title"] = "Companies";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Page Header & Toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">
+                <i class="bi bi-building me-2 text-primary"></i> Companies
+            </h1>
+            <p class="text-muted small mb-0">Manage manufacturer companies, vendor contacts, and financial history.</p>
+        </div>
+        <div>
+            <a asp-action="Create" class="btn btn-primary shadow-sm">
+                <i class="bi bi-plus-lg me-1"></i> Add Company
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary ms-2 shadow-sm">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Notifications -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Search & Filter Card -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body bg-light rounded">
+            <form method="get" asp-action="Index" class="row g-3">
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold small text-muted">Search Company</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" name="SearchTerm" value="@Model.Filter.SearchTerm" class="form-control" placeholder="Search by name, contact person, phone, email..." />
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold small text-muted">Phone Number</label>
+                    <input type="text" name="Phone" value="@Model.Filter.Phone" class="form-control" placeholder="Filter by phone..." />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold small text-muted">Sort By</label>
+                    <select name="SortBy" class="form-select">
+                        <option value="CompanyName" selected="@(Model.Filter.SortBy == "CompanyName")">Company Name</option>
+                        <option value="ContactPerson" selected="@(Model.Filter.SortBy == "ContactPerson")">Contact Person</option>
+                        <option value="CreatedAt" selected="@(Model.Filter.SortBy == "CreatedAt")">Date Created</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary w-100 fw-semibold">
+                        <i class="bi bi-funnel me-1"></i>Filter
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary w-100">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Suppliers Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Company Name</th>
+                            <th>Contact Person</th>
+                            <th>Phone</th>
+                            <th>Email</th>
+                            <th class="text-end">Total Purchases</th>
+                            <th class="text-end">Outstanding Payable</th>
+                            <th class="text-center pe-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Companies.Items.Any())
+                        {
+                            foreach (var company in Model.Companies.Items)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-bold text-dark">
+                                        <a asp-action="Details" asp-route-id="@company.CompanyID" class="text-decoration-none text-primary">
+                                            @company.CompanyName
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold text-secondary">@(company.ContactPerson ?? "-")</span>
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(company.Phone))
+                                        {
+                                            <a href="tel:@company.Phone" class="text-decoration-none text-dark">
+                                                <i class="bi bi-telephone me-1 text-muted"></i>@company.Phone
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(company.Email))
+                                        {
+                                            <span class="small text-muted">@company.Email</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="text-end fw-semibold">
+                                        Rs. @company.TotalPurchases.ToString("N2")
+                                    </td>
+                                    <td class="text-end">
+                                        @if (company.OutstandingPayable > 0)
+                                        {
+                                            <span class="badge bg-warning text-dark px-2 py-1 fs-6 fw-bold">
+                                                Rs. @company.OutstandingPayable.ToString("N2")
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success-subtle text-success px-2 py-1 fs-6">
+                                                No Dues
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="text-center pe-4">
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <a asp-action="Details" asp-route-id="@company.CompanyID" class="btn btn-outline-primary" title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a asp-action="Edit" asp-route-id="@company.CompanyID" class="btn btn-outline-secondary" title="Edit Supplier">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-danger btn-delete" data-id="@company.CompanyID" data-name="@company.CompanyName" title="Delete Supplier">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                    No suppliers found matching your criteria.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        @if (Model.Companies.TotalPages > 1)
+        {
+            <div class="card-footer bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                <span class="small text-muted">
+                    Showing @(((Model.Companies.PageNumber - 1) * Model.Companies.PageSize) + 1) to @(Math.Min(Model.Companies.PageNumber * Model.Companies.PageSize, Model.Companies.TotalCount)) of @Model.Companies.TotalCount suppliers
+                </span>
+                <nav aria-label="Page navigation">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(!Model.Companies.HasPreviousPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-PageNumber="@(Model.Companies.PageNumber - 1)" asp-route-SearchTerm="@Model.Filter.SearchTerm" asp-route-Phone="@Model.Filter.Phone" asp-route-SortBy="@Model.Filter.SortBy">Previous</a>
+                        </li>
+                        @for (int i = 1; i <= Model.Companies.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == Model.Companies.PageNumber ? "active" : "")">
+                                <a class="page-link" asp-action="Index" asp-route-PageNumber="@i" asp-route-SearchTerm="@Model.Filter.SearchTerm" asp-route-Phone="@Model.Filter.Phone" asp-route-SortBy="@Model.Filter.SortBy">@i</a>
+                            </li>
+                        }
+                        <li class="page-item @(!Model.Companies.HasNextPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-PageNumber="@(Model.Companies.PageNumber + 1)" asp-route-SearchTerm="@Model.Filter.SearchTerm" asp-route-Phone="@Model.Filter.Phone" asp-route-SortBy="@Model.Filter.SortBy">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Soft Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel"><i class="bi bi-exclamation-triangle me-2"></i>Delete Supplier</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete supplier <strong id="deleteCompanyName"></strong>?</p>
+                <p class="small text-muted mb-0">Note: Suppliers with historical purchase invoices or pending balances cannot be deleted.</p>
+            </div>
+            <div class="modal-footer">
+                <form id="deleteForm" method="post" asp-action="Delete">
+                    <input type="hidden" id="deleteCompanyId" name="id" />
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+                document.getElementById('deleteCompanyId').value = id;
+                document.getElementById('deleteCompanyName').textContent = name;
+                new bootstrap.Modal(document.getElementById('deleteModal')).show();
+            });
+        });
+    </script>
+}

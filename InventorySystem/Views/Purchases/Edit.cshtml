@@ -1,0 +1,286 @@
+@model InventorySystem.ViewModels.Purchases.EditPurchaseViewModel
+@{
+    ViewData["Title"] = $"Edit Purchase Invoice #{Model.InvoiceNumber}";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-action="Index">Purchases</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Details" asp-route-id="@Model.PurchaseInvoiceID">@Model.InvoiceNumber</a></li>
+                    <li class="breadcrumb-item active">Edit</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">
+                <i class="bi bi-pencil-square me-2 text-warning"></i> Edit Purchase Invoice #@Model.InvoiceNumber
+            </h1>
+        </div>
+        <div>
+            <a asp-action="Details" asp-route-id="@Model.PurchaseInvoiceID" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-x-circle me-1"></i> Cancel
+            </a>
+        </div>
+    </div>
+
+    <!-- Error Summary -->
+    <div asp-validation-summary="All" class="alert alert-danger shadow-sm d-none" id="validationSummary"></div>
+
+    <form asp-action="Edit" method="post" id="purchaseEditForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="PurchaseInvoiceID" />
+        <input type="hidden" asp-for="InvoiceNumber" />
+        <input type="hidden" asp-for="CompanyID" />
+        <input type="hidden" asp-for="WarehouseID" />
+        <input type="hidden" asp-for="ItemsJson" id="ItemsJson" />
+
+        <!-- Header Card (Immutable Fields Read-Only) -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold text-primary"><i class="bi bi-info-circle me-2"></i> Invoice Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold text-muted">Supplier Invoice Number</label>
+                        <input type="text" class="form-control bg-light" value="@Model.InvoiceNumber" readonly />
+                        <span class="form-text text-muted"><i class="bi bi-lock-fill me-1"></i> Permanently Locked</span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold text-muted">Company / Supplier</label>
+                        <input type="text" class="form-control bg-light" value="@Model.CompanyName" readonly />
+                        <span class="form-text text-muted"><i class="bi bi-lock-fill me-1"></i> Permanently Locked</span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold text-muted">Warehouse</label>
+                        <input type="text" class="form-control bg-light" value="@Model.WarehouseName" readonly />
+                        <span class="form-text text-muted"><i class="bi bi-lock-fill me-1"></i> Permanently Locked</span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label asp-for="InvoiceDate" class="form-label fw-semibold"></label>
+                        <input asp-for="InvoiceDate" class="form-control" type="date" />
+                        <span asp-validation-for="InvoiceDate" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label asp-for="Notes" class="form-label fw-semibold"></label>
+                        <input asp-for="Notes" class="form-control" placeholder="Optional notes or supplier remarks..." />
+                        <span asp-validation-for="Notes" class="text-danger"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Line Items Table -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 fw-bold text-primary"><i class="bi bi-box-seam me-2"></i> Line Items Grid</h5>
+                <button type="button" class="btn btn-primary btn-sm shadow-sm" id="btnAddRow">
+                    <i class="bi bi-plus-lg me-1"></i> Add Product Row
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="itemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 30%;">Product *</th>
+                                <th style="width: 20%;">Unit *</th>
+                                <th style="width: 15%;">Quantity *</th>
+                                <th style="width: 15%;">Unit Cost *</th>
+                                <th style="width: 15%;">Total</th>
+                                <th style="width: 5%;" class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsTbody">
+                            <!-- Dynamic Javascript Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reason for Edit & Submission -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold text-warning"><i class="bi bi-exclamation-triangle me-2"></i> Audit Requirement</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-12">
+                        <label asp-for="EditReason" class="form-label fw-bold text-dark">Reason for Editing Invoice *</label>
+                        <textarea asp-for="EditReason" class="form-control" rows="2" placeholder="State the business reason for modifying this unpaid purchase invoice (e.g. Corrected received stock quantity, updated unit cost)..." required></textarea>
+                        <span asp-validation-for="EditReason" class="text-danger"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-light text-end py-3">
+                <a asp-action="Details" asp-route-id="@Model.PurchaseInvoiceID" class="btn btn-outline-secondary me-2">Cancel</a>
+                <button type="button" class="btn btn-warning px-4 shadow-sm fw-bold" id="btnSubmitEdit">
+                    <i class="bi bi-check-circle me-1"></i> Save Updated Invoice
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        const existingItems = JSON.parse('@Html.Raw(Model.ItemsJson)');
+        const companyId = @Model.CompanyID;
+        let productOptionsHtml = '<option value="">-- Select Product --</option>';
+
+        $(document.body).ready(async function () {
+            await loadProducts();
+            if (existingItems && existingItems.length > 0) {
+                existingItems.forEach(item => addRow(item));
+            } else {
+                addRow();
+            }
+        });
+
+        async function loadProducts() {
+            try {
+                const res = await fetch(`/Purchases/GetProductsByCompany?companyId=${companyId}`);
+                const products = await res.json();
+                productOptionsHtml = '<option value="">-- Select Product --</option>';
+                products.forEach(p => {
+                    productOptionsHtml += `<option value="${p.id}">${p.name}</option>`;
+                });
+            } catch (err) {
+                console.error("Failed to load products:", err);
+            }
+        }
+
+        function addRow(itemData = null) {
+            const rowId = Date.now() + Math.random().toString(36).substr(2, 5);
+            const tr = `
+                <tr id="row_${rowId}" class="item-row">
+                    <td>
+                        <select class="form-select item-product" required onchange="onProductChange('${rowId}')">
+                            ${productOptionsHtml}
+                        </select>
+                    </td>
+                    <td>
+                        <select class="form-select item-unit" required onchange="calculateRowTotal('${rowId}')">
+                            <option value="">-- Select Unit --</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" class="form-control item-qty" step="0.01" min="0.01" value="${itemData ? itemData.Quantity : 1}" oninput="calculateRowTotal('${rowId}')" required />
+                    </td>
+                    <td>
+                        <input type="number" class="form-control item-cost" step="0.01" min="0" value="${itemData ? itemData.UnitCost : 0}" oninput="calculateRowTotal('${rowId}')" required />
+                    </td>
+                    <td>
+                        <input type="text" class="form-control bg-light item-total" readonly value="0.00" />
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow('${rowId}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            $('#itemsTbody').append(tr);
+
+            if (itemData) {
+                const $row = $(`#row_${rowId}`);
+                $row.find('.item-product').val(itemData.ProductID);
+                onProductChange(rowId, itemData.ProductUnitID);
+            }
+        }
+
+        async function onProductChange(rowId, selectedUnitId = null) {
+            const $row = $(`#row_${rowId}`);
+            const productId = $row.find('.item-product').val();
+            const $unitSelect = $row.find('.item-unit');
+
+            $unitSelect.html('<option value="">Loading...</option>');
+            if (!productId) return;
+
+            try {
+                const res = await fetch(`/Purchases/GetProductUnits?productId=${productId}`);
+                const units = await res.json();
+                let html = '<option value="">-- Select Unit --</option>';
+                units.forEach(u => {
+                    html += `<option value="${u.id}">${u.name}</option>`;
+                });
+                $unitSelect.html(html);
+
+                if (selectedUnitId) {
+                    $unitSelect.val(selectedUnitId);
+                } else if (units.length > 0) {
+                    $unitSelect.val(units[0].id);
+                }
+                calculateRowTotal(rowId);
+            } catch (err) {
+                console.error("Failed to load units:", err);
+            }
+        }
+
+        function calculateRowTotal(rowId) {
+            const $row = $(`#row_${rowId}`);
+            const qty = parseFloat($row.find('.item-qty').val()) || 0;
+            const cost = parseFloat($row.find('.item-cost').val()) || 0;
+            const total = Math.max(0, qty * cost);
+            $row.find('.item-total').val(total.toFixed(2));
+        }
+
+        function removeRow(rowId) {
+            if ($('#itemsTbody tr').length <= 1) {
+                alert("Purchase invoice must contain at least one product row.");
+                return;
+            }
+            $(`#row_${rowId}`).remove();
+        }
+
+        $('#btnAddRow').click(function () {
+            addRow();
+        });
+
+        $('#btnSubmitEdit').click(function () {
+            const items = [];
+            let isValid = true;
+
+            $('#itemsTbody tr').each(function () {
+                const productId = parseInt($(this).find('.item-product').val());
+                const unitId = parseInt($(this).find('.item-unit').val());
+                const qty = parseFloat($(this).find('.item-qty').val());
+                const cost = parseFloat($(this).find('.item-cost').val());
+
+                if (!productId || !unitId || !qty || qty <= 0) {
+                    isValid = false;
+                    return false;
+                }
+
+                items.push({
+                    ProductID: productId,
+                    ProductUnitID: unitId,
+                    Quantity: qty,
+                    UnitCost: cost
+                });
+            });
+
+            if (!isValid || items.length === 0) {
+                alert("Please ensure all product rows have valid products, units, and positive quantities.");
+                return;
+            }
+
+            const editReason = $('#EditReason').val().trim();
+            if (!editReason) {
+                alert("An edit reason is mandatory for audit trail logging.");
+                $('#EditReason').focus();
+                return;
+            }
+
+            $('#ItemsJson').val(JSON.stringify(items));
+            $('#purchaseEditForm').submit();
+        });
+    </script>
+}

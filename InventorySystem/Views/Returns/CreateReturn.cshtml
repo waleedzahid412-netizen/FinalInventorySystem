@@ -1,0 +1,627 @@
+@model InventorySystem.ViewModels.Returns.CreateReturnViewModel
+@{
+    ViewData["Title"] = "Create Sales Return Wizard";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header Toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">
+                <i class="bi bi-pencil-square me-2 text-warning"></i> Unified Sales Return Wizard
+            </h1>
+            <p class="text-muted small mb-0">Follow the step-by-step process to process an invoice return or direct manual return.</p>
+        </div>
+        <div>
+            <a asp-action="CustomerReturns" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to Returns
+            </a>
+        </div>
+    </div>
+
+    <!-- WIZARD STEP INDICATORS -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body py-3">
+            <div class="d-flex justify-content-around text-center">
+                <div id="stepHeader1" class="wizard-step active fw-bold text-primary">
+                    <span class="badge bg-primary rounded-circle me-1">1</span> Select Customer
+                </div>
+                <div id="stepHeader2" class="wizard-step text-muted">
+                    <span class="badge bg-secondary rounded-circle me-1">2</span> Return Type
+                </div>
+                <div id="stepHeader3" class="wizard-step text-muted">
+                    <span class="badge bg-secondary rounded-circle me-1">3</span> Items & Calculations
+                </div>
+                <div id="stepHeader4" class="wizard-step text-muted">
+                    <span class="badge bg-secondary rounded-circle me-1">4</span> Settlement & Confirm
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WIZARD PANELS -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+
+            <!-- STEP 1: SELECT CUSTOMER -->
+            <div id="stepPanel1" class="wizard-panel">
+                <h5 class="fw-bold mb-3"><i class="bi bi-person-check me-2 text-primary"></i> Step 1: Select Customer</h5>
+                <div class="col-md-6 mb-4">
+                    <label class="form-label fw-bold small">Customer <span class="text-danger">*</span></label>
+                    <select id="wizardCustomer" class="form-select">
+                        <option value="">-- Select Customer --</option>
+                        @foreach (var c in Model.Customers)
+                        {
+                            <option value="@c.Value">@c.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button type="button" id="btnStep1Next" class="btn btn-primary px-4 fw-bold">
+                        Next <i class="bi bi-arrow-right ms-1"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- STEP 2: RETURN TYPE -->
+            <div id="stepPanel2" class="wizard-panel d-none">
+                <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 me-2 text-primary"></i> Step 2: Choose Return Type</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="form-check p-3 border rounded bg-light cursor-pointer">
+                            <input class="form-check-input" type="radio" name="wizardReturnType" id="typeInvoice" value="INVOICE" checked>
+                            <label class="form-check-label fw-bold ms-2" for="typeInvoice">
+                                <i class="bi bi-receipt text-primary me-1"></i> Return From Sales Invoice
+                            </label>
+                            <p class="text-muted small mb-0 mt-1">Select an existing invoice for this customer. Evaluates promotional clawbacks and invoice history.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check p-3 border rounded bg-light cursor-pointer">
+                            <input class="form-check-input" type="radio" name="wizardReturnType" id="typeManual" value="MANUAL">
+                            <label class="form-check-label fw-bold ms-2" for="typeManual">
+                                <i class="bi bi-pencil-square text-warning me-1"></i> Manual / Direct Return
+                            </label>
+                            <p class="text-muted small mb-0 mt-1">Process a direct return without referencing an invoice. Select products, packaging units, and specify return prices.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary btnPrev" data-prev="1"><i class="bi bi-arrow-left me-1"></i> Previous</button>
+                    <button type="button" id="btnStep2Next" class="btn btn-primary px-4 fw-bold">Next <i class="bi bi-arrow-right ms-1"></i></button>
+                </div>
+            </div>
+
+            <!-- STEP 3A: INVOICE SELECTION & ITEMS -->
+            <div id="stepPanel3Invoice" class="wizard-panel d-none">
+                <h5 class="fw-bold mb-3"><i class="bi bi-receipt me-2 text-primary"></i> Step 3: Select Invoice & Items</h5>
+                
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold small">Customer's Sales Invoice <span class="text-danger">*</span></label>
+                    <select id="wizardInvoiceSelect" class="form-select">
+                        <option value="">-- Select Invoice --</option>
+                    </select>
+                </div>
+
+                <div id="invoiceItemsContainer" class="d-none">
+                    <h6 class="fw-bold text-primary mb-2 mt-4">Returnable Paid Products</h6>
+                    <div class="table-responsive mb-4">
+                        <table id="invoiceItemsTable" class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Product</th>
+                                    <th class="text-center">Granted Qty</th>
+                                    <th class="text-center">Prev Returned</th>
+                                    <th class="text-center">Returnable Qty</th>
+                                    <th style="width: 15%;" class="text-center">Return Qty</th>
+                                    <th>Condition</th>
+                                    <th class="text-end">Unit Price ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    <div id="invoicePromoContainer" class="d-none">
+                        <h6 class="fw-bold text-warning mb-2">Promotional Free Items At Risk</h6>
+                        <div class="table-responsive mb-4">
+                            <table id="invoicePromoTable" class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Free Product</th>
+                                        <th class="text-center">Granted</th>
+                                        <th class="text-center">At Risk</th>
+                                        <th style="width: 15%;" class="text-center">Return Qty</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end mb-3">
+                        <button type="button" id="btnPreviewRefund" class="btn btn-outline-primary fw-bold">
+                            <i class="bi bi-calculator me-1"></i> Calculate / Preview Refund
+                        </button>
+                    </div>
+
+                    <div id="refundPreviewCard" class="card bg-light border p-3 mb-3 d-none">
+                        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Gross Return:</span><span id="prevGross" class="fw-bold">$0.00</span></div>
+                        <div class="d-flex justify-content-between mb-1 text-danger"><span class="text-muted">Discount Clawback:</span><span id="prevDiscount" class="fw-bold">-$0.00</span></div>
+                        <div class="d-flex justify-content-between mb-1 text-danger"><span class="text-muted">Promo Free Item Penalty:</span><span id="prevPromo" class="fw-bold">-$0.00</span></div>
+                        <hr class="my-2" />
+                        <div class="d-flex justify-content-between align-items-center"><span class="fw-bold">NET REFUND AMOUNT:</span><span id="prevNet" class="fw-bold fs-4 text-success">$0.00</span></div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-4">
+                    <button type="button" class="btn btn-outline-secondary btnPrev" data-prev="2"><i class="bi bi-arrow-left me-1"></i> Previous</button>
+                    <div>
+                        <small id="qtyHelpText" class="text-danger me-3 fw-bold">Enter at least one return quantity to proceed.</small>
+                        <button type="button" id="btnStep3InvoiceNext" class="btn btn-primary px-4 fw-bold" disabled>Next <i class="bi bi-arrow-right ms-1"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 3B: MANUAL RETURN ITEMS -->
+            <div id="stepPanel3Manual" class="wizard-panel d-none">
+                <h5 class="fw-bold mb-3"><i class="bi bi-pencil-square me-2 text-warning"></i> Step 3: Direct Return Items</h5>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold small">Restock Warehouse <span class="text-danger">*</span></label>
+                    <select id="wizardWarehouse" class="form-select">
+                        <option value="">-- Select Warehouse --</option>
+                        @foreach (var w in Model.Warehouses)
+                        {
+                            <option value="@w.Value">@w.Text</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="card border mb-3">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">Returned Line Items</span>
+                        <button type="button" id="wizardAddManualRow" class="btn btn-sm btn-success"><i class="bi bi-plus-lg me-1"></i> Add Product Line</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table id="wizardManualTable" class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 30%;">Product</th>
+                                        <th style="width: 20%;">Unit</th>
+                                        <th style="width: 15%;" class="text-center">Qty</th>
+                                        <th style="width: 15%;" class="text-end">Return Price ($)</th>
+                                        <th style="width: 15%;" class="text-end">Total ($)</th>
+                                        <th style="width: 5%;" class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded border mb-4">
+                    <span class="fw-bold">TOTAL MANUAL REFUND:</span>
+                    <span id="wizardManualTotal" class="fw-bold fs-4 text-success">$0.00</span>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary btnPrev" data-prev="2"><i class="bi bi-arrow-left me-1"></i> Previous</button>
+                    <button type="button" id="btnStep3ManualNext" class="btn btn-primary px-4 fw-bold">Next <i class="bi bi-arrow-right ms-1"></i></button>
+                </div>
+            </div>
+
+            <!-- STEP 4: SETTLEMENT & CONFIRMATION -->
+            <div id="stepPanel4" class="wizard-panel d-none">
+                <h5 class="fw-bold mb-3"><i class="bi bi-wallet2 me-2 text-primary"></i> Step 4: Refund Settlement & Finalize</h5>
+                
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="form-check p-3 border rounded bg-light">
+                            <input class="form-check-input" type="radio" name="wizardSettlement" id="setAccount" value="ACCOUNT_ADJUSTMENT" checked>
+                            <label class="form-check-label fw-bold ms-2" for="setAccount">
+                                <i class="bi bi-person-badge text-primary me-1"></i> Adjust in Customer Account
+                            </label>
+                            <p class="text-muted small mb-0 mt-1">Posts a Customer Ledger Credit entry to reduce customer's outstanding balance.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check p-3 border rounded bg-light">
+                            <input class="form-check-input" type="radio" name="wizardSettlement" id="setCash" value="CASH">
+                            <label class="form-check-label fw-bold ms-2" for="setCash">
+                                <i class="bi bi-cash-stack text-success me-1"></i> Cash Refund
+                            </label>
+                            <p class="text-muted small mb-0 mt-1">Cash paid out directly to customer. <strong>No Customer Ledger credit</strong> will be created.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold small">Remarks / Return Reason</label>
+                    <textarea id="wizardReason" class="form-control" rows="2" placeholder="Optional notes for this sales return transaction..."></textarea>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary btnPrev" data-prev="3"><i class="bi bi-arrow-left me-1"></i> Previous</button>
+                    <button type="button" id="btnFinalizeWizard" class="btn btn-success btn-lg px-5 fw-bold">
+                        <i class="bi bi-check-circle-fill me-2"></i> Finalize Sales Return
+                    </button>
+                </div>
+            </div>
+
+            <!-- STEP 5: SUCCESS RESULT PANEL -->
+            <div id="stepPanel5" class="wizard-panel d-none text-center py-4">
+                <div class="rounded-circle bg-success bg-opacity-10 p-4 d-inline-block text-success mb-3">
+                    <i class="bi bi-check-circle-fill display-3"></i>
+                </div>
+                <h3 class="fw-bold text-dark mb-2">Sales Return Processed Successfully!</h3>
+                <p id="successReturnNumber" class="text-muted lead mb-4"></p>
+                <div class="d-flex justify-content-center gap-3">
+                    <a id="btnPrintReceipt" href="#" class="btn btn-danger btn-lg shadow-sm" target="_blank">
+                        <i class="bi bi-file-earmark-pdf me-2"></i> Print PDF Receipt
+                    </a>
+                    <a asp-action="CreateReturn" class="btn btn-outline-primary btn-lg shadow-sm">
+                        <i class="bi bi-plus-lg me-2"></i> Create Another Return
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            let activeStep = 1;
+            let returnType = 'INVOICE';
+            let eligibilityData = null;
+
+            const productsList = [
+                @foreach (var p in Model.Products)
+                {
+                    <text>{ id: @p.Value, text: @Json.Serialize(p.Text) },</text>
+                }
+            ];
+
+            function setStep(step) {
+                activeStep = step;
+                $('.wizard-step').removeClass('fw-bold text-primary').addClass('text-muted');
+                $(`#stepHeader${step}`).removeClass('text-muted').addClass('fw-bold text-primary');
+                $('.wizard-panel').addClass('d-none');
+
+                if (step === 1) $('#stepPanel1').removeClass('d-none');
+                else if (step === 2) $('#stepPanel2').removeClass('d-none');
+                else if (step === 3) {
+                    if (returnType === 'INVOICE') $('#stepPanel3Invoice').removeClass('d-none');
+                    else $('#stepPanel3Manual').removeClass('d-none');
+                } else if (step === 4) $('#stepPanel4').removeClass('d-none');
+                else if (step === 5) $('#stepPanel5').removeClass('d-none');
+            }
+
+            $('.btnPrev').on('click', function () {
+                const prev = $(this).data('prev');
+                setStep(prev);
+            });
+
+            // Step 1 -> 2
+            $('#btnStep1Next').on('click', function () {
+                if (!$('#wizardCustomer').val()) {
+                    alert('Please select a customer.');
+                    return;
+                }
+                setStep(2);
+            });
+
+            // Step 2 -> 3
+            $('#btnStep2Next').on('click', function () {
+                returnType = $('input[name="wizardReturnType"]:checked').val();
+                if (returnType === 'INVOICE') {
+                    // Load customer invoices
+                    const customerId = $('#wizardCustomer').val();
+                    $.getJSON('/Returns/GetCustomerInvoices', { customerId: customerId }, function (invoices) {
+                        const $select = $('#wizardInvoiceSelect').empty().append('<option value="">-- Select Invoice --</option>');
+                        if (invoices && invoices.length > 0) {
+                            invoices.forEach(i => {
+                                $select.append(`<option value="${i.invoiceId}">${i.invoiceNumber} (${i.invoiceDate}) - Total: $${i.grandTotal.toFixed(2)}</option>`);
+                            });
+                        } else {
+                            $select.append('<option value="">No Finalized Invoices Found</option>');
+                        }
+                    });
+                } else {
+                    if ($('#wizardManualTable tbody tr').length === 0) {
+                        addManualRow();
+                    }
+                }
+                setStep(3);
+            });
+
+            // Invoice Selection Change
+            $('#wizardInvoiceSelect').on('change', function () {
+                const invId = $(this).val();
+                if (!invId) {
+                    $('#invoiceItemsContainer').addClass('d-none');
+                    $('#btnStep3InvoiceNext').prop('disabled', true);
+                    return;
+                }
+
+                $.getJSON('/Returns/GetSalesReturnEligibilityJson', { invoiceId: invId }, function (res) {
+                    if (res.success && res.data) {
+                        eligibilityData = res.data;
+                        renderInvoiceItems(eligibilityData);
+                        $('#invoiceItemsContainer').removeClass('d-none');
+                        $('#btnStep3InvoiceNext').prop('disabled', false);
+                    } else {
+                        alert(res.message || 'Error loading invoice details.');
+                    }
+                });
+            });
+
+            function getVal(item, keys, defaultVal = 0) {
+                if (!item) return defaultVal;
+                for (let i = 0; i < keys.length; i++) {
+                    let k = keys[i];
+                    if (item[k] !== undefined && item[k] !== null) return item[k];
+                }
+                return defaultVal;
+            }
+
+            function renderInvoiceItems(data) {
+                const $tbody = $('#invoiceItemsTable tbody').empty();
+                const itemsList = getVal(data, ['items', 'Items'], []);
+                if (itemsList && itemsList.length > 0) {
+                    itemsList.forEach(item => {
+                        const invItemId = getVal(item, ['invoiceItemID', 'InvoiceItemID', 'invoiceItemId', 'InvoiceItemId'], 0);
+                        const prodName = getVal(item, ['productName', 'ProductName'], 'Product');
+                        const grantedQty = getVal(item, ['originalQuantity', 'OriginalQuantity', 'grantedQuantity', 'GrantedQuantity'], 0);
+                        const unitName = getVal(item, ['unitName', 'UnitName'], 'Unit');
+                        const prevReturned = getVal(item, ['alreadyReturnedQuantity', 'AlreadyReturnedQuantity', 'previouslyReturnedQuantity', 'PreviouslyReturnedQuantity'], 0);
+                        const remainingQty = getVal(item, ['remainingReturnableQuantity', 'RemainingReturnableQuantity'], 0);
+                        const unitPrice = parseFloat(getVal(item, ['unitPriceOrCost', 'UnitPriceOrCost', 'unitPrice', 'UnitPrice'], 0)) || 0;
+
+                        $tbody.append(`
+                            <tr data-invoice-item-id="${invItemId}">
+                                <td class="fw-bold">${prodName}</td>
+                                <td class="text-center">${grantedQty} ${unitName}</td>
+                                <td class="text-center">${prevReturned}</td>
+                                <td class="text-center fw-bold text-success">${remainingQty}</td>
+                                <td>
+                                    <input type="number" min="0" max="${remainingQty}" step="any" class="form-control form-control-sm text-center return-qty" value="0" />
+                                </td>
+                                <td>
+                                    <select class="form-select form-select-sm return-condition">
+                                        <option value="Sellable">Sellable</option>
+                                        <option value="Damaged">Damaged</option>
+                                    </select>
+                                </td>
+                                <td class="text-end fw-semibold">$${unitPrice.toFixed(2)}</td>
+                            </tr>
+                        `);
+                    });
+                }
+
+                // Render Free Promotional Items if present
+                const $promoTbody = $('#invoicePromoTable tbody').empty();
+                const promoItems = getVal(data, ['promotionalFreeItems', 'PromotionalFreeItems', 'freePromotions', 'FreePromotions'], []);
+                if (promoItems && promoItems.length > 0) {
+                    promoItems.forEach(pItem => {
+                        const freeItemId = getVal(pItem, ['freeInvoiceItemId', 'FreeInvoiceItemId', 'invoiceItemID', 'InvoiceItemID'], 0);
+                        const freeName = getVal(pItem, ['freeProductName', 'FreeProductName', 'productName', 'ProductName'], 'Free Item');
+                        const freeGranted = getVal(pItem, ['originalFreeQuantity', 'OriginalFreeQuantity', 'grantedQuantity', 'GrantedQuantity'], 0);
+                        const freeAtRisk = getVal(pItem, ['atRiskFreeQuantity', 'AtRiskFreeQuantity', 'atRiskQuantity', 'AtRiskQuantity'], 0);
+
+                        $promoTbody.append(`
+                            <tr data-free-item-id="${freeItemId}">
+                                <td class="fw-bold text-warning">${freeName}</td>
+                                <td class="text-center">${freeGranted}</td>
+                                <td class="text-center fw-bold text-danger">${freeAtRisk}</td>
+                                <td>
+                                    <input type="number" min="0" max="${freeAtRisk}" step="any" class="form-control form-control-sm text-center free-return-qty" value="0" />
+                                </td>
+                            </tr>
+                        `);
+                    });
+                    $('#invoicePromoContainer').removeClass('d-none');
+                } else {
+                    $('#invoicePromoContainer').addClass('d-none');
+                }
+            }
+
+            $(document).on('input change', '.return-qty, .free-return-qty', function () {
+                let totalReturnQty = 0;
+                $('.return-qty').each(function () { totalReturnQty += parseFloat($(this).val()) || 0; });
+                $('.free-return-qty').each(function () { totalReturnQty += parseFloat($(this).val()) || 0; });
+
+                if (totalReturnQty > 0) {
+                    $('#btnStep3InvoiceNext').prop('disabled', false);
+                    $('#qtyHelpText').addClass('d-none');
+                } else {
+                    $('#btnStep3InvoiceNext').prop('disabled', true);
+                    $('#qtyHelpText').removeClass('d-none');
+                }
+            });
+
+            // Preview Refund AJAX
+            $('#btnPreviewRefund').on('click', function () {
+                const invoiceId = parseInt($('#wizardInvoiceSelect').val());
+                const items = [];
+                $('#invoiceItemsTable tbody tr').each(function () {
+                    const invItemId = parseInt($(this).data('invoice-item-id'));
+                    const qty = parseFloat($(this).find('.return-qty').val()) || 0;
+                    if (qty > 0) {
+                        items.push({ invoiceItemID: invItemId, invoiceItemId: invItemId, quantity: qty });
+                    }
+                });
+
+                $.ajax({
+                    url: '/Returns/PreviewSalesClawback',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ salesInvoiceId: invoiceId, items: items }),
+                    success: function (res) {
+                        if (res && res.success && res.data) {
+                            const gross = parseFloat(getVal(res.data, ['grossReturnedValue', 'GrossReturnedValue', 'grossReturnAmount', 'GrossReturnAmount'], 0)) || 0;
+                            const disc = parseFloat(getVal(res.data, ['discountClawback', 'DiscountClawback'], 0)) || 0;
+                            const promo = parseFloat(getVal(res.data, ['promoPenalty', 'PromoPenalty'], 0)) || 0;
+                            const net = parseFloat(getVal(res.data, ['netRefundAmount', 'NetRefundAmount'], 0)) || 0;
+
+                            $('#prevGross').text('$' + gross.toFixed(2));
+                            $('#prevDiscount').text('-$' + disc.toFixed(2));
+                            $('#prevPromo').text('-$' + promo.toFixed(2));
+                            $('#prevNet').text('$' + net.toFixed(2));
+                            $('#refundPreviewCard').removeClass('d-none');
+                        }
+                    }
+                });
+            });
+
+            $('#btnStep3InvoiceNext').on('click', function () {
+                setStep(4);
+            });
+
+            // Step 3B Manual Table
+            function addManualRow() {
+                let optionsHtml = '<option value="">-- Select Product --</option>';
+                productsList.forEach(p => { optionsHtml += `<option value="${p.id}">${p.text}</option>`; });
+
+                const rowHtml = `
+                    <tr>
+                        <td><select class="form-select form-select-sm select-product">${optionsHtml}</select></td>
+                        <td><select class="form-select form-select-sm select-unit" disabled><option value="">-- Select Unit --</option></select></td>
+                        <td><input type="number" min="0.001" step="any" class="form-control form-control-sm text-center input-qty" value="1" /></td>
+                        <td><input type="number" min="0" step="0.01" class="form-control form-control-sm text-end input-price" value="0.00" /></td>
+                        <td class="text-end fw-bold line-total">$0.00</td>
+                        <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-remove"><i class="bi bi-trash"></i></button></td>
+                    </tr>
+                `;
+                $('#wizardManualTable tbody').append(rowHtml);
+            }
+
+            $(document).on('change', '.select-product', function () {
+                const $row = $(this).closest('tr');
+                const productId = $(this).val();
+                const $unit = $row.find('.select-unit').empty().append('<option value="">Loading...</option>').prop('disabled', true);
+
+                if (productId) {
+                    $.getJSON('/Returns/GetProductUnits', { productId: productId }, function (units) {
+                        $unit.empty();
+                        if (units && units.length > 0) {
+                            units.forEach(u => { $unit.append(`<option value="${u.productUnitId}">${u.unitName}</option>`); });
+                            $unit.prop('disabled', false);
+                        }
+                    });
+                }
+            });
+
+            $(document).on('input change', '.input-qty, .input-price', function () {
+                let gross = 0;
+                $('#wizardManualTable tbody tr').each(function () {
+                    const qty = parseFloat($(this).find('.input-qty').val()) || 0;
+                    const price = parseFloat($(this).find('.input-price').val()) || 0;
+                    const total = Math.round(qty * price * 100) / 100;
+                    $(this).find('.line-total').text('$' + total.toFixed(2));
+                    gross += total;
+                });
+                $('#wizardManualTotal').text('$' + gross.toFixed(2));
+            });
+
+            $(document).on('click', '.btn-remove', function () {
+                $(this).closest('tr').remove();
+            });
+
+            $('#wizardAddManualRow').on('click', function () { addManualRow(); });
+
+            $('#btnStep3ManualNext').on('click', function () {
+                if (!$('#wizardWarehouse').val()) { alert('Please select a warehouse.'); return; }
+                setStep(4);
+            });
+
+            // STEP 4 FINALIZE
+            $('#btnFinalizeWizard').on('click', function () {
+                const customerId = parseInt($('#wizardCustomer').val());
+                const settlementMethod = $('input[name="wizardSettlement"]:checked').val();
+                const reason = $('#wizardReason').val();
+
+                const $btn = $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span> Processing...');
+
+                if (returnType === 'INVOICE') {
+                    const invoiceId = parseInt($('#wizardInvoiceSelect').val());
+                    const items = [];
+                    $('#invoiceItemsTable tbody tr').each(function () {
+                        const invItemId = parseInt($(this).data('invoice-item-id'));
+                        const qty = parseFloat($(this).find('.return-qty').val()) || 0;
+                        const cond = $(this).find('.return-condition').val();
+                        if (qty > 0) {
+                            items.push({ invoiceItemID: invItemId, invoiceItemId: invItemId, quantity: qty, returnCondition: cond });
+                        }
+                    });
+
+                    const payload = {
+                        salesInvoiceId: invoiceId,
+                        returnDate: new Date().toISOString(),
+                        reason: reason,
+                        settlementMethod: settlementMethod,
+                        items: items
+                    };
+
+                    $.ajax({
+                        url: '/Returns/ProcessSalesReturn',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(payload),
+                        success: function (res) {
+                            if (res.success && res.returnId) {
+                                $('#successReturnNumber').text(`Sales Return #${res.returnId} created successfully.`);
+                                $('#btnPrintReceipt').attr('href', '/Returns/DownloadSalesReturnPdf/' + res.returnId);
+                                setStep(5);
+                            } else {
+                                alert(res.message || 'Failed to process return.');
+                                $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Sales Return');
+                            }
+                        }
+                    });
+                } else {
+                    const warehouseId = parseInt($('#wizardWarehouse').val());
+                    const items = [];
+                    $('#wizardManualTable tbody tr').each(function () {
+                        const prodId = parseInt($(this).find('.select-product').val());
+                        const unitId = parseInt($(this).find('.select-unit').val());
+                        const qty = parseFloat($(this).find('.input-qty').val()) || 0;
+                        const price = parseFloat($(this).find('.input-price').val()) || 0;
+                        if (prodId && unitId && qty > 0) {
+                            items.push({ productId: prodId, productUnitId: unitId, quantity: qty, manualReturnUnitPrice: price });
+                        }
+                    });
+
+                    const payload = {
+                        customerId: customerId,
+                        warehouseId: warehouseId,
+                        returnDate: new Date().toISOString(),
+                        reason: reason,
+                        settlementMethod: settlementMethod,
+                        items: items
+                    };
+
+                    $.ajax({
+                        url: '/Returns/ProcessManualSalesReturn',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(payload),
+                        success: function (res) {
+                            if (res.success && res.returnId) {
+                                $('#successReturnNumber').text(`Manual Sales Return #${res.returnId} created successfully.`);
+                                $('#btnPrintReceipt').attr('href', '/Returns/DownloadSalesReturnPdf/' + res.returnId);
+                                setStep(5);
+                            } else {
+                                alert(res.message || 'Failed to process return.');
+                                $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Sales Return');
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+}

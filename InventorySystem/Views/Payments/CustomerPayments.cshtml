@@ -1,0 +1,407 @@
+@model InventorySystem.ViewModels.Payments.CustomerPaymentListViewModel
+@{
+    ViewData["Title"] = "Customer Payments";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-wallet2 me-2 text-primary"></i> Customer Payments</h1>
+            <p class="text-muted small mb-0">View all financial collections and payment receipts from customers.</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-success shadow-sm" id="btnOpenRecordModal">
+                <i class="bi bi-plus-circle me-1"></i> Record Payment
+            </button>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body py-3">
+            <form method="get" asp-action="CustomerPayments" class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Customer</label>
+                    <select name="CustomerID" class="form-select form-select-sm" asp-for="Filter.CustomerID" asp-items="Model.Customers">
+                        <option value="">-- All Customers --</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Invoice #</label>
+                    <input type="text" name="InvoiceNumber" class="form-control form-control-sm" asp-for="Filter.InvoiceNumber" placeholder="Search Invoice #" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Payment Method</label>
+                    <select name="PaymentMethod" class="form-select form-select-sm" asp-for="Filter.PaymentMethod">
+                        <option value="">-- All Methods --</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Bank">Bank</option>
+                        <option value="Cheque">Cheque</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Date From</label>
+                    <input type="date" name="DateFrom" class="form-control form-control-sm" value="@Model.Filter.DateFrom?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Date To</label>
+                    <input type="date" name="DateTo" class="form-control form-control-sm" value="@Model.Filter.DateTo?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-1 d-flex gap-1">
+                    <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i></button>
+                    <a asp-action="CustomerPayments" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Payments Table -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Payment #</th>
+                            <th>Payment Date</th>
+                            <th>Customer Name</th>
+                            <th>Target Invoice</th>
+                            <th>Method</th>
+                            <th>Reference #</th>
+                            <th>Recorded By</th>
+                            <th class="text-end">Amount Received</th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.PagedResult.Items != null && Model.PagedResult.Items.Any())
+                        {
+                            foreach (var p in Model.PagedResult.Items)
+                            {
+                                <tr>
+                                    <td class="fw-bold text-primary">@p.PaymentNumber</td>
+                                    <td>@p.PaymentDate.ToString("dd MMM yyyy")</td>
+                                    <td class="fw-semibold">@p.CustomerName</td>
+                                    <td>
+                                        <a asp-controller="Sales" asp-action="Details" asp-route-id="@p.InvoiceID" class="text-decoration-none">
+                                            #@p.InvoiceNumber
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">
+                                            <i class="bi bi-credit-card me-1"></i> @p.PaymentMethod
+                                        </span>
+                                        @if (p.PaymentMethod == "Cheque")
+                                        {
+                                            var badgeBg = p.ChequeStatus == "Cleared" ? "bg-success" : p.ChequeStatus == "Received" ? "bg-warning text-dark" : p.ChequeStatus == "Bounced" ? "bg-danger" : "bg-secondary";
+                                            <span class="badge @badgeBg ms-1">@p.ChequeStatus</span>
+                                        }
+                                    </td>
+                                    <td>@(string.IsNullOrWhiteSpace(p.ReferenceNumber) ? "-" : p.ReferenceNumber)</td>
+                                    <td class="small">@p.ReceivedByUserName</td>
+                                    <td class="text-end fw-bold text-success">PKR @p.Amount.ToString("N2")</td>
+                                    <td class="text-center">
+                                        <a asp-action="CustomerPaymentReceipt" asp-route-id="@p.CustomerPaymentID" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Print Receipt">
+                                            <i class="bi bi-printer me-1"></i> Receipt
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">No customer payments recorded yet.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Pagination -->
+        @if (Model.PagedResult.TotalPages > 1)
+        {
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2">
+                <span class="small text-muted">Showing @(Model.PagedResult.Items?.Count ?? 0) of @Model.PagedResult.TotalCount payments</span>
+                <ul class="pagination pagination-sm mb-0">
+                    @for (int i = 1; i <= Model.PagedResult.TotalPages; i++)
+                    {
+                        <li class="page-item @(i == Model.PagedResult.PageNumber ? "active" : "")">
+                            <a class="page-link" asp-action="CustomerPayments" asp-route-PageNumber="@i" asp-route-CustomerID="@Model.Filter.CustomerID" asp-route-InvoiceNumber="@Model.Filter.InvoiceNumber" asp-route-PaymentMethod="@Model.Filter.PaymentMethod">@i</a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Record Customer Payment Modal -->
+<div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-labelledby="recordPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title h6" id="recordPaymentModalLabel"><i class="bi bi-cash-stack me-2"></i> Record Customer Payment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="recordCustomerPaymentForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-body py-3">
+                    <div id="paymentModalAlert" class="alert alert-danger p-2 small d-none mb-3"></div>
+
+                    <div class="mb-3">
+                        <label for="modalCustomerID" class="form-label fw-semibold">Customer <span class="text-danger">*</span></label>
+                        <select class="form-select" id="modalCustomerID" required>
+                            <option value="">-- Select Customer --</option>
+                            @foreach (var cust in Model.Customers)
+                            {
+                                <option value="@cust.Value">@cust.Text</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalInvoiceID" class="form-label fw-semibold">Target Invoice</label>
+                        <select class="form-select" id="modalInvoiceID">
+                            <option value="0">Auto-Allocate to Oldest Open Invoice</option>
+                        </select>
+                        <div class="form-text small">Select an open invoice or allow auto-allocation across open invoices.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalAmount" class="form-label fw-semibold">Payment Amount (PKR) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="0.01" class="form-control form-control-lg fw-bold text-success" id="modalAmount" placeholder="0.00" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalPaymentMethod" class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
+                        <select class="form-select" id="modalPaymentMethod" required>
+                            <option value="Cash">Cash</option>
+                            <option value="Bank">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                        </select>
+                    </div>
+
+                    <!-- Cheque Specific Fields -->
+                    <div id="chequeFieldsContainer" class="p-3 bg-light rounded border mb-3 d-none">
+                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-card-heading me-1 text-primary"></i> Cheque Details</h6>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label for="modalChequeNumber" class="form-label small fw-semibold">Cheque Number <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="modalChequeNumber" placeholder="e.g. CHQ-998812" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modalBankName" class="form-label small fw-semibold">Bank Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="modalBankName" placeholder="e.g. Habib Bank Limited" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modalIssueDate" class="form-label small fw-semibold">Issue Date</label>
+                                <input type="date" class="form-control form-control-sm" id="modalIssueDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modalChequeDate" class="form-label small fw-semibold">Cheque Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control form-control-sm" id="modalChequeDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalReferenceNumber" class="form-label fw-semibold">Reference Number</label>
+                        <input type="text" class="form-control" id="modalReferenceNumber" placeholder="e.g. Bank Transfer Ref / Receipt #" />
+                        <div class="form-text small text-info d-none" id="refHelp">Reference number is required for Bank payments.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalPaymentDate" class="form-label fw-semibold">Payment Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="modalPaymentDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalRemarks" class="form-label fw-semibold">Remarks / Notes</label>
+                        <input type="text" class="form-control" id="modalRemarks" placeholder="Optional notes" />
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success px-4" id="btnSubmitPayment">
+                        <span id="paySpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                        <i id="payIcon" class="bi bi-check-circle me-1"></i> Save Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const recordModal = new bootstrap.Modal(document.getElementById('recordPaymentModal'));
+            const customerSelect = document.getElementById('modalCustomerID');
+            const invoiceSelect = document.getElementById('modalInvoiceID');
+            const amountInput = document.getElementById('modalAmount');
+            const methodSelect = document.getElementById('modalPaymentMethod');
+            const refHelp = document.getElementById('refHelp');
+
+            document.getElementById('btnOpenRecordModal').addEventListener('click', function () {
+                document.getElementById('recordCustomerPaymentForm').reset();
+                document.getElementById('paymentModalAlert').classList.add('d-none');
+                invoiceSelect.innerHTML = '<option value="0">Auto-Allocate to Oldest Open Invoice</option>';
+                recordModal.show();
+            });
+
+            customerSelect.addEventListener('change', function () {
+                const customerId = this.value;
+                invoiceSelect.innerHTML = '<option value="0">Loading open invoices...</option>';
+
+                if (!customerId) {
+                    invoiceSelect.innerHTML = '<option value="0">Auto-Allocate to Oldest Open Invoice</option>';
+                    amountInput.value = '';
+                    return;
+                }
+
+                fetch(`/Payments/GetUnpaidCustomerInvoices?customerId=${customerId}`)
+                    .then(res => res.json())
+                    .then(invoices => {
+                        let options = '<option value="0">Auto-Allocate to Oldest Open Invoice</option>';
+                        if (invoices && invoices.length > 0) {
+                            invoices.forEach(inv => {
+                                options += `<option value="${inv.invoiceID}" data-due="${inv.outstandingBalance}">${inv.invoiceNumber} (Due: PKR ${inv.outstandingBalance.toFixed(2)})</option>`;
+                            });
+                        }
+                        invoiceSelect.innerHTML = options;
+                    })
+                    .catch(err => {
+                        invoiceSelect.innerHTML = '<option value="0">Auto-Allocate to Oldest Open Invoice</option>';
+                    });
+            });
+
+            invoiceSelect.addEventListener('change', function () {
+                const selectedOpt = this.options[this.selectedIndex];
+                const due = selectedOpt ? parseFloat(selectedOpt.getAttribute('data-due') || '0') : 0;
+                if (due > 0) {
+                    amountInput.value = due.toFixed(2);
+                }
+            });
+
+            const chequeFields = document.getElementById('chequeFieldsContainer');
+
+            methodSelect.addEventListener('change', function () {
+                if (this.value === 'Cheque') {
+                    chequeFields.classList.remove('d-none');
+                    refHelp.classList.add('d-none');
+                } else if (this.value === 'Bank') {
+                    chequeFields.classList.add('d-none');
+                    refHelp.classList.remove('d-none');
+                } else {
+                    chequeFields.classList.add('d-none');
+                    refHelp.classList.add('d-none');
+                }
+            });
+
+            document.getElementById('btnSubmitPayment').addEventListener('click', function () {
+                const alertBox = document.getElementById('paymentModalAlert');
+                alertBox.classList.add('d-none');
+
+                const customerId = parseInt(customerSelect.value) || 0;
+                const invoiceId = parseInt(invoiceSelect.value) || 0;
+                const amount = parseFloat(amountInput.value) || 0;
+                const method = methodSelect.value;
+                const reference = document.getElementById('modalReferenceNumber').value;
+                const date = document.getElementById('modalPaymentDate').value;
+                const remarks = document.getElementById('modalRemarks').value;
+
+                const chqNum = document.getElementById('modalChequeNumber').value;
+                const bankName = document.getElementById('modalBankName').value;
+                const issueDate = document.getElementById('modalIssueDate').value;
+                const chequeDate = document.getElementById('modalChequeDate').value;
+
+                if (customerId <= 0) {
+                    alertBox.textContent = 'Please select a customer.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                if (amount <= 0) {
+                    alertBox.textContent = 'Payment amount must be greater than zero.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                if (method === 'Cheque') {
+                    if (!chqNum.trim()) {
+                        alertBox.textContent = 'Cheque Number is required.';
+                        alertBox.classList.remove('d-none');
+                        return;
+                    }
+                    if (!bankName.trim()) {
+                        alertBox.textContent = 'Bank Name is required.';
+                        alertBox.classList.remove('d-none');
+                        return;
+                    }
+                    if (!chequeDate) {
+                        alertBox.textContent = 'Cheque Date is required.';
+                        alertBox.classList.remove('d-none');
+                        return;
+                    }
+                } else if (method === 'Bank' && !reference.trim()) {
+                    alertBox.textContent = 'Reference Number is required for Bank payments.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                const payload = {
+                    CustomerID: customerId,
+                    InvoiceID: invoiceId > 0 ? invoiceId : null,
+                    Amount: amount,
+                    PaymentMethod: method,
+                    ReferenceNumber: reference,
+                    PaymentDate: date,
+                    Remarks: remarks,
+                    ChequeNumber: chqNum,
+                    BankName: bankName,
+                    IssueDate: issueDate || null,
+                    ChequeDate: chequeDate || null
+                };
+
+                const token = document.querySelector('#recordCustomerPaymentForm input[name="__RequestVerificationToken"]').value;
+                const btn = this;
+                btn.disabled = true;
+                document.getElementById('paySpinner').classList.remove('d-none');
+                document.getElementById('payIcon').classList.add('d-none');
+
+                fetch('/Payments/RecordCustomerPayment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': token
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    document.getElementById('paySpinner').classList.add('d-none');
+                    document.getElementById('payIcon').classList.remove('d-none');
+
+                    if (data.success) {
+                        recordModal.hide();
+                        window.location.reload();
+                    } else {
+                        alertBox.textContent = data.message || 'Failed to record payment.';
+                        alertBox.classList.remove('d-none');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    document.getElementById('paySpinner').classList.add('d-none');
+                    document.getElementById('payIcon').classList.remove('d-none');
+                    alertBox.textContent = 'An error occurred while saving payment.';
+                    alertBox.classList.remove('d-none');
+                });
+            });
+        });
+    </script>
+}

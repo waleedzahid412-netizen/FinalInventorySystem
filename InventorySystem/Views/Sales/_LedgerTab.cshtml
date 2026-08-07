@@ -1,0 +1,64 @@
+@model InventorySystem.DTOs.Common.PagedResult<InventorySystem.DTOs.Sales.SalesLedgerEntryDto>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th class="text-end">Debit (Debt Added)</th>
+                <th class="text-end">Credit (Paid)</th>
+                <th>Recorded By</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Items != null && Model.Items.Any())
+            {
+                foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>@item.TransactionDate.ToString("yyyy-MM-dd")</td>
+                        <td><span class="badge bg-primary">@item.TransactionType</span></td>
+                        <td>@(item.Description ?? "-")</td>
+                        <td class="text-end fw-bold text-danger">@(item.DebitAmount > 0 ? $"PKR {item.DebitAmount:N2}" : "-")</td>
+                        <td class="text-end fw-bold text-success">@(item.CreditAmount > 0 ? $"PKR {item.CreditAmount:N2}" : "-")</td>
+                        <td>@item.CreatedByUserName</td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                        <i class="bi bi-journal-bookmark fs-3 d-block mb-2"></i>
+                        No customer ledger postings found for this invoice.
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.TotalPages > 1)
+{
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <span class="small text-muted">Page @Model.PageNumber of @Model.TotalPages</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(!Model.HasPreviousPage ? "disabled" : "")">
+                    <button class="page-link ledger-page-btn" data-page="@(Model.PageNumber - 1)">Previous</button>
+                </li>
+                @for (int i = 1; i <= Model.TotalPages; i++)
+                {
+                    <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                        <button class="page-link ledger-page-btn" data-page="@i">@i</button>
+                    </li>
+                }
+                <li class="page-item @(!Model.HasNextPage ? "disabled" : "")">
+                    <button class="page-link ledger-page-btn" data-page="@(Model.PageNumber + 1)">Next</button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}

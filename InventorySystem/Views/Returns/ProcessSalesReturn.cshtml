@@ -1,0 +1,462 @@
+@model InventorySystem.ViewModels.Returns.ProcessSalesReturnViewModel
+@{
+    ViewData["Title"] = "Process Sales Return";
+    var eligibility = Model.Eligibility;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="h3 mb-0 text-gray-800"><i class="bi bi-arrow-return-left text-danger me-2"></i> Process Sales Return</h2>
+        <p class="text-muted small mb-0">Select items and enter return quantities against Sales Invoice #<strong>@eligibility.InvoiceNumber</strong></p>
+    </div>
+    <div>
+        <a asp-controller="Sales" asp-action="Details" asp-route-id="@eligibility.InvoiceID" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to Invoice
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- INVOICE HEADER SNAPSHOT -->
+    <div class="col-md-12">
+        <div class="card shadow-sm border-0 bg-light">
+            <div class="card-body">
+                <div class="row text-center text-md-start">
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Original Invoice</span>
+                        <span class="fw-bold fs-5 text-primary">@eligibility.InvoiceNumber</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Customer</span>
+                        <span class="fw-bold">@eligibility.CustomerName</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Warehouse</span>
+                        <span class="fw-bold text-dark"><i class="bi bi-building me-1"></i> @eligibility.WarehouseName</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Invoice Date</span>
+                        <span class="fw-bold">@eligibility.InvoiceDate.ToString("dd MMM yyyy")</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RETURN FORM -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-list-check me-2"></i> Invoice Line Items to Return</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0" id="returnItemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th class="text-center">Sold Qty</th>
+                                <th class="text-center">Already Returned</th>
+                                <th class="text-center">Return Qty</th>
+                                <th>Reason</th>
+                                <th>Condition</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (eligibility.Items != null && eligibility.Items.Any())
+                            {
+                                foreach (var item in eligibility.Items)
+                                {
+                                    bool isFullyReturned = item.RemainingReturnableQuantity <= 0;
+                                    <tr data-item-id="@item.InvoiceItemID" data-product-id="@item.ProductID" data-product-unit-id="@item.ProductUnitID" data-unit-price="@item.UnitPriceOrCost" data-item-type="@item.ItemType" class="@(isFullyReturned ? "table-secondary text-muted" : "")">
+                                        <td>
+                                            <div class="fw-bold">@item.ProductName</div>
+                                            <span class="small text-muted">@item.SKU | Unit: @item.UnitName</span>
+                                            @if (string.Equals(item.ItemType, "FREE", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <span class="badge bg-success ms-1">FREE PROMO</span>
+                                            }
+                                        </td>
+                                        <td class="text-center fw-semibold">@item.OriginalQuantity.ToString("N2")</td>
+                                        <td class="text-center text-muted">@item.AlreadyReturnedQuantity.ToString("N2")</td>
+                                        <td class="text-center" style="width: 150px;">
+                                            @if (string.Equals(item.ItemType, "FREE", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                if (isFullyReturned)
+                                                {
+                                                    <span class="badge bg-secondary">Fully Returned</span>
+                                                }
+                                                else
+                                                {
+                                                    <div class="form-check form-switch d-flex justify-content-center align-items-center my-1">
+                                                        <input class="form-check-input free-item-toggle me-2" type="checkbox" role="switch" id="freeToggle_@item.InvoiceItemID" data-max-qty="@item.RemainingReturnableQuantity" />
+                                                        <label class="form-check-label free-toggle-label small fw-semibold text-danger" for="freeToggle_@item.InvoiceItemID">Return Free Item</label>
+                                                    </div>
+                                                }
+                                            }
+                                            else if (isFullyReturned)
+                                            {
+                                                <span class="badge bg-secondary">Fully Returned</span>
+                                                <input type="number" class="form-control form-control-sm return-qty d-none" value="0" disabled />
+                                            }
+                                            else
+                                            {
+                                                <input type="number" class="form-control form-control-sm return-qty text-center" min="0" max="@item.RemainingReturnableQuantity" step="0.01" value="0" placeholder="0" />
+                                                <span class="form-text small d-block">Max: @item.RemainingReturnableQuantity.ToString("N2")</span>
+                                            }
+                                        </td>
+                                        <td style="width: 160px;">
+                                            <select class="form-select form-select-sm item-reason" @(isFullyReturned ? "disabled" : "")>
+                                                <option value="Damaged">Damaged</option>
+                                                <option value="Wrong Product" selected>Wrong Product</option>
+                                                <option value="Expired">Expired</option>
+                                                <option value="Customer Complaint">Customer Complaint</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </td>
+                                        <td style="width: 130px;">
+                                            <select class="form-select form-select-sm item-condition" @(isFullyReturned ? "disabled" : "")>
+                                                <option value="Sellable" selected>Sellable</option>
+                                                <option value="Damaged">Damaged</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="promoSection" class="card shadow-sm border-0 mb-4 d-none">
+            <div class="card-header bg-primary text-white py-2">
+                <h6 class="card-title mb-0 fw-bold"><i class="bi bi-gift me-2"></i> Promotional Items & Scheme Adjustments</h6>
+            </div>
+            <div class="card-body p-3">
+                <div id="promoItemsContainer"></div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-wallet2 me-2"></i> Refund Settlement Method</h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-check p-3 border rounded bg-light">
+                            <input class="form-check-input" type="radio" name="settlementMethod" id="settlementAccount" value="ACCOUNT_ADJUSTMENT" checked>
+                            <label class="form-check-label fw-bold ms-2" for="settlementAccount">
+                                <i class="bi bi-person-badge text-primary me-1"></i> Adjust in Customer Account
+                            </label>
+                            <p class="text-muted small mb-0 mt-1">Posts a Customer Ledger Credit to reduce the customer's outstanding balance.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check p-3 border rounded bg-light">
+                            <input class="form-check-input" type="radio" name="settlementMethod" id="settlementCash" value="CASH">
+                            <label class="form-check-label fw-bold ms-2" for="settlementCash">
+                                <i class="bi bi-cash-stack text-success me-1"></i> Cash Refund
+                            </label>
+                            <p class="text-muted small mb-0 mt-1">Cash paid out to customer directly. <strong>No Customer Ledger credit</strong> will be created.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <label for="headerReason" class="form-label fw-bold">Return Header Remarks / Reason</label>
+                <textarea id="headerReason" class="form-control" rows="2" placeholder="Optional notes for this sales return transaction..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUMMARY CARD -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 sticky-top" style="top: 20px;">
+            <div class="card-header bg-danger text-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-calculator me-2"></i> Return Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="includeSchemeCalculation" checked>
+                    <label class="form-check-label fw-semibold small" for="includeSchemeCalculation">
+                        Include Scheme & Promotion Invalidation
+                    </label>
+                    <div class="text-muted text-xs ms-0 mt-1">
+                        When enabled, invalidates discounts or free items if return criteria fall below minimum threshold.
+                    </div>
+                </div>
+
+                <div class="d-grid mb-3">
+                    <button type="button" id="btnPreviewClawback" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-arrow-repeat me-1"></i> Calculate / Preview Refund
+                    </button>
+                </div>
+
+                <hr />
+
+                <div id="breakdownAlert" class="alert alert-warning small d-none">
+                    <div id="breakdownText"></div>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Gross Return Value:</span>
+                    <span class="fw-bold" id="lblGrossReturn">$0.00</span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2 text-danger">
+                    <span class="text-muted">Discount Clawback:</span>
+                    <span class="fw-bold" id="lblClawbackPenalty">-$0.00</span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-3 text-danger">
+                    <span class="text-muted">Promo Free Item Penalty:</span>
+                    <span class="fw-bold" id="lblPromoPenalty">-$0.00</span>
+                </div>
+
+                <div class="p-3 bg-light rounded border mb-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold fs-6">NET REFUND AMOUNT:</span>
+                        <span class="fw-bold fs-4 text-success" id="lblNetRefund">$0.00</span>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="button" id="btnSubmitReturn" class="btn btn-danger btn-lg fw-bold">
+                        <i class="bi bi-check-circle-fill me-2"></i> Finalize Sales Return
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            const invoiceId = @eligibility.InvoiceID;
+
+            function buildReturnItemsList() {
+                const items = [];
+                // Paid line items from main table
+                $('#returnItemsTable tbody tr').each(function () {
+                    const $row = $(this);
+                    const itemType = ($row.data('item-type') || '').toString();
+                    if (itemType.toUpperCase() === 'FREE') return; // Handled via promo container or explicit input
+
+                    const qty = parseFloat($row.find('.return-qty').val()) || 0;
+                    const itemId = parseInt($row.data('item-id'));
+                    const prodId = parseInt($row.data('product-id'));
+                    const unitId = parseInt($row.data('product-unit-id'));
+
+                    if (qty > 0) {
+                        items.push({
+                            invoiceItemId: itemId,
+                            productId: prodId,
+                            productUnitId: unitId,
+                            quantity: qty,
+                            reason: $row.find('.item-reason').val(),
+                            returnCondition: $row.find('.item-condition').val()
+                        });
+                    }
+                });
+
+                // Free promotional line items from promo container or table
+                $('.free-return-qty').each(function () {
+                    const $input = $(this);
+                    const qty = parseFloat($input.val()) || 0;
+                    const itemId = parseInt($input.data('free-item-id'));
+                    const prodId = parseInt($input.data('free-prod-id'));
+                    const unitId = parseInt($input.data('free-unit-id')) || 1;
+
+                    if (itemId > 0) {
+                        items.push({
+                            invoiceItemId: itemId,
+                            productId: prodId,
+                            productUnitId: unitId,
+                            quantity: qty,
+                            reason: 'Promotional Free Item Return',
+                            returnCondition: 'Sellable'
+                        });
+                    }
+                });
+
+                return items;
+            }
+
+            function previewClawback(isManualClick) {
+                const items = buildReturnItemsList();
+                const includeScheme = $('#includeSchemeCalculation').is(':checked');
+
+                const hasActiveReturn = items.some(i => i.quantity > 0);
+                if (!hasActiveReturn) {
+                    $('#lblGrossReturn').text('$0.00');
+                    $('#lblClawbackPenalty').text('-$0.00');
+                    $('#lblPromoPenalty').text('-$0.00');
+                    $('#lblNetRefund').text('$0.00');
+                    $('#breakdownAlert').addClass('d-none');
+                    if (isManualClick) {
+                        alert('Please enter at least one return quantity before calculating the refund.');
+                    }
+                    return;
+                }
+
+                const $btn = $('#btnPreviewClawback');
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Calculating...');
+
+                $.ajax({
+                    url: '/Returns/PreviewSalesClawback',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        salesInvoiceId: invoiceId,
+                        includeSchemeCalculation: includeScheme,
+                        items: items
+                    }),
+                    success: function (res) {
+                        $btn.prop('disabled', false).html('<i class="bi bi-arrow-repeat me-1"></i> Calculate / Preview Refund');
+                        if (res.success && res.data) {
+                            const data = res.data;
+                            $('#lblGrossReturn').text('$' + data.grossReturnedValue.toFixed(2));
+                            $('#lblClawbackPenalty').text('-' + '$' + data.discountClawback.toFixed(2));
+                            $('#lblPromoPenalty').text('-' + '$' + data.promoPenalty.toFixed(2));
+                            $('#lblNetRefund').text('$' + data.netRefundAmount.toFixed(2));
+
+                            if (data.freePromotions && data.freePromotions.length > 0) {
+                                let promoHtml = '';
+                                data.freePromotions.forEach(function (fp) {
+                                    promoHtml += `
+                                        <div class="p-3 border rounded bg-white mb-3 shadow-sm promo-card" data-free-item-id="${fp.freeInvoiceItemId}">
+                                            <div class="fw-bold text-dark mb-1"><i class="bi bi-gift-fill text-primary me-1"></i> Promotion: ${fp.promotionName}</div>
+                                            <div class="small text-muted mb-2">
+                                                Qualifying Product: <strong>${fp.qualifyingProductName}</strong> | Free Item: <strong>${fp.freeProductName}</strong>
+                                            </div>
+                                            <div class="row align-items-center g-2 mb-2 small text-secondary">
+                                                <div class="col-md-3">Granted: <strong>${fp.originalFreeQuantity}</strong></div>
+                                                <div class="col-md-3">Prior Returned: <strong>${fp.previouslyReturnedFreeQuantity}</strong></div>
+                                                <div class="col-md-3 text-warning-emphasis">At Risk: <strong>${fp.atRiskFreeQuantity}</strong></div>
+                                                <div class="col-md-3 text-danger-emphasis">Max Returnable: <strong>${fp.maxReturnableFreeQuantity}</strong></div>
+                                            </div>
+                                            <div class="row align-items-center g-2 bg-light p-2 rounded">
+                                                <div class="col-md-5">
+                                                    <label class="form-label small fw-bold mb-1">Return Free Quantity:</label>
+                                                    <input type="number" min="0" max="${fp.maxReturnableFreeQuantity}" step="1"
+                                                           class="form-control form-control-sm free-return-qty"
+                                                           data-free-item-id="${fp.freeInvoiceItemId}"
+                                                           data-free-prod-id="${fp.freeProductId}"
+                                                           value="${fp.currentlySelectedFreeReturnQuantity}" />
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <span class="small text-muted d-block">Retained Qty:</span>
+                                                    <span class="fw-bold text-dark">${fp.retainedFreeQuantityAfterCurrentReturn}</span>
+                                                </div>
+                                                <div class="col-md-4 text-end">
+                                                    <span class="small text-muted d-block">Retained Penalty ($${fp.unitValue.toFixed(2)}/unit):</span>
+                                                    <span class="fw-bold text-danger">-$${fp.retainedValue.toFixed(2)}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                $('#promoItemsContainer').html(promoHtml);
+                                $('#promoSection').removeClass('d-none');
+                            } else {
+                                $('#promoItemsContainer').html('');
+                                $('#promoSection').addClass('d-none');
+                            }
+
+                            if (data.breakdown && data.breakdown.length > 0) {
+                                $('#breakdownText').html('<strong>Adjustment Warning:</strong><br/>' + data.breakdown.join('<br/>'));
+                                $('#breakdownAlert').removeClass('d-none');
+                            } else {
+                                $('#breakdownAlert').addClass('d-none');
+                            }
+                        } else {
+                            console.error('Preview error response:', res);
+                            alert('Preview Refund Calculation Error: ' + (res.message || 'Unknown error'));
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        $btn.prop('disabled', false).html('<i class="bi bi-arrow-repeat me-1"></i> Calculate / Preview Refund');
+                        console.error('PreviewSalesClawback AJAX Error:', status, error, xhr.responseText);
+                        let msg = 'HTTP ' + xhr.status + ' (' + error + ')';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            msg += ': ' + xhr.responseJSON.message;
+                        } else if (xhr.responseText) {
+                            msg += ': ' + xhr.responseText.substring(0, 300);
+                        }
+                        alert('Preview Refund Calculation Error:\n' + msg);
+                    }
+                });
+            }
+
+            $(document).on('input change', '.return-qty, #includeSchemeCalculation', function () {
+                previewClawback(false);
+            });
+
+            $(document).on('change', '.free-return-qty', function () {
+                previewClawback(false);
+            });
+
+            $('#btnPreviewClawback').on('click', function () {
+                previewClawback(true);
+            });
+
+            $('#btnSubmitReturn').on('click', function () {
+                const items = buildReturnItemsList();
+                const hasReturnItem = items.some(i => i.quantity > 0);
+
+                if (!hasReturnItem) {
+                    alert('Please select at least one item or free promo item to return.');
+                    return;
+                }
+
+                if (!confirm('Are you sure you want to finalize this Sales Return?\n\n- Physical inventory will be restocked.\n- Customer ledger will receive a Credit entry.\n- Parent invoice will be permanently locked for editing.')) {
+                    return;
+                }
+
+                const $btn = $(this);
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span> Processing Return...');
+
+                const payload = {
+                    salesInvoiceId: invoiceId,
+                    returnDate: new Date().toISOString(),
+                    reason: $('#headerReason').val(),
+                    includeSchemeCalculation: $('#includeSchemeCalculation').is(':checked'),
+                    settlementMethod: $('input[name="settlementMethod"]:checked').val(),
+                    items: items
+                };
+
+                $.ajax({
+                    url: '/Returns/ProcessSalesReturn',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload),
+                    success: function (res) {
+                        if (res.success && res.returnId) {
+                            window.location.href = '/Returns/SalesReturnDetails/' + res.returnId;
+                        } else {
+                            alert(res.message || 'Error processing sales return.');
+                            $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Sales Return');
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        console.error('ProcessSalesReturn AJAX Error:', status, error, xhr.responseText);
+                        let msg = 'HTTP ' + xhr.status + ' (' + error + ')';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            msg += ': ' + xhr.responseJSON.message;
+                        } else if (xhr.responseText) {
+                            msg += ': ' + xhr.responseText.substring(0, 300);
+                        }
+                        alert('Failed to process sales return:\n' + msg);
+                        $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Sales Return');
+                    }
+                });
+            });
+        });
+    </script>
+}

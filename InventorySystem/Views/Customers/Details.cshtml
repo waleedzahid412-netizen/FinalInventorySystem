@@ -1,0 +1,255 @@
+@model InventorySystem.ViewModels.Customers.CustomerDetailsViewModel
+
+@{
+    ViewData["Title"] = $"{Model.Details.Info.ShopName} - Details";
+    var info = Model.Details.Info;
+    var fin = Model.Details.FinancialSummary;
+}
+
+<div class="container-fluid py-3">
+    <!-- Breadcrumb & Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-action="Index">Customers</a></li>
+                    <li class="breadcrumb-item active">@info.ShopName</li>
+                </ol>
+            </nav>
+            <h2 class="fw-bold mb-0">
+                <i class="bi bi-shop me-2 text-primary"></i>@info.ShopName
+                @if (info.IsActive)
+                {
+                    <span class="badge bg-success fs-6 align-middle ms-2">Active</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary fs-6 align-middle ms-2">Inactive</span>
+                }
+            </h2>
+        </div>
+        <div>
+            <a asp-action="Edit" asp-route-id="@info.CustomerID" class="btn btn-outline-primary me-2">
+                <i class="bi bi-pencil me-1"></i> Edit Customer
+            </a>
+            <a asp-action="Index" class="btn btn-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Credit Limit Warning Alert Banner (Informational Only) -->
+    @if (fin.IsCreditLimitExceeded)
+    {
+        <div class="alert alert-warning alert-dismissible fade show border-warning shadow-sm mb-4" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill fs-3 me-3 text-warning"></i>
+                <div>
+                    <h5 class="alert-heading mb-1 fw-bold">Credit Limit Warning</h5>
+                    <p class="mb-0">
+                        This customer's outstanding receivable (<strong>PKR @fin.OutstandingReceivable.ToString("N2")</strong>) 
+                        exceeds their assigned credit limit (<strong>PKR @fin.CreditLimit.ToString("N2")</strong>) by 
+                        <strong class="text-danger">PKR @((fin.OutstandingReceivable - fin.CreditLimit).ToString("N2"))</strong>. 
+                        <em>(Informational warning only — sales transactions remain allowed).</em>
+                    </p>
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Financial KPI Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="text-white-50 small fw-semibold text-uppercase">Total Sales / Debits</div>
+                    <div class="fs-3 fw-bold mt-1">PKR @fin.TotalDebits.ToString("N2")</div>
+                    <div class="small mt-2 text-white-50"><i class="bi bi-clock-history me-1"></i> Last Sale: @(fin.LastSaleDate.HasValue ? fin.LastSaleDate.Value.ToString("dd MMM yyyy") : "N/A")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-success text-white h-100">
+                <div class="card-body">
+                    <div class="text-white-50 small fw-semibold text-uppercase">Total Payments / Credits</div>
+                    <div class="fs-3 fw-bold mt-1">PKR @fin.TotalCredits.ToString("N2")</div>
+                    <div class="small mt-2 text-white-50"><i class="bi bi-clock-history me-1"></i> Last Payment: @(fin.LastPaymentDate.HasValue ? fin.LastPaymentDate.Value.ToString("dd MMM yyyy") : "N/A")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm @(fin.OutstandingReceivable > 0 ? "bg-danger" : "bg-info") text-white h-100">
+                <div class="card-body">
+                    <div class="text-white-50 small fw-semibold text-uppercase">Outstanding Balance</div>
+                    <div class="fs-3 fw-bold mt-1">PKR @fin.OutstandingReceivable.ToString("N2")</div>
+                    <div class="small mt-2 text-white-50"><i class="bi bi-receipt me-1"></i> Pending Invoices: @fin.PendingInvoicesCount</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm bg-dark text-white h-100">
+                <div class="card-body">
+                    <div class="text-white-50 small fw-semibold text-uppercase">Credit Limit</div>
+                    <div class="fs-3 fw-bold mt-1">PKR @fin.CreditLimit.ToString("N2")</div>
+                    <div class="small mt-2">
+                        @if (fin.IsCreditLimitExceeded)
+                        {
+                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle me-1"></i> Limit Exceeded</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Within Limit</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Information Card & Location Details -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light py-3">
+            <h5 class="card-title mb-0 fw-bold"><i class="bi bi-person-vcard me-2"></i>Customer Profile & Address</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="text-muted small">Shop Name</div>
+                    <div class="fw-bold fs-6">@info.ShopName</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Owner Name</div>
+                    <div class="fw-semibold">@(info.OwnerName ?? "-")</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Phone Number</div>
+                    <div class="fw-semibold">@(info.Phone ?? "-")</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Area</div>
+                    <div><span class="badge bg-light text-dark border">@(info.AreaName ?? "Unassigned")</span></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Sub-Area</div>
+                    <div><span class="badge bg-light text-dark border">@(info.SubAreaName ?? "Unassigned")</span></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Tax ID / NTN</div>
+                    <div class="fw-semibold">@(info.TaxID ?? "-")</div>
+                </div>
+                <div class="col-md-12">
+                    <div class="text-muted small">Delivery Address</div>
+                    <div class="fw-semibold">@(info.Address ?? "No address registered.")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Async History Tabs (Sales, Payments, Account Ledger) -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white p-0 border-bottom">
+            <ul class="nav nav-tabs card-header-tabs m-0" id="customerDetailsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active py-3 px-4 fw-semibold" id="sales-tab" data-bs-toggle="tab" data-bs-target="#sales-content" type="button" role="tab" onclick="loadSalesTab(@info.CustomerID, 1)">
+                        <i class="bi bi-file-earmark-text me-2"></i>Sales History
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link py-3 px-4 fw-semibold" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments-content" type="button" role="tab" onclick="loadPaymentTab(@info.CustomerID, 1)">
+                        <i class="bi bi-cash-stack me-2"></i>Payment Receipts
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link py-3 px-4 fw-semibold" id="ledger-tab" data-bs-toggle="tab" data-bs-target="#ledger-content" type="button" role="tab" onclick="loadLedgerTab(@info.CustomerID, 1)">
+                        <i class="bi bi-journal-bookmark me-2"></i>Account Ledger
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body p-4">
+            <div class="tab-content" id="customerDetailsTabContent">
+                <!-- Sales Tab Content -->
+                <div class="tab-pane fade show active" id="sales-content" role="tabpanel">
+                    <div id="salesTabLoader" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="text-muted mt-2">Loading Sales History...</div>
+                    </div>
+                </div>
+
+                <!-- Payments Tab Content -->
+                <div class="tab-pane fade" id="payments-content" role="tabpanel">
+                    <div id="paymentsTabLoader" class="text-center py-4">
+                        <div class="spinner-border text-success" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="text-muted mt-2">Loading Payment Receipts...</div>
+                    </div>
+                </div>
+
+                <!-- Ledger Tab Content -->
+                <div class="tab-pane fade" id="ledger-content" role="tabpanel">
+                    <div id="ledgerTabLoader" class="text-center py-4">
+                        <div class="spinner-border text-info" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="text-muted mt-2">Loading Account Ledger...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Load initial active tab (Sales History)
+            loadSalesTab(@info.CustomerID, 1);
+        });
+
+        function loadSalesTab(customerId, page) {
+            const container = document.getElementById('sales-content');
+            container.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="text-muted mt-2">Loading Sales History...</div></div>`;
+            
+            fetch(`/Customers/SalesHistoryTab/${customerId}?pageNumber=${page}`)
+                .then(response => response.text())
+                .then(html => {
+                    container.innerHTML = html;
+                })
+                .catch(err => {
+                    container.innerHTML = `<div class="alert alert-danger">Failed to load sales history.</div>`;
+                });
+        }
+
+        function loadPaymentTab(customerId, page) {
+            const container = document.getElementById('payments-content');
+            container.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-success" role="status"></div><div class="text-muted mt-2">Loading Payment Receipts...</div></div>`;
+            
+            fetch(`/Customers/PaymentHistoryTab/${customerId}?pageNumber=${page}`)
+                .then(response => response.text())
+                .then(html => {
+                    container.innerHTML = html;
+                })
+                .catch(err => {
+                    container.innerHTML = `<div class="alert alert-danger">Failed to load payment receipts.</div>`;
+                });
+        }
+
+        function loadLedgerTab(customerId, page) {
+            const container = document.getElementById('ledger-content');
+            container.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-info" role="status"></div><div class="text-muted mt-2">Loading Account Ledger...</div></div>`;
+            
+            fetch(`/Customers/LedgerTab/${customerId}?pageNumber=${page}`)
+                .then(response => response.text())
+                .then(html => {
+                    container.innerHTML = html;
+                })
+                .catch(err => {
+                    container.innerHTML = `<div class="alert alert-danger">Failed to load account ledger.</div>`;
+                });
+        }
+    </script>
+}

@@ -1,0 +1,381 @@
+@model InventorySystem.ViewModels.Products.ProductDetailsViewModel
+
+@{
+    ViewData["Title"] = "Product Details - " + Model.Product.ProductName;
+}
+
+<div class="container-fluid py-4">
+    <!-- Header Toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="h3 mb-0 text-gray-800 fw-bold">@Model.Product.ProductName</h1>
+                <span class="font-monospace badge bg-primary px-2 py-1 fs-6">@Model.Product.ProductCode</span>
+                @if (Model.Product.IsActive)
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Active</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">Inactive</span>
+                }
+            </div>
+            <p class="text-muted small mb-0">Category: <strong>@Model.Product.CategoryName</strong> | Base Unit: <strong>@Model.Product.BaseUnitName</strong></p>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Edit" asp-route-id="@Model.Product.ProductID" class="btn btn-warning">
+                <i class="bi bi-pencil me-1"></i> Edit Product
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to Catalog
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Header Summary KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-4 border-primary">
+                <div class="card-body py-3">
+                    <div class="text-muted small fw-semibold text-uppercase">Current Total Stock</div>
+                    <div class="fs-4 fw-bold text-dark mt-1">
+                        @(Model.Product.InventorySummary?.TotalStockQuantity.ToString("N0") ?? "0") @Model.Product.BaseUnitName
+                    </div>
+                    @if (Model.Product.InventorySummary != null && Model.Product.InventorySummary.IsLowStock)
+                    {
+                        <span class="badge bg-danger mt-1"><i class="bi bi-exclamation-circle me-1"></i> Low Stock Alert</span>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-4 border-success">
+                <div class="card-body py-3">
+                    <div class="text-muted small fw-semibold text-uppercase">Base Selling Price</div>
+                    <div class="fs-4 fw-bold text-success mt-1">
+                        $@Model.Product.BaseSellingPrice.ToString("N2")
+                    </div>
+                    <span class="text-muted small">Per @Model.Product.BaseUnitName</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-4 border-info">
+                <div class="card-body py-3">
+                    <div class="text-muted small fw-semibold text-uppercase">Average Cost</div>
+                    <div class="fs-4 fw-bold text-info mt-1">
+                        $@Model.Product.AveragePurchaseCost.ToString("N2")
+                    </div>
+                    <span class="text-muted small">Weighted Acquisition Cost</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-4 border-warning">
+                <div class="card-body py-3">
+                    <div class="text-muted small fw-semibold text-uppercase">Reorder Threshold</div>
+                    <div class="fs-4 fw-bold text-dark mt-1">
+                        @Model.Product.ReorderLevel @Model.Product.BaseUnitName
+                    </div>
+                    <span class="text-muted small">Min stock reorder level</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Info & Packaging Units Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-card-list me-2"></i> Catalog Specs</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted">SKU Code</dt>
+                        <dd class="col-sm-8 font-monospace">@(Model.Product.SKU ?? "-")</dd>
+
+                        <dt class="col-sm-4 text-muted">Barcode</dt>
+                        <dd class="col-sm-8">@(Model.Product.Barcode ?? "-")</dd>
+
+                        <dt class="col-sm-4 text-muted">Category</dt>
+                        <dd class="col-sm-8"><span class="badge bg-light text-dark border">@Model.Product.CategoryName</span></dd>
+
+                        <dt class="col-sm-4 text-muted">Base Unit</dt>
+                        <dd class="col-sm-8">@Model.Product.BaseUnitName</dd>
+
+                        <dt class="col-sm-4 text-muted">Date Created</dt>
+                        <dd class="col-sm-8">@Model.Product.CreatedAt.ToString("MMM dd, yyyy HH:mm")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-box-seam me-2"></i> Configured Packaging Units</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="bg-light text-muted small">
+                                <tr>
+                                    <th class="ps-3">Unit</th>
+                                    <th class="text-center">Conversion</th>
+                                    <th class="text-end">Selling Price</th>
+                                    <th class="text-center">Default Purchase</th>
+                                    <th class="text-center pe-3">Default Sales</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var unit in Model.Product.ProductUnits)
+                                {
+                                    <tr>
+                                        <td class="ps-3 fw-semibold">@unit.UnitName</td>
+                                        <td class="text-center"><span class="badge bg-secondary">1 = @unit.ConversionToBaseUnit @Model.Product.BaseUnitName</span></td>
+                                        <td class="text-end fw-semibold">@(unit.SellingPrice.HasValue ? "$" + unit.SellingPrice.Value.ToString("N2") : "-")</td>
+                                        <td class="text-center">
+                                            @if (unit.IsDefaultPurchaseUnit)
+                                            {
+                                                <i class="bi bi-check-circle-fill text-success"></i>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td class="text-center pe-3">
+                                            @if (unit.IsDefaultSalesUnit)
+                                            {
+                                                <i class="bi bi-check-circle-fill text-success"></i>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabbed History & Audit Section -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-bottom pt-3 pb-0">
+            <ul class="nav nav-tabs card-header-tabs" id="productTabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link @(Model.ActiveTab == "inventory" ? "active fw-bold text-primary" : "text-secondary")" asp-action="Details" asp-route-id="@Model.Product.ProductID" asp-route-activeTab="inventory">
+                        <i class="bi bi-houses me-1"></i> Warehouse Stock
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(Model.ActiveTab == "purchase" ? "active fw-bold text-primary" : "text-secondary")" asp-action="Details" asp-route-id="@Model.Product.ProductID" asp-route-activeTab="purchase">
+                        <i class="bi bi-cart-check me-1"></i> Purchase History
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(Model.ActiveTab == "sales" ? "active fw-bold text-primary" : "text-secondary")" asp-action="Details" asp-route-id="@Model.Product.ProductID" asp-route-activeTab="sales">
+                        <i class="bi bi-receipt me-1"></i> Sales History
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(Model.ActiveTab == "transactions" ? "active fw-bold text-primary" : "text-secondary")" asp-action="Details" asp-route-id="@Model.Product.ProductID" asp-route-activeTab="transactions">
+                        <i class="bi bi-journal-text me-1"></i> Inventory Movements
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body">
+            <!-- TAB 1: Warehouse Stock Summary -->
+            @if (Model.ActiveTab == "inventory")
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small">
+                            <tr>
+                                <th>Warehouse Location</th>
+                                <th class="text-end">Stock Quantity (@Model.Product.BaseUnitName)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Product.WarehouseStocks != null && Model.Product.WarehouseStocks.Any())
+                            {
+                                foreach (var ws in Model.Product.WarehouseStocks)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold"><i class="bi bi-building me-2 text-primary"></i>@ws.WarehouseName</td>
+                                        <td class="text-end fw-bold text-dark">@ws.Quantity.ToString("N0")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="2" class="text-center py-4 text-muted">No warehouse stock data recorded yet.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <!-- TAB 2: Purchase History -->
+            @if (Model.ActiveTab == "purchase")
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small">
+                            <tr>
+                                <th>Invoice Date</th>
+                                <th>Invoice #</th>
+                                <th>Supplier / Company</th>
+                                <th>Packaging Unit</th>
+                                <th class="text-end">Invoice Qty</th>
+                                <th class="text-end">Converted Qty (@Model.Product.BaseUnitName)</th>
+                                <th class="text-end">Unit Cost</th>
+                                <th class="text-end">Total Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.PurchaseHistory.Items != null && Model.PurchaseHistory.Items.Any())
+                            {
+                                foreach (var ph in Model.PurchaseHistory.Items)
+                                {
+                                    <tr>
+                                        <td>@ph.InvoiceDate.ToString("MMM dd, yyyy")</td>
+                                        <td><code class="text-primary">@ph.InvoiceNumber</code></td>
+                                        <td class="fw-semibold">@ph.CompanyName</td>
+                                        <td><span class="badge bg-light text-dark border">@ph.UnitName</span></td>
+                                        <td class="text-end">@ph.Quantity.ToString("N0")</td>
+                                        <td class="text-end fw-bold">@ph.ConvertedQuantity.ToString("N0")</td>
+                                        <td class="text-end">$@ph.UnitCost.ToString("N2")</td>
+                                        <td class="text-end fw-semibold text-success">$@ph.TotalCost.ToString("N2")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">No purchase invoice history found for this product.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <!-- TAB 3: Sales History -->
+            @if (Model.ActiveTab == "sales")
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small">
+                            <tr>
+                                <th>Invoice Date</th>
+                                <th>Invoice #</th>
+                                <th>Customer / Shop</th>
+                                <th>Packaging Unit</th>
+                                <th class="text-end">Invoice Qty</th>
+                                <th class="text-end">Converted Qty (@Model.Product.BaseUnitName)</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Line Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.SalesHistory.Items != null && Model.SalesHistory.Items.Any())
+                            {
+                                foreach (var sh in Model.SalesHistory.Items)
+                                {
+                                    <tr>
+                                        <td>@sh.InvoiceDate.ToString("MMM dd, yyyy")</td>
+                                        <td><code class="text-primary">@sh.InvoiceNumber</code></td>
+                                        <td class="fw-semibold">@sh.CustomerName</td>
+                                        <td><span class="badge bg-light text-dark border">@sh.UnitName</span></td>
+                                        <td class="text-end">@sh.Quantity.ToString("N0")</td>
+                                        <td class="text-end fw-bold">@sh.ConvertedQuantity.ToString("N0")</td>
+                                        <td class="text-end">$@sh.UnitPrice.ToString("N2")</td>
+                                        <td class="text-end fw-semibold text-success">$@sh.TotalPrice.ToString("N2")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">No sales invoice history found for this product.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <!-- TAB 4: Inventory Movements -->
+            @if (Model.ActiveTab == "transactions")
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small">
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Transaction Type</th>
+                                <th>Warehouse Location</th>
+                                <th class="text-end">Quantity Change (@Model.Product.BaseUnitName)</th>
+                                <th>Document Reference #</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.InventoryTransactions.Items != null && Model.InventoryTransactions.Items.Any())
+                            {
+                                foreach (var tx in Model.InventoryTransactions.Items)
+                                {
+                                    <tr>
+                                        <td>@tx.TransactionDate.ToString("MMM dd, yyyy HH:mm")</td>
+                                        <td>
+                                            @if (tx.TransactionType == "PURCHASE" || tx.TransactionType == "RETURN")
+                                            {
+                                                <span class="badge bg-success"><i class="bi bi-plus-circle me-1"></i>@tx.TransactionType</span>
+                                            }
+                                            else if (tx.TransactionType == "SALE")
+                                            {
+                                                <span class="badge bg-danger"><i class="bi bi-dash-circle me-1"></i>@tx.TransactionType</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-warning text-dark">@tx.TransactionType</span>
+                                            }
+                                        </td>
+                                        <td>@tx.WarehouseName</td>
+                                        <td class="text-end fw-bold @(tx.Quantity >= 0 ? "text-success" : "text-danger")">
+                                            @(tx.Quantity > 0 ? "+" : "")@tx.Quantity.ToString("N0")
+                                        </td>
+                                        <td><code>@(tx.ReferenceNumber ?? "-")</code></td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">No inventory movement log entries recorded yet.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>

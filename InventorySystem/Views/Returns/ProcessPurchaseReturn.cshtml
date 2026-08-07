@@ -1,0 +1,235 @@
+@model InventorySystem.ViewModels.Returns.ProcessPurchaseReturnViewModel
+@{
+    ViewData["Title"] = "Process Purchase Return";
+    var eligibility = Model.Eligibility;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="h3 mb-0 text-gray-800"><i class="bi bi-box-arrow-left text-primary me-2"></i> Process Purchase Return</h2>
+        <p class="text-muted small mb-0">Select items and enter return quantities against Purchase Invoice #<strong>@eligibility.InvoiceNumber</strong></p>
+    </div>
+    <div>
+        <a asp-controller="Purchases" asp-action="Details" asp-route-id="@eligibility.PurchaseInvoiceID" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to Purchase Invoice
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- INVOICE HEADER SNAPSHOT -->
+    <div class="col-md-12">
+        <div class="card shadow-sm border-0 bg-light">
+            <div class="card-body">
+                <div class="row text-center text-md-start">
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Original Purchase Invoice</span>
+                        <span class="fw-bold fs-5 text-primary">@eligibility.InvoiceNumber</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Supplier / Company</span>
+                        <span class="fw-bold">@eligibility.CompanyName</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Warehouse</span>
+                        <span class="fw-bold text-dark"><i class="bi bi-building me-1"></i> @eligibility.WarehouseName</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Invoice Date</span>
+                        <span class="fw-bold">@eligibility.InvoiceDate.ToString("dd MMM yyyy")</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RETURN FORM -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-list-check me-2"></i> Purchase Line Items to Return</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0" id="returnItemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th class="text-center">Purchased Qty</th>
+                                <th class="text-center">Already Returned</th>
+                                <th class="text-center">Return Qty</th>
+                                <th>Reason</th>
+                                <th>Condition</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (eligibility.Items != null && eligibility.Items.Any())
+                            {
+                                foreach (var item in eligibility.Items)
+                                {
+                                    bool isFullyReturned = item.RemainingReturnableQuantity <= 0;
+                                    <tr data-item-id="@item.InvoiceItemID" data-product-id="@item.ProductID" data-product-unit-id="@item.ProductUnitID" data-unit-cost="@item.UnitPriceOrCost" class="@(isFullyReturned ? "table-secondary text-muted" : "")">
+                                        <td>
+                                            <div class="fw-bold">@item.ProductName</div>
+                                            <span class="small text-muted">@item.SKU | Unit: @item.UnitName</span>
+                                        </td>
+                                        <td class="text-center fw-semibold">@item.OriginalQuantity.ToString("N2")</td>
+                                        <td class="text-center text-muted">@item.AlreadyReturnedQuantity.ToString("N2")</td>
+                                        <td class="text-center" style="width: 130px;">
+                                            @if (isFullyReturned)
+                                            {
+                                                <span class="badge bg-secondary">Fully Returned</span>
+                                                <input type="number" class="form-control form-control-sm return-qty d-none" value="0" disabled />
+                                            }
+                                            else
+                                            {
+                                                <input type="number" class="form-control form-control-sm return-qty text-center" min="0" max="@item.RemainingReturnableQuantity" step="0.01" value="0" placeholder="0" />
+                                                <span class="form-text small d-block">Max: @item.RemainingReturnableQuantity.ToString("N2")</span>
+                                            }
+                                        </td>
+                                        <td style="width: 160px;">
+                                            <select class="form-select form-select-sm item-reason" @(isFullyReturned ? "disabled" : "")>
+                                                <option value="Damaged">Damaged</option>
+                                                <option value="Wrong Product" selected>Wrong Product</option>
+                                                <option value="Expired">Expired</option>
+                                                <option value="Supplier Defect">Supplier Defect</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </td>
+                                        <td style="width: 130px;">
+                                            <select class="form-select form-select-sm item-condition" @(isFullyReturned ? "disabled" : "")>
+                                                <option value="Sellable" selected>Sellable</option>
+                                                <option value="Damaged">Damaged</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+                <label class="form-label fw-bold">Return Header Remarks / Reason</label>
+                <textarea id="headerReason" class="form-control" rows="2" placeholder="Optional notes for this purchase return transaction..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUMMARY & ACTION PANEL -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 sticky-top" style="top: 20px;">
+            <div class="card-header bg-primary text-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-calculator me-2"></i> Purchase Return Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="p-3 bg-light rounded border mb-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold fs-6">TOTAL REFUND VALUE:</span>
+                        <span class="fw-bold fs-4 text-primary" id="lblTotalRefund">$0.00</span>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="button" id="btnSubmitReturn" class="btn btn-primary btn-lg fw-bold">
+                        <i class="bi bi-check-circle-fill me-2"></i> Finalize Purchase Return
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            const purchaseInvoiceId = @eligibility.PurchaseInvoiceID;
+
+            function calculateTotalRefund() {
+                let total = 0;
+                $('#returnItemsTable tbody tr').each(function () {
+                    const $row = $(this);
+                    const qty = parseFloat($row.find('.return-qty').val()) || 0;
+                    const unitCost = parseFloat($row.data('unit-cost')) || 0;
+                    if (qty > 0) {
+                        total += qty * unitCost;
+                    }
+                });
+                $('#lblTotalRefund').text('$' + total.toFixed(2));
+            }
+
+            $('.return-qty').on('input change', function () {
+                calculateTotalRefund();
+            });
+
+            $('#btnSubmitReturn').on('click', function () {
+                const items = [];
+                $('#returnItemsTable tbody tr').each(function () {
+                    const $row = $(this);
+                    const qty = parseFloat($row.find('.return-qty').val()) || 0;
+                    if (qty > 0) {
+                        const itemId = parseInt($row.data('item-id'));
+                        const prodId = parseInt($row.data('product-id'));
+                        const unitId = parseInt($row.data('product-unit-id'));
+                        items.push({
+                            invoiceItemId: itemId,
+                            productId: prodId,
+                            productUnitId: unitId,
+                            quantity: qty,
+                            reason: $row.find('.item-reason').val(),
+                            returnCondition: $row.find('.item-condition').val()
+                        });
+                    }
+                });
+
+                if (items.length === 0) {
+                    alert('Please enter a return quantity greater than zero for at least one item.');
+                    return;
+                }
+
+                if (!confirm('Are you sure you want to finalize this Purchase Return?\n\n- Warehouse inventory will be decremented.\n- Company ledger will receive a Debit entry.\n- Stock safety checks will be enforced.')) {
+                    return;
+                }
+
+                const $btn = $(this);
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span> Processing Purchase Return...');
+
+                const payload = {
+                    purchaseInvoiceId: purchaseInvoiceId,
+                    returnDate: new Date().toISOString(),
+                    reason: $('#headerReason').val(),
+                    items: items
+                };
+
+                $.ajax({
+                    url: '/Returns/ProcessPurchaseReturn',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload),
+                    success: function (res) {
+                        if (res.success && res.returnId) {
+                            window.location.href = '/Returns/PurchaseReturnDetails/' + res.returnId;
+                        } else {
+                            alert(res.message || 'Error processing purchase return.');
+                            $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Purchase Return');
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        console.error('ProcessPurchaseReturn AJAX Error:', status, error, xhr.responseText);
+                        let msg = 'HTTP ' + xhr.status + ' (' + error + ')';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            msg += ': ' + xhr.responseJSON.message;
+                        } else if (xhr.responseText) {
+                            msg += ': ' + xhr.responseText.substring(0, 300);
+                        }
+                        alert('Failed to process purchase return:\n' + msg);
+                        $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Purchase Return');
+                    }
+                });
+            });
+        });
+    </script>
+}

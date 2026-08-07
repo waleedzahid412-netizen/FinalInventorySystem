@@ -1,0 +1,366 @@
+@model InventorySystem.ViewModels.Payments.ChequeManagementViewModel
+@{
+    ViewData["Title"] = "Cheque Management Lifecycle";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-card-heading me-2 text-primary"></i> Cheque Management Lifecycle</h1>
+            <p class="text-muted small mb-0">Manage customer & vendor cheque clearing, bouncing, cancellation, and duplicate protection.</p>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body py-3">
+            <form method="get" asp-action="Cheques" class="row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Type</label>
+                    <select name="PaymentType" class="form-select form-select-sm" asp-for="Filter.PaymentType">
+                        <option value="All">All Types</option>
+                        <option value="Customer">Customer Cheques</option>
+                        <option value="Company">Vendor / Company Cheques</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Status</label>
+                    <select name="Status" class="form-select form-select-sm" asp-for="Filter.Status">
+                        <option value="All">All Statuses</option>
+                        <option value="Received">Received (Pending Clearance)</option>
+                        <option value="Cleared">Cleared</option>
+                        <option value="Bounced">Bounced</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Search</label>
+                    <input type="text" name="SearchTerm" class="form-control form-control-sm" asp-for="Filter.SearchTerm" placeholder="Cheque #, Party Name, Invoice #" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Date From</label>
+                    <input type="date" name="DateFrom" class="form-control form-control-sm" value="@Model.Filter.DateFrom?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Date To</label>
+                    <input type="date" name="DateTo" class="form-control form-control-sm" value="@Model.Filter.DateTo?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-1 d-flex gap-1">
+                    <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i></button>
+                    <a asp-action="Cheques" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Cheques Table -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Cheque #</th>
+                            <th>Type</th>
+                            <th>Bank Name</th>
+                            <th>Party Name</th>
+                            <th>Target Invoice</th>
+                            <th>Cheque Date</th>
+                            <th class="text-end">Amount</th>
+                            <th class="text-center">Lifecycle Status</th>
+                            <th class="text-center">Admin Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.PagedResult.Items != null && Model.PagedResult.Items.Any())
+                        {
+                            foreach (var c in Model.PagedResult.Items)
+                            {
+                                bool isCustomer = c.PaymentType == "Customer";
+                                string statusBadge = c.ChequeStatus switch
+                                {
+                                    "Cleared" => "bg-success",
+                                    "Received" => "bg-warning text-dark",
+                                    "Bounced" => "bg-danger",
+                                    "Cancelled" => "bg-secondary",
+                                    _ => "bg-light text-dark"
+                                };
+
+                                <tr>
+                                    <td class="fw-bold text-primary">
+                                        <i class="bi bi-credit-card me-1"></i> @(string.IsNullOrWhiteSpace(c.ChequeNumber) ? c.PaymentNumber : c.ChequeNumber)
+                                    </td>
+                                    <td>
+                                        <span class="badge @(isCustomer ? "bg-info text-dark" : "bg-primary")">
+                                            @c.PaymentType
+                                        </span>
+                                    </td>
+                                    <td class="fw-semibold">@(c.BankName ?? "N/A")</td>
+                                    <td class="fw-bold">@c.PartyName</td>
+                                    <td>
+                                        @if (isCustomer)
+                                        {
+                                            <a asp-controller="Sales" asp-action="Details" asp-route-id="@c.InvoiceID" class="text-decoration-none">
+                                                #@c.InvoiceNumber
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <a asp-controller="Purchases" asp-action="Details" asp-route-id="@c.InvoiceID" class="text-decoration-none">
+                                                #@c.InvoiceNumber
+                                            </a>
+                                        }
+                                    </td>
+                                    <td>@c.ChequeDate?.ToString("dd MMM yyyy")</td>
+                                    <td class="text-end fw-bold text-dark">PKR @c.Amount.ToString("N2")</td>
+                                    <td class="text-center">
+                                        <span class="badge @statusBadge px-2 py-1 fs-6">
+                                            @if (c.ChequeStatus == "Cleared") { <i class="bi bi-check-circle me-1"></i> }
+                                            else if (c.ChequeStatus == "Received") { <i class="bi bi-hourglass-split me-1"></i> }
+                                            else if (c.ChequeStatus == "Bounced") { <i class="bi bi-exclamation-triangle me-1"></i> }
+                                            @c.ChequeStatus
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (c.ChequeStatus == "Received")
+                                        {
+                                            <button type="button" class="btn btn-sm btn-success py-0 px-2 btnClearCheque" data-id="@c.PaymentID" data-type="@c.PaymentType" data-number="@c.ChequeNumber" data-amount="@c.Amount">
+                                                <i class="bi bi-check-lg me-1"></i> Clear
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 btnBounceModal" data-id="@c.PaymentID" data-type="@c.PaymentType" data-number="@c.ChequeNumber">
+                                                <i class="bi bi-x-circle me-1"></i> Bounce
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 btnCancelModal" data-id="@c.PaymentID" data-type="@c.PaymentType" data-number="@c.ChequeNumber">
+                                                Cancel
+                                            </button>
+                                        }
+                                        else if (c.ChequeStatus == "Cleared")
+                                        {
+                                            <span class="small text-muted" title="Cleared on @c.ClearedAt?.ToString("g")">Cleared</span>
+                                        }
+                                        else if (c.ChequeStatus == "Bounced")
+                                        {
+                                            <span class="small text-danger" title="@c.BounceRemarks">Bounced</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="small text-muted">Cancelled</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">No cheques found matching specified filters.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Pagination -->
+        @if (Model.PagedResult.TotalPages > 1)
+        {
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2">
+                <span class="small text-muted">Showing @(Model.PagedResult.Items?.Count ?? 0) of @Model.PagedResult.TotalCount cheques</span>
+                <ul class="pagination pagination-sm mb-0">
+                    @for (int i = 1; i <= Model.PagedResult.TotalPages; i++)
+                    {
+                        <li class="page-item @(i == Model.PagedResult.PageNumber ? "active" : "")">
+                            <a class="page-link" asp-action="Cheques" asp-route-PageNumber="@i" asp-route-PaymentType="@Model.Filter.PaymentType" asp-route-Status="@Model.Filter.Status" asp-route-SearchTerm="@Model.Filter.SearchTerm">@i</a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Bounce / Cancel Modal -->
+<div class="modal fade" id="chequeActionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header text-white" id="actionModalHeader">
+                <h5 class="modal-title h6" id="actionModalTitle">Cheque Action</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3">
+                <input type="hidden" id="actionPaymentID" />
+                <input type="hidden" id="actionPaymentType" />
+                <input type="hidden" id="actionTargetStatus" />
+
+                <div id="actionModalAlert" class="alert alert-danger p-2 small d-none mb-3"></div>
+
+                <p id="actionPromptText" class="fw-semibold text-dark mb-2"></p>
+
+                <div class="mb-3">
+                    <label for="actionRemarks" class="form-label small fw-semibold">Remarks / Reason <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="actionRemarks" rows="3" placeholder="Enter reason for bouncing or cancelling cheque..." required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn px-4 text-white" id="btnSubmitChequeAction"></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const actionModal = new bootstrap.Modal(document.getElementById('chequeActionModal'));
+            const antiForgeryToken = '@Html.AntiForgeryToken()';
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = antiForgeryToken;
+            const tokenValue = tempDiv.querySelector('input[name="__RequestVerificationToken"]').value;
+
+            // Clear Cheque direct trigger
+            document.querySelectorAll('.btnClearCheque').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const id = parseInt(this.getAttribute('data-id'));
+                    const type = this.getAttribute('data-type');
+                    const number = this.getAttribute('data-number');
+                    const amount = parseFloat(this.getAttribute('data-amount')).toFixed(2);
+
+                    if (confirm(`Are you sure you want to CLEAR Cheque #${number} (PKR ${amount})? This will immediately update invoice paid balance and post to the ledger.`)) {
+                        btn.disabled = true;
+
+                        fetch('/Payments/UpdateChequeStatus', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'RequestVerificationToken': tokenValue
+                            },
+                            body: JSON.stringify({
+                                PaymentID: id,
+                                PaymentType: type,
+                                NewStatus: 'Cleared',
+                                Remarks: 'Cleared by administrator'
+                            })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            btn.disabled = false;
+                            if (data.success) {
+                                alert(data.message);
+                                window.location.reload();
+                            } else {
+                                alert('Error: ' + data.message);
+                            }
+                        })
+                        .catch(err => {
+                            btn.disabled = false;
+                            alert('An error occurred while clearing cheque.');
+                        });
+                    }
+                });
+            });
+
+            // Bounce Modal trigger
+            document.querySelectorAll('.btnBounceModal').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const id = this.getAttribute('data-id');
+                    const type = this.getAttribute('data-type');
+                    const number = this.getAttribute('data-number');
+
+                    document.getElementById('actionPaymentID').value = id;
+                    document.getElementById('actionPaymentType').value = type;
+                    document.getElementById('actionTargetStatus').value = 'Bounced';
+                    document.getElementById('actionModalTitle').textContent = 'Mark Cheque as Bounced';
+                    document.getElementById('actionPromptText').textContent = `Record bounce details for Cheque #${number}:`;
+
+                    const header = document.getElementById('actionModalHeader');
+                    header.className = 'modal-header bg-danger text-white';
+
+                    const submitBtn = document.getElementById('btnSubmitChequeAction');
+                    submitBtn.className = 'btn btn-danger px-4';
+                    submitBtn.textContent = 'Confirm Bounce';
+
+                    document.getElementById('actionRemarks').value = '';
+                    document.getElementById('actionModalAlert').classList.add('d-none');
+                    actionModal.show();
+                });
+            });
+
+            // Cancel Modal trigger
+            document.querySelectorAll('.btnCancelModal').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const id = this.getAttribute('data-id');
+                    const type = this.getAttribute('data-type');
+                    const number = this.getAttribute('data-number');
+
+                    document.getElementById('actionPaymentID').value = id;
+                    document.getElementById('actionPaymentType').value = type;
+                    document.getElementById('actionTargetStatus').value = 'Cancelled';
+                    document.getElementById('actionModalTitle').textContent = 'Cancel Cheque';
+                    document.getElementById('actionPromptText').textContent = `Record cancellation for Cheque #${number}:`;
+
+                    const header = document.getElementById('actionModalHeader');
+                    header.className = 'modal-header bg-secondary text-white';
+
+                    const submitBtn = document.getElementById('btnSubmitChequeAction');
+                    submitBtn.className = 'btn btn-secondary px-4';
+                    submitBtn.textContent = 'Confirm Cancellation';
+
+                    document.getElementById('actionRemarks').value = '';
+                    document.getElementById('actionModalAlert').classList.add('d-none');
+                    actionModal.show();
+                });
+            });
+
+            // Submit Bounce / Cancel Action
+            document.getElementById('btnSubmitChequeAction').addEventListener('click', function () {
+                const alertBox = document.getElementById('actionModalAlert');
+                alertBox.classList.add('d-none');
+
+                const id = parseInt(document.getElementById('actionPaymentID').value);
+                const type = document.getElementById('actionPaymentType').value;
+                const status = document.getElementById('actionTargetStatus').value;
+                const remarks = document.getElementById('actionRemarks').value;
+
+                if (!remarks.trim()) {
+                    alertBox.textContent = 'Please enter remarks / reason.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                const btn = this;
+                btn.disabled = true;
+
+                fetch('/Payments/UpdateChequeStatus', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': tokenValue
+                    },
+                    body: JSON.stringify({
+                        PaymentID: id,
+                        PaymentType: type,
+                        NewStatus: status,
+                        Remarks: remarks
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    if (data.success) {
+                        actionModal.hide();
+                        window.location.reload();
+                    } else {
+                        alertBox.textContent = data.message || 'Failed to update cheque status.';
+                        alertBox.classList.remove('d-none');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    alertBox.textContent = 'An error occurred while updating cheque status.';
+                    alertBox.classList.remove('d-none');
+                });
+            });
+        });
+    </script>
+}

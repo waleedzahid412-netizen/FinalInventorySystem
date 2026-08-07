@@ -1,0 +1,86 @@
+@model InventorySystem.DTOs.Payments.CompanyPaymentDto
+@{
+    Layout = null;
+    ViewData["Title"] = $"Receipt - {Model.PaymentNumber}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Company Payment Receipt - @Model.PaymentNumber</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; }
+        .receipt-card { max-width: 650px; margin: 40px auto; background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .receipt-header { border-bottom: 2px solid #198754; padding-bottom: 15px; margin-bottom: 25px; }
+        @@media print {
+            body { background: #fff; }
+            .receipt-card { box-shadow: none; padding: 0; margin: 0; max-width: 100%; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="text-end mb-3 no-print mt-3" style="max-width: 650px; margin: 0 auto;">
+            <button onclick="window.print();" class="btn btn-success btn-sm"><i class="bi bi-printer"></i> Print Voucher</button>
+            <button onclick="window.close();" class="btn btn-outline-secondary btn-sm">Close</button>
+        </div>
+
+        <div class="receipt-card">
+            <div class="receipt-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="fw-bold text-success mb-0">WHOLESALE DISTRIBUTOR</h3>
+                    <p class="text-muted small mb-0">Company (Supplier) Payment Voucher</p>
+                </div>
+                <div class="text-end">
+                    <h4 class="fw-bold text-dark mb-0">@Model.PaymentNumber</h4>
+                    <span class="badge bg-primary">MONEY PAID</span>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-6">
+                    <span class="text-muted small d-block">Paid To Company (Supplier):</span>
+                    <h5 class="fw-bold text-dark mb-1">@Model.CompanyName</h5>
+                    <span class="text-muted small">Date: @Model.PaymentDate.ToString("dd MMMM yyyy")</span>
+                </div>
+                <div class="col-6 text-end">
+                    <span class="text-muted small d-block">Applied To Purchase Invoice:</span>
+                    <h5 class="fw-bold text-dark mb-1">#@Model.InvoiceNumber</h5>
+                    <span class="text-muted small">Paid By: @Model.PaidByUserName</span>
+                </div>
+            </div>
+
+            <table class="table table-bordered align-middle mb-4">
+                <tbody class="table-light">
+                    <tr>
+                        <td class="fw-semibold">Payment Amount:</td>
+                        <td class="text-end fw-bold text-success fs-4">PKR @Model.Amount.ToString("N2")</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-semibold">Payment Method:</td>
+                        <td class="text-end fw-semibold">@Model.PaymentMethod</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-semibold">Reference Number / Cheque #:</td>
+                        <td class="text-end">@(string.IsNullOrWhiteSpace(Model.ReferenceNumber) ? "N/A" : Model.ReferenceNumber)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="row pt-5 mt-4 border-top">
+                <div class="col-6 text-center">
+                    <div style="border-bottom: 1px solid #ccc; width: 80%; margin: 0 auto 5px auto;"></div>
+                    <span class="small text-muted">Company Representative Stamp & Signature</span>
+                </div>
+                <div class="col-6 text-center">
+                    <div style="border-bottom: 1px solid #ccc; width: 80%; margin: 0 auto 5px auto;"></div>
+                    <span class="small text-muted">Accounts Department Officer</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

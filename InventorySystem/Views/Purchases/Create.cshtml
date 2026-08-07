@@ -1,0 +1,439 @@
+@model InventorySystem.ViewModels.Purchases.CreatePurchaseViewModel
+
+@{
+    ViewData["Title"] = "Create Purchase Invoice";
+}
+
+<div class="container-fluid py-3">
+    <!-- Breadcrumb & Title -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-action="Index">Purchasing</a></li>
+                    <li class="breadcrumb-item active">Create Purchase Invoice</li>
+                </ol>
+            </nav>
+            <h2 class="fw-bold mb-0"><i class="bi bi-cart-plus-fill text-primary me-2"></i>Create Purchase Invoice</h2>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to Invoices
+        </a>
+    </div>
+
+    <!-- Error Summary -->
+    <div asp-validation-summary="All" class="alert alert-danger @(ViewData.ModelState.IsValid ? "d-none" : "")" role="alert"></div>
+
+    <form id="createPurchaseForm" method="post" asp-action="Create">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="ItemsJson" id="ItemsJson" />
+
+        <!-- Header Card -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 text-primary fw-semibold"><i class="bi bi-info-circle me-2"></i>Header Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="CompanyID" class="form-label fw-semibold"></label>
+                        <select asp-for="CompanyID" asp-items="Model.Companies" class="form-select" id="CompanyID">
+                            <option value="">-- Select Company --</option>
+                        </select>
+                        <span asp-validation-for="CompanyID" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="WarehouseID" class="form-label fw-semibold"></label>
+                        <select asp-for="WarehouseID" asp-items="Model.Warehouses" class="form-select" id="WarehouseID">
+                            <option value="">-- Select Warehouse --</option>
+                        </select>
+                        <span asp-validation-for="WarehouseID" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="InvoiceDate" class="form-label fw-semibold"></label>
+                        <input asp-for="InvoiceDate" type="date" class="form-control" />
+                        <span asp-validation-for="InvoiceDate" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="InvoiceNumber" class="form-label fw-semibold"></label>
+                        <input asp-for="InvoiceNumber" class="form-control" placeholder="Optional supplier invoice ref #" />
+                        <span asp-validation-for="InvoiceNumber" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-8">
+                        <label asp-for="Notes" class="form-label fw-semibold"></label>
+                        <input asp-for="Notes" class="form-control" placeholder="Optional notes or reference instructions..." />
+                        <span asp-validation-for="Notes" class="text-danger small"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Line Items Card -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 text-primary fw-semibold"><i class="bi bi-box-seam me-2"></i>Purchase Items</h5>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddRow">
+                    <i class="bi bi-plus-circle me-1"></i> Add Product Line
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="itemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 30%;">Product *</th>
+                                <th style="width: 20%;">Packaging Unit *</th>
+                                <th style="width: 15%;">Quantity *</th>
+                                <th style="width: 15%;">Unit Cost (PKR) *</th>
+                                <th style="width: 15%;" class="text-end">Line Total (PKR)</th>
+                                <th style="width: 5%;" class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsTableBody">
+                            <!-- Rows dynamically populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Totals & Submit Card -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <div class="alert alert-info mb-0 py-2 small">
+                            <i class="bi bi-info-circle-fill me-1"></i>
+                            Purchasing items increases warehouse stock in <strong>Base Units</strong> immediately upon finalization.
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <div class="fs-4 fw-bold mb-2">
+                            Grand Total: <span class="text-primary" id="lblGrandTotal">PKR 0.00</span>
+                        </div>
+                        <button type="button" class="btn btn-success btn-lg px-4" id="btnOpenConfirmModal">
+                            <i class="bi bi-check-circle-fill me-2"></i> Finalize Purchase
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="confirmModalLabel"><i class="bi bi-shield-check me-2"></i>Finalize Purchase Invoice</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-4">
+                <p class="fs-6 mb-3">Are you sure you want to finalize this Purchase Invoice?</p>
+                <div class="card bg-light border-0 p-3 mb-3">
+                    <ul class="list-unstyled mb-0 small text-dark">
+                        <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i><strong>Inventory Stock:</strong> Increased in Base Units immediately.</li>
+                        <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i><strong>Audit Ledger:</strong> Recorded in <code>InventoryTransactions</code>.</li>
+                        <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i><strong>Company Ledger:</strong> Credit posted to Company liability account.</li>
+                        <li><i class="bi bi-lock-fill text-warning me-2"></i><strong>Immutability:</strong> Invoice cannot be edited once finalized.</li>
+                    </ul>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">Grand Total:</span>
+                    <span class="fs-5 fw-bold text-success" id="modalGrandTotal">PKR 0.00</span>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success px-4" id="btnConfirmFinalize">
+                    <span id="btnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                    <i id="btnIcon" class="bi bi-check-lg me-1"></i> Finalize Now
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            let rowCounter = 0;
+            let companyProductsList = [];
+            const companySelect = document.getElementById('CompanyID');
+
+            // Add initial empty row
+            addRow();
+
+            // When Company changes, fetch its products via AJAX
+            companySelect.addEventListener('change', function () {
+                const companyId = this.value;
+                if (!companyId) {
+                    companyProductsList = [];
+                    updateAllRowProducts();
+                    return;
+                }
+
+                fetch(`/Purchases/GetProductsByCompany?companyId=${companyId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        companyProductsList = data || [];
+                        updateAllRowProducts();
+                    })
+                    .catch(err => {
+                        console.error('Failed to load products for company:', err);
+                        companyProductsList = [];
+                        updateAllRowProducts();
+                    });
+            });
+
+            // Trigger initial load if company is pre-selected
+            if (companySelect.value) {
+                companySelect.dispatchEvent(new Event('change'));
+            }
+
+            document.getElementById('btnAddRow').addEventListener('click', function () {
+                addRow();
+            });
+
+            function updateAllRowProducts() {
+                const productSelects = document.querySelectorAll('.product-select');
+                productSelects.forEach(select => {
+                    const currentVal = select.value;
+                    let options = getProductOptionsHtml();
+                    select.innerHTML = options;
+                    if (companyProductsList.some(p => p.id == currentVal)) {
+                        select.value = currentVal;
+                    } else {
+                        select.value = '';
+                        select.dispatchEvent(new Event('change'));
+                    }
+                });
+            }
+
+            function getProductOptionsHtml() {
+                if (!companySelect.value) {
+                    return '<option value="">-- Select Company First --</option>';
+                }
+                if (companyProductsList.length === 0) {
+                    return '<option value="">-- No products found for this company --</option>';
+                }
+                let options = '<option value="">-- Select Product --</option>';
+                companyProductsList.forEach(p => {
+                    options += `<option value="${p.id}">${p.name}</option>`;
+                });
+                return options;
+            }
+
+            function addRow() {
+                rowCounter++;
+                const rowId = `row_${rowCounter}`;
+                const productOptions = getProductOptionsHtml();
+
+                const html = `
+                    <tr id="${rowId}">
+                        <td>
+                            <select class="form-select form-select-sm product-select" data-row-id="${rowId}">
+                                ${productOptions}
+                            </select>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm unit-select" data-row-id="${rowId}">
+                                <option value="">-- Select Unit --</option>
+                            </select>
+                            <div class="form-text small text-info conversion-preview mt-1" id="preview_${rowId}"></div>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm qty-input" data-row-id="${rowId}" min="0.001" step="any" value="1" />
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" />
+                        </td>
+                        <td class="text-end fw-bold line-total" id="total_${rowId}">
+                            0.00
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove" data-row-id="${rowId}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+
+                document.getElementById('itemsTableBody').insertAdjacentHTML('beforeend', html);
+                attachRowEvents(rowId);
+                calculateTotals();
+            }
+
+            function attachRowEvents(rowId) {
+                const row = document.getElementById(rowId);
+                const productSelect = row.querySelector('.product-select');
+                const unitSelect = row.querySelector('.unit-select');
+                const qtyInput = row.querySelector('.qty-input');
+                const costInput = row.querySelector('.cost-input');
+                const btnRemove = row.querySelector('.btn-remove');
+
+                productSelect.addEventListener('change', function () {
+                    const productId = this.value;
+                    unitSelect.innerHTML = '<option value="">Loading...</option>';
+
+                    if (!productId) {
+                        unitSelect.innerHTML = '<option value="">-- Select Unit --</option>';
+                        updateConversionPreview(rowId);
+                        return;
+                    }
+
+                    fetch(`/Purchases/GetProductUnits?productId=${productId}`)
+                        .then(res => res.json())
+                        .then(units => {
+                            let options = '';
+                            units.forEach(u => {
+                                options += `<option value="${u.productUnitID}" data-conversion="${u.conversionToBaseUnit}" data-unitname="${u.unitName}">${u.unitName} (x${u.conversionToBaseUnit})</option>`;
+                            });
+                            unitSelect.innerHTML = options;
+                            updateConversionPreview(rowId);
+                            calculateRowTotal(rowId);
+                        })
+                        .catch(err => {
+                            unitSelect.innerHTML = '<option value="">-- Error --</option>';
+                        });
+                });
+
+                unitSelect.addEventListener('change', function () {
+                    updateConversionPreview(rowId);
+                });
+
+                qtyInput.addEventListener('input', function () {
+                    updateConversionPreview(rowId);
+                    calculateRowTotal(rowId);
+                });
+
+                costInput.addEventListener('input', function () {
+                    calculateRowTotal(rowId);
+                });
+
+                btnRemove.addEventListener('click', function () {
+                    const rows = document.querySelectorAll('#itemsTableBody tr');
+                    if (rows.length <= 1) {
+                        alert('At least one product line item is required.');
+                        return;
+                    }
+                    row.remove();
+                    calculateTotals();
+                });
+            }
+
+            function updateConversionPreview(rowId) {
+                const row = document.getElementById(rowId);
+                if (!row) return;
+
+                const unitSelect = row.querySelector('.unit-select');
+                const qtyInput = row.querySelector('.qty-input');
+                const previewDiv = document.getElementById(`preview_${rowId}`);
+
+                const selectedOption = unitSelect.options[unitSelect.selectedIndex];
+                const qty = parseFloat(qtyInput.value) || 0;
+
+                if (selectedOption && selectedOption.value && qty > 0) {
+                    const conversionFactor = parseFloat(selectedOption.getAttribute('data-conversion')) || 1;
+                    const unitName = selectedOption.getAttribute('data-unitname') || '';
+                    const convertedQty = (qty * conversionFactor).toFixed(3);
+                    previewDiv.textContent = `⚡ Converts to ${convertedQty} Base Units`;
+                } else {
+                    previewDiv.textContent = '';
+                }
+            }
+
+            function calculateRowTotal(rowId) {
+                const row = document.getElementById(rowId);
+                if (!row) return;
+
+                const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+                const cost = parseFloat(row.querySelector('.cost-input').value) || 0;
+                const total = (qty * cost).toFixed(2);
+
+                document.getElementById(`total_${rowId}`).textContent = parseFloat(total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                calculateTotals();
+            }
+
+            function calculateTotals() {
+                let grandTotal = 0;
+                const rows = document.querySelectorAll('#itemsTableBody tr');
+
+                rows.forEach(row => {
+                    const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
+                    const cost = parseFloat(row.querySelector('.cost-input')?.value) || 0;
+                    grandTotal += (qty * cost);
+                });
+
+                const formatted = `PKR ${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                document.getElementById('lblGrandTotal').textContent = formatted;
+                document.getElementById('modalGrandTotal').textContent = formatted;
+            }
+
+            // Modal & Form Submit Handling
+            const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+
+            document.getElementById('btnOpenConfirmModal').addEventListener('click', function () {
+                const companyId = document.getElementById('CompanyID').value;
+                const warehouseId = document.getElementById('WarehouseID').value;
+
+                if (!companyId) {
+                    alert('Please select a Company.');
+                    return;
+                }
+                if (!warehouseId) {
+                    alert('Please select a Warehouse.');
+                    return;
+                }
+
+                // Collect & validate items
+                const items = [];
+                const rows = document.querySelectorAll('#itemsTableBody tr');
+                let valid = true;
+
+                rows.forEach(row => {
+                    const productId = parseInt(row.querySelector('.product-select').value) || 0;
+                    const productUnitId = parseInt(row.querySelector('.unit-select').value) || 0;
+                    const quantity = parseFloat(row.querySelector('.qty-input').value) || 0;
+                    const unitCost = parseFloat(row.querySelector('.cost-input').value) || 0;
+
+                    if (!productId || !productUnitId || quantity <= 0) {
+                        valid = false;
+                    } else {
+                        items.push({
+                            ProductID: productId,
+                            ProductUnitID: productUnitId,
+                            Quantity: quantity,
+                            UnitCost: unitCost
+                        });
+                    }
+                });
+
+                if (!valid || items.length === 0) {
+                    alert('Please ensure all product lines have a valid Product, Packaging Unit, and Quantity > 0.');
+                    return;
+                }
+
+                document.getElementById('ItemsJson').value = JSON.stringify(items);
+                confirmModal.show();
+            });
+
+            document.getElementById('btnConfirmFinalize').addEventListener('click', function () {
+                const btn = this;
+                const spinner = document.getElementById('btnSpinner');
+                const icon = document.getElementById('btnIcon');
+
+                btn.disabled = true;
+                spinner.classList.remove('d-none');
+                icon.classList.add('d-none');
+
+                document.getElementById('createPurchaseForm').submit();
+            });
+        });
+    </script>
+}

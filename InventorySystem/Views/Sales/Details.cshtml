@@ -1,0 +1,572 @@
+@model InventorySystem.ViewModels.Sales.SalesDetailsViewModel
+@{
+    ViewData["Title"] = $"Sales Invoice #{Model.Details.Header.InvoiceNumber}";
+    var header = Model.Details.Header;
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Breadcrumb & Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-action="Index">Sales Invoices</a></li>
+                    <li class="breadcrumb-item active">@header.InvoiceNumber</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">
+                <i class="bi bi-receipt me-2 text-primary"></i> Invoice #@header.InvoiceNumber
+            </h1>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-controller="Returns" asp-action="ProcessSalesReturn" asp-route-invoiceId="@header.InvoiceID" class="btn btn-danger shadow-sm">
+                <i class="bi bi-arrow-return-left me-1"></i> Process Return
+            </a>
+            @if (!Model.IsLocked)
+            {
+                <a asp-action="Edit" asp-route-id="@header.InvoiceID" class="btn btn-warning shadow-sm">
+                    <i class="bi bi-pencil-square me-1"></i> Edit Invoice
+                </a>
+            }
+            else
+            {
+                <span class="badge bg-secondary d-flex align-items-center px-3"><i class="bi bi-lock-fill me-1"></i> Financial Lock</span>
+            }
+            @if (header.OutstandingBalance > 0)
+            {
+                <button type="button" class="btn btn-success shadow-sm" id="btnOpenPaymentModal">
+                    <i class="bi bi-cash-stack me-1"></i> Record Customer Payment
+                </button>
+            }
+            <a asp-action="DownloadPdf" asp-route-id="@header.InvoiceID" class="btn btn-danger shadow-sm" target="_blank">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+            </a>
+            <button type="button" class="btn btn-outline-primary shadow-sm" onclick="window.print();">
+                <i class="bi bi-printer me-1"></i> Print Invoice
+            </button>
+            <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Immutability Locked Banner -->
+    <div id="lockedInvoiceBanner" class="alert alert-warning border-warning shadow-sm d-flex align-items-center mb-4 @(Model.IsLocked ? "" : "d-none")" role="alert">
+        <i class="bi bi-lock-fill fs-4 me-3"></i>
+        <div>
+            <strong>Invoice Locked:</strong> Payments have been recorded for this finalized sales invoice. It is permanently read-only per business rules (BR-017).
+        </div>
+    </div>
+
+    <!-- Financial KPI Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-primary border-4">
+                <div class="card-body py-3">
+                    <div class="text-xs fw-bold text-primary text-uppercase mb-1">Grand Total</div>
+                    <div class="h5 mb-0 fw-bold text-dark" id="kpiGrandTotal">PKR @header.GrandTotal.ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-success border-4">
+                <div class="card-body py-3">
+                    <div class="text-xs fw-bold text-success text-uppercase mb-1">Paid Amount</div>
+                    <div class="h5 mb-0 fw-bold text-success" id="kpiPaidAmount">PKR @header.PaidAmount.ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+        @if (header.ReturnedAmount > 0)
+        {
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0 border-start border-warning border-4">
+                    <div class="card-body py-3">
+                        <div class="text-xs fw-bold text-warning text-uppercase mb-1">Returned Credit</div>
+                        <div class="h5 mb-0 fw-bold text-warning" id="kpiReturnedAmount">PKR @header.ReturnedAmount.ToString("N2")</div>
+                    </div>
+                </div>
+            </div>
+        }
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-danger border-4">
+                <div class="card-body py-3">
+                    <div class="text-xs fw-bold text-danger text-uppercase mb-1">Outstanding Balance</div>
+                    <div class="h5 mb-0 fw-bold text-danger" id="kpiOutstanding">PKR @header.OutstandingBalance.ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card shadow-sm border-0 border-start border-info border-4">
+                <div class="card-body py-3">
+                    <div class="text-xs fw-bold text-info text-uppercase mb-1">Payment Status</div>
+                    <div class="h5 mb-0 fw-bold" id="kpiPaymentStatus">
+                        @if (header.PaymentStatus == "PAID")
+                        {
+                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Paid</span>
+                        }
+                        else if (header.PaymentStatus == "PARTIAL")
+                        {
+                            <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> Partial</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i> Unpaid</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header Details Card -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white border-bottom py-3">
+            <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-info-circle me-2"></i> Header Details</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Invoice Number:</span>
+                    <span class="fw-bold text-dark fs-6">@header.InvoiceNumber</span>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Invoice Date:</span>
+                    <span class="fw-semibold">@header.InvoiceDate.ToString("yyyy-MM-dd")</span>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Customer:</span>
+                    <span class="fw-bold text-dark">@header.CustomerName</span>
+                    @if (!string.IsNullOrWhiteSpace(header.ShopName))
+                    {
+                        <span class="text-muted small d-block">(@header.ShopName)</span>
+                    }
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Destination Warehouse:</span>
+                    <span class="fw-semibold">@header.WarehouseName</span>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Delivery Agent:</span>
+                    <span class="fw-semibold">@(header.DeliveryPersonName ?? "Unassigned")</span>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Area / SubArea:</span>
+                    <span class="fw-semibold">@(header.AreaName ?? "N/A") @(header.SubAreaName != null ? $"/ {header.SubAreaName}" : "")</span>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Created By:</span>
+                    <span class="fw-semibold">@header.CreatedByUserName</span>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Created At:</span>
+                    <span class="fw-semibold">@header.CreatedAt.ToString("yyyy-MM-dd HH:mm UTC")</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Items Table Card -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white border-bottom py-3">
+            <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-cart-check me-2"></i> Sold Line Items</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product Name</th>
+                            <th>SKU</th>
+                            <th class="text-center">Sold Unit</th>
+                            <th class="text-end">Sold Qty</th>
+                            <th class="text-end">Base Unit Qty</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Discount</th>
+                            <th class="text-end">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Details.Items)
+                        {
+                            <tr>
+                                <td class="fw-bold">@item.ProductName</td>
+                                <td><span class="badge bg-light text-dark font-monospace">@(item.SKU ?? "-")</span></td>
+                                <td class="text-center"><span class="badge bg-secondary">@item.UnitName</span></td>
+                                <td class="text-end fw-semibold">@item.Quantity.ToString("N2")</td>
+                                <td class="text-end text-info fw-semibold">@item.ConvertedQuantity.ToString("N2") @item.BaseUnitName</td>
+                                <td class="text-end">PKR @item.UnitPrice.ToString("N2")</td>
+                                <td class="text-end text-success">PKR @item.DiscountAmount.ToString("N2")</td>
+                                <td class="text-end fw-bold">PKR @item.LineTotal.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="7" class="text-end fw-bold">Subtotal:</td>
+                            <td class="text-end fw-bold">PKR @Model.Details.Financial.SubTotal.ToString("N2")</td>
+                        </tr>
+                        @if (Model.Details.Financial.DiscountTotal > 0)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-end fw-bold text-success">Total Discount:</td>
+                                <td class="text-end fw-bold text-success">- PKR @Model.Details.Financial.DiscountTotal.ToString("N2")</td>
+                            </tr>
+                        }
+                        <tr class="fs-6">
+                            <td colspan="7" class="text-end fw-bold text-primary">Grand Total:</td>
+                            <td class="text-end fw-bold text-primary">PKR @Model.Details.Financial.GrandTotal.ToString("N2")</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Asynchronous AJAX Tabs Card -->
+    <div class="card shadow-sm border-0 mb-5">
+        <div class="card-header bg-white border-bottom p-0">
+            <ul class="nav nav-tabs card-header-tabs m-0 border-0" id="detailsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active py-3 px-4 fw-semibold" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments-pane" type="button" role="tab">
+                        <i class="bi bi-wallet2 me-2"></i> Payment History
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link py-3 px-4 fw-semibold" id="ledger-tab" data-bs-toggle="tab" data-bs-target="#ledger-pane" type="button" role="tab">
+                        <i class="bi bi-journal-bookmark me-2"></i> Customer Ledger
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body tab-content" id="detailsTabsContent">
+            <!-- Payment History Pane -->
+            <div class="tab-pane fade show active" id="payments-pane" role="tabpanel">
+                <div id="paymentHistoryTabContainer" class="py-2">
+                    <div class="text-center py-4 text-muted">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                        Loading payment history...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Ledger Pane -->
+            <div class="tab-pane fade" id="ledger-pane" role="tabpanel">
+                <div id="ledgerTabContainer" class="py-2">
+                    <div class="text-center py-4 text-muted">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                        Loading customer ledger...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Record Customer Payment Modal -->
+<div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-labelledby="recordPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title h6" id="recordPaymentModalLabel"><i class="bi bi-cash-stack me-2"></i> Record Customer Payment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="recordPaymentForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="payInvoiceID" value="@header.InvoiceID" />
+                <input type="hidden" id="payCustomerID" value="@header.CustomerID" />
+
+                <div class="modal-body py-3">
+                    <div class="alert alert-light border small mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Target Invoice:</span>
+                            <strong class="text-dark">#@header.InvoiceNumber</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Customer:</span>
+                            <strong class="text-dark">@header.CustomerName</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Grand Total:</span>
+                            <span class="fw-semibold">PKR @header.GrandTotal.ToString("N2")</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Already Paid:</span>
+                            <span class="fw-semibold text-success" id="payModalAlreadyPaid">PKR @header.PaidAmount.ToString("N2")</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Outstanding Balance:</span>
+                            <strong class="text-danger" id="payModalOutstanding">PKR @header.OutstandingBalance.ToString("N2")</strong>
+                        </div>
+                    </div>
+
+                    <div id="paymentModalAlert" class="alert alert-danger p-2 small d-none mb-3"></div>
+
+                    <div class="mb-3">
+                        <label for="payAmount" class="form-label fw-semibold">Payment Amount (PKR) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="0.01" class="form-control form-control-lg fw-bold text-success" id="payAmount" value="@header.OutstandingBalance.ToString("F2")" required />
+                        <div class="form-text small">Must not exceed outstanding balance.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payMethod" class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
+                        <select class="form-select" id="payMethod" required>
+                            <option value="Cash">Cash</option>
+                            <option value="Bank">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                        </select>
+                    </div>
+
+                    <!-- Cheque Specific Fields -->
+                    <div id="detailsChequeFields" class="p-3 bg-light rounded border mb-3 d-none">
+                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-card-heading me-1 text-primary"></i> Cheque Details</h6>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label for="payChequeNumber" class="form-label small fw-semibold">Cheque Number <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="payChequeNumber" placeholder="e.g. CHQ-100234" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="payBankName" class="form-label small fw-semibold">Bank Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="payBankName" placeholder="e.g. MCB Bank" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="payIssueDate" class="form-label small fw-semibold">Issue Date</label>
+                                <input type="date" class="form-control form-control-sm" id="payIssueDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="payChequeDate" class="form-label small fw-semibold">Cheque Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control form-control-sm" id="payChequeDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3" id="refNumberContainer">
+                        <label for="payReference" class="form-label fw-semibold">Reference Number</label>
+                        <input type="text" class="form-control" id="payReference" placeholder="e.g. Bank Transfer Ref / Receipt #" />
+                        <div class="form-text small text-info d-none" id="refRequiredHelp">Reference number is required for Bank payments.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payDate" class="form-label fw-semibold">Payment Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="payDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payRemarks" class="form-label fw-semibold">Remarks / Notes</label>
+                        <input type="text" class="form-control" id="payRemarks" placeholder="Optional payment notes" />
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success px-4" id="btnSubmitPayment">
+                        <span id="paySpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                        <i id="payIcon" class="bi bi-check-circle me-1"></i> Save Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const invoiceId = @header.InvoiceID;
+            let currentOutstanding = @header.OutstandingBalance;
+            let currentPaid = @header.PaidAmount;
+            const grandTotal = @header.GrandTotal;
+
+            const paymentModal = new bootstrap.Modal(document.getElementById('recordPaymentModal'));
+            const btnOpenModal = document.getElementById('btnOpenPaymentModal');
+
+            if (btnOpenModal) {
+                btnOpenModal.addEventListener('click', function () {
+                    document.getElementById('payAmount').value = currentOutstanding.toFixed(2);
+                    document.getElementById('paymentModalAlert').classList.add('d-none');
+                    paymentModal.show();
+                });
+            }
+
+            // Reference number & Cheque fields toggle
+            const payMethodSelect = document.getElementById('payMethod');
+            const refRequiredHelp = document.getElementById('refRequiredHelp');
+            const detailsChequeFields = document.getElementById('detailsChequeFields');
+
+            payMethodSelect.addEventListener('change', function () {
+                if (this.value === 'Cheque') {
+                    detailsChequeFields.classList.remove('d-none');
+                    refRequiredHelp.classList.add('d-none');
+                } else if (this.value === 'Bank') {
+                    detailsChequeFields.classList.add('d-none');
+                    refRequiredHelp.classList.remove('d-none');
+                } else {
+                    detailsChequeFields.classList.add('d-none');
+                    refRequiredHelp.classList.add('d-none');
+                }
+            });
+
+            // Submit Payment AJAX
+            document.getElementById('btnSubmitPayment').addEventListener('click', function () {
+                const alertBox = document.getElementById('paymentModalAlert');
+                alertBox.classList.add('d-none');
+
+                const amount = parseFloat(document.getElementById('payAmount').value) || 0;
+                const method = document.getElementById('payMethod').value;
+                const reference = document.getElementById('payReference').value;
+                const payDate = document.getElementById('payDate').value;
+                const remarks = document.getElementById('payRemarks').value;
+
+                const chqNum = document.getElementById('payChequeNumber').value;
+                const bankName = document.getElementById('payBankName').value;
+                const issueDate = document.getElementById('payIssueDate').value;
+                const chequeDate = document.getElementById('payChequeDate').value;
+
+                if (amount <= 0) {
+                    alertBox.textContent = 'Payment amount must be greater than zero.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                if (amount > currentOutstanding + 0.001) {
+                    alertBox.textContent = `Payment cannot exceed outstanding balance (PKR ${currentOutstanding.toFixed(2)}).`;
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                if (method === 'Cheque') {
+                    if (!chqNum.trim()) {
+                        alertBox.textContent = 'Cheque Number is required.';
+                        alertBox.classList.remove('d-none');
+                        return;
+                    }
+                    if (!bankName.trim()) {
+                        alertBox.textContent = 'Bank Name is required.';
+                        alertBox.classList.remove('d-none');
+                        return;
+                    }
+                    if (!chequeDate) {
+                        alertBox.textContent = 'Cheque Date is required.';
+                        alertBox.classList.remove('d-none');
+                        return;
+                    }
+                } else if (method === 'Bank' && !reference.trim()) {
+                    alertBox.textContent = 'Reference Number is required for Bank payments.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                const payload = {
+                    InvoiceID: invoiceId,
+                    CustomerID: parseInt(document.getElementById('payCustomerID').value),
+                    Amount: amount,
+                    PaymentMethod: method,
+                    ReferenceNumber: reference,
+                    PaymentDate: payDate,
+                    Remarks: remarks,
+                    ChequeNumber: chqNum,
+                    BankName: bankName,
+                    IssueDate: issueDate || null,
+                    ChequeDate: chequeDate || null
+                };
+
+                const token = document.querySelector('#recordPaymentForm input[name="__RequestVerificationToken"]').value;
+
+                const btn = this;
+                btn.disabled = true;
+                document.getElementById('paySpinner').classList.remove('d-none');
+                document.getElementById('payIcon').classList.add('d-none');
+
+                fetch('/Payments/RecordCustomerPayment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': token
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    document.getElementById('paySpinner').classList.add('d-none');
+                    document.getElementById('payIcon').classList.remove('d-none');
+
+                    if (data.success) {
+                        paymentModal.hide();
+
+                        // Dynamically update state
+                        currentPaid += amount;
+                        currentOutstanding = Math.max(0, grandTotal - currentPaid);
+
+                        document.getElementById('kpiPaidAmount').textContent = 'PKR ' + currentPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        document.getElementById('kpiOutstanding').textContent = 'PKR ' + currentOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        document.getElementById('payModalAlreadyPaid').textContent = 'PKR ' + currentPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        document.getElementById('payModalOutstanding').textContent = 'PKR ' + currentOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                        const statusElem = document.getElementById('kpiPaymentStatus');
+                        if (currentOutstanding <= 0.001) {
+                            statusElem.innerHTML = '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Paid</span>';
+                            if (btnOpenModal) btnOpenModal.classList.add('d-none');
+                        } else {
+                            statusElem.innerHTML = '<span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> Partial</span>';
+                        }
+
+                        // Show locked invoice banner
+                        document.getElementById('lockedInvoiceBanner').classList.remove('d-none');
+
+                        // Refresh Payment History Tab
+                        loadPaymentHistory(1);
+                        if (ledgerLoaded) loadLedger(1);
+                    } else {
+                        alertBox.textContent = data.message || 'Failed to record payment.';
+                        alertBox.classList.remove('d-none');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    document.getElementById('paySpinner').classList.add('d-none');
+                    document.getElementById('payIcon').classList.remove('d-none');
+                    alertBox.textContent = 'An error occurred while saving payment.';
+                    alertBox.classList.remove('d-none');
+                });
+            });
+
+            // Load Payment History Tab
+            function loadPaymentHistory(page = 1) {
+                const container = document.getElementById('paymentHistoryTabContainer');
+                fetch(`/Payments/GetCustomerPaymentHistoryPartial?invoiceId=${invoiceId}`)
+                    .then(res => res.text())
+                    .then(html => {
+                        container.innerHTML = html;
+                    })
+                    .catch(err => {
+                        container.innerHTML = '<div class="alert alert-danger">Failed to load payment history.</div>';
+                    });
+            }
+
+            // Load Customer Ledger Tab
+            function loadLedger(page = 1) {
+                const container = document.getElementById('ledgerTabContainer');
+                fetch(`/Sales/LedgerTab/${invoiceId}?pageNumber=${page}`)
+                    .then(res => res.text())
+                    .then(html => {
+                        container.innerHTML = html;
+                    })
+                    .catch(err => {
+                        container.innerHTML = '<div class="alert alert-danger">Failed to load ledger.</div>';
+                    });
+            }
+
+            // Initial load
+            loadPaymentHistory(1);
+
+            // Lazy load ledger on tab click
+            let ledgerLoaded = false;
+            document.getElementById('ledger-tab').addEventListener('click', function () {
+                if (!ledgerLoaded) {
+                    loadLedger(1);
+                    ledgerLoaded = true;
+                }
+            });
+        });
+    </script>
+}

@@ -1,0 +1,74 @@
+@model InventorySystem.DTOs.Common.PagedResult<InventorySystem.DTOs.Customers.CustomerLedgerEntryDto>
+
+@if (Model == null || !Model.Items.Any())
+{
+    <div class="alert alert-info my-3">
+        <i class="bi bi-info-circle me-2"></i> No account ledger entries found for this customer.
+    </div>
+}
+else
+{
+    <div class="table-responsive my-3">
+        <table class="table table-hover align-middle border">
+            <thead class="table-light">
+                <tr>
+                    <th>Entry ID</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th class="text-end">Debit (Receivable +)</th>
+                    <th class="text-end">Credit (Received -)</th>
+                    <th class="text-end">Net Change</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var l in Model.Items)
+                {
+                    <tr>
+                        <td class="fw-semibold">#CL-@l.CustomerLedgerID.ToString("D5")</td>
+                        <td>@l.TransactionDate.ToString("dd MMM yyyy HH:mm")</td>
+                        <td>
+                            @if (l.TransactionType.ToUpper() == "SALE")
+                            {
+                                <span class="badge bg-primary">SALE</span>
+                            }
+                            else if (l.TransactionType.ToUpper() == "PAYMENT")
+                            {
+                                <span class="badge bg-success">PAYMENT</span>
+                            }
+                            else if (l.TransactionType.ToUpper() == "RETURN")
+                            {
+                                <span class="badge bg-warning text-dark">RETURN</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">@l.TransactionType</span>
+                            }
+                        </td>
+                        <td>@(l.Description ?? "-")</td>
+                        <td class="text-end fw-semibold text-danger">@(l.DebitAmount > 0 ? l.DebitAmount.ToString("N2") : "-")</td>
+                        <td class="text-end fw-semibold text-success">@(l.CreditAmount > 0 ? l.CreditAmount.ToString("N2") : "-")</td>
+                        <td class="text-end fw-bold @(l.NetChange >= 0 ? "text-danger" : "text-success")">
+                            @(l.NetChange >= 0 ? "+" + l.NetChange.ToString("N2") : l.NetChange.ToString("N2"))
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav aria-label="Ledger history pagination">
+            <ul class="pagination pagination-sm justify-content-center">
+                @for (int p = 1; p <= Model.TotalPages; p++)
+                {
+                    int currentPage = p;
+                    <li class="page-item @(p == Model.PageNumber ? "active" : "")">
+                        <button type="button" class="page-link" onclick="loadLedgerTab(@ViewBag.CustomerID, @currentPage)">@p</button>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+}

@@ -1,0 +1,39 @@
+@model InventorySystem.DTOs.Common.PagedResult<InventorySystem.DTOs.Purchases.PurchasePaymentHistoryDto>
+
+@if (Model.Items != null && Model.Items.Any())
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Payment ID</th>
+                    <th>Payment Date</th>
+                    <th>Method</th>
+                    <th>Reference #</th>
+                    <th class="text-end">Amount</th>
+                    <th>Recorded By</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td><code>#PAY-@item.CompanyPaymentID</code></td>
+                        <td>@item.PaymentDate.ToString("dd MMM yyyy")</td>
+                        <td><span class="badge bg-info text-dark">@item.PaymentMethod</span></td>
+                        <td>@(string.IsNullOrWhiteSpace(item.ReferenceNumber) ? "-" : item.ReferenceNumber)</td>
+                        <td class="text-end fw-bold text-success">PKR @item.Amount.ToString("N2")</td>
+                        <td>@item.PaidByName</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <div class="alert alert-info border-0 bg-light text-center py-4 mb-0">
+        <i class="bi bi-info-circle fs-3 d-block mb-2 text-primary"></i>
+        No company payments recorded for this purchase invoice yet.
+    </div>
+}

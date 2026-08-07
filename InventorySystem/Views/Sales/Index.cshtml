@@ -1,0 +1,210 @@
+@model InventorySystem.ViewModels.Sales.SalesListViewModel
+@{
+    ViewData["Title"] = "Sales Invoices";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header Toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-receipt-cutoff me-2 text-primary"></i> Sales Invoices</h1>
+            <p class="text-muted small mb-0">Manage customer sales orders, financial postings, and delivery statuses.</p>
+        </div>
+        <div>
+            <a asp-action="Create" class="btn btn-primary shadow-sm me-2">
+                <i class="bi bi-plus-circle me-1"></i> Create Sales Invoice
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Search & Filter Card -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <form method="get" asp-action="Index" class="row g-3">
+                <div class="col-md-3">
+                    <label asp-for="Filter.InvoiceNumber" class="form-label small fw-semibold"></label>
+                    <input asp-for="Filter.InvoiceNumber" class="form-control form-control-sm" placeholder="Search by Invoice #" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Filter.CustomerID" class="form-label small fw-semibold"></label>
+                    <select asp-for="Filter.CustomerID" asp-items="Model.Customers" class="form-select form-select-sm">
+                        <option value="">-- All Customers --</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="Filter.WarehouseID" class="form-label small fw-semibold"></label>
+                    <select asp-for="Filter.WarehouseID" asp-items="Model.Warehouses" class="form-select form-select-sm">
+                        <option value="">-- All Warehouses --</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="Filter.DeliveryPersonID" class="form-label small fw-semibold"></label>
+                    <select asp-for="Filter.DeliveryPersonID" asp-items="Model.DeliveryPersons" class="form-select form-select-sm">
+                        <option value="">-- All Delivery Agents --</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="Filter.PaymentStatus" class="form-label small fw-semibold"></label>
+                    <select asp-for="Filter.PaymentStatus" asp-items="Model.PaymentStatuses" class="form-select form-select-sm">
+                        <option value="">-- All Payment Statuses --</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label asp-for="Filter.DateFrom" class="form-label small fw-semibold"></label>
+                    <input asp-for="Filter.DateFrom" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Filter.DateTo" class="form-label small fw-semibold"></label>
+                    <input asp-for="Filter.DateTo" class="form-control form-control-sm" />
+                </div>
+
+                <div class="col-md-6 d-flex align-items-end justify-content-end gap-2">
+                    <button type="submit" class="btn btn-sm btn-primary px-3">
+                        <i class="bi bi-search me-1"></i> Filter
+                    </button>
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary px-3">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sales Invoices Table Card -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3">
+            <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-table me-1"></i> Invoices List</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Delivery Agent</th>
+                            <th class="text-end">Grand Total</th>
+                            <th class="text-end">Paid</th>
+                            <th class="text-end">Returned</th>
+                            <th class="text-end">Outstanding</th>
+                            <th class="text-center">Payment Status</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items.Items != null && Model.Items.Items.Any())
+                        {
+                            foreach (var item in Model.Items.Items)
+                            {
+                                <tr>
+                                    <td class="fw-bold">
+                                        <a asp-action="Details" asp-route-id="@item.InvoiceID" class="text-decoration-none">
+                                            @item.InvoiceNumber
+                                        </a>
+                                    </td>
+                                    <td>@item.InvoiceDate.ToString("yyyy-MM-dd")</td>
+                                    <td class="fw-semibold text-dark">@item.CustomerName</td>
+                                    <td>@(item.DeliveryPersonName ?? "Unassigned")</td>
+                                    <td class="text-end fw-bold">@item.GrandTotal.ToString("N2")</td>
+                                    <td class="text-end text-success">@item.PaidAmount.ToString("N2")</td>
+                                    <td class="text-end text-warning fw-bold">@item.ReturnedAmount.ToString("N2")</td>
+                                    <td class="text-end text-danger fw-bold">@item.OutstandingBalance.ToString("N2")</td>
+                                    <td class="text-center">
+                                        @if (item.PaymentStatus == "PAID")
+                                        {
+                                            <span class="badge bg-success px-2 py-1"><i class="bi bi-check-circle me-1"></i> Paid</span>
+                                        }
+                                        else if (item.PaymentStatus == "PARTIAL")
+                                        {
+                                            <span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-clock-history me-1"></i> Partial</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger px-2 py-1"><i class="bi bi-x-circle me-1"></i> Unpaid</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        <a asp-action="Details" asp-route-id="@item.InvoiceID" class="btn btn-sm btn-outline-info" title="View Details">
+                                            <i class="bi bi-eye"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                                    No sales invoices found matching your criteria.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Pagination Footer -->
+        @if (Model.Items.TotalPages > 1)
+        {
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
+                <span class="small text-muted">
+                    Showing @(((Model.Items.PageNumber - 1) * Model.Items.PageSize) + 1) to @Math.Min(Model.Items.PageNumber * Model.Items.PageSize, Model.Items.TotalCount) of @Model.Items.TotalCount invoices
+                </span>
+                <nav aria-label="Sales Pagination">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(!Model.Items.HasPreviousPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index"
+                               asp-route-PageNumber="@(Model.Items.PageNumber - 1)"
+                               asp-route-PageSize="@Model.Items.PageSize"
+                               asp-route-InvoiceNumber="@Model.Filter.InvoiceNumber"
+                               asp-route-CustomerID="@Model.Filter.CustomerID"
+                               asp-route-WarehouseID="@Model.Filter.WarehouseID"
+                               asp-route-PaymentStatus="@Model.Filter.PaymentStatus">Previous</a>
+                        </li>
+                        @for (int i = 1; i <= Model.Items.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == Model.Items.PageNumber ? "active" : "")">
+                                <a class="page-link" asp-action="Index"
+                                   asp-route-PageNumber="@i"
+                                   asp-route-PageSize="@Model.Items.PageSize"
+                                   asp-route-InvoiceNumber="@Model.Filter.InvoiceNumber"
+                                   asp-route-CustomerID="@Model.Filter.CustomerID"
+                                   asp-route-WarehouseID="@Model.Filter.WarehouseID"
+                                   asp-route-PaymentStatus="@Model.Filter.PaymentStatus">@i</a>
+                            </li>
+                        }
+                        <li class="page-item @(!Model.Items.HasNextPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index"
+                               asp-route-PageNumber="@(Model.Items.PageNumber + 1)"
+                               asp-route-PageSize="@Model.Items.PageSize"
+                               asp-route-InvoiceNumber="@Model.Filter.InvoiceNumber"
+                               asp-route-CustomerID="@Model.Filter.CustomerID"
+                               asp-route-WarehouseID="@Model.Filter.WarehouseID"
+                               asp-route-PaymentStatus="@Model.Filter.PaymentStatus">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>

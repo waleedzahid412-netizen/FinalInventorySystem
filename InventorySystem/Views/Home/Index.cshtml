@@ -1,0 +1,426 @@
+@model InventorySystem.ViewModels.Home.DashboardViewModel
+@{
+    ViewData["Title"] = "Executive ERP Dashboard";
+}
+
+<div class="container-fluid px-0">
+    <!-- DASHBOARD PAGE HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">
+                <i class="bi bi-speedometer2 text-primary me-2"></i> Executive Dashboard
+            </h1>
+            <p class="text-muted small mb-0">Real-time overview of sales, purchases, inventory balances, and pending actions.</p>
+        </div>
+        <div>
+            <a asp-controller="Home" asp-action="Index" class="btn btn-sm btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh Data
+            </a>
+        </div>
+    </div>
+
+    <!-- 1. TOP KPI SUMMARY CARDS GRID -->
+    <div class="row g-3 mb-4">
+        <!-- TOTAL SALES CARD -->
+        <div class="col-xl-3 col-md-6">
+            <a asp-controller="Sales" asp-action="Index" class="text-decoration-none">
+                <div class="card h-100 border-start border-4 border-primary shadow-sm hover-shadow">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-uppercase small fw-bold text-muted">Total Sales</span>
+                            <div class="rounded-circle bg-primary bg-opacity-10 p-2 text-primary">
+                                <i class="bi bi-receipt fs-5"></i>
+                            </div>
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-dark">@Model.TotalSalesThisMonth.ToString("C2")</div>
+                        <div class="small text-muted mt-2">
+                            Today: <strong class="text-primary">@Model.TotalSalesToday.ToString("C2")</strong>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- TOTAL PURCHASES CARD -->
+        <div class="col-xl-3 col-md-6">
+            <a asp-controller="Purchases" asp-action="Index" class="text-decoration-none">
+                <div class="card h-100 border-start border-4 border-success shadow-sm hover-shadow">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-uppercase small fw-bold text-muted">Total Purchases</span>
+                            <div class="rounded-circle bg-success bg-opacity-10 p-2 text-success">
+                                <i class="bi bi-cart-check fs-5"></i>
+                            </div>
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-dark">@Model.TotalPurchasesThisMonth.ToString("C2")</div>
+                        <div class="small text-muted mt-2">
+                            Today: <strong class="text-success">@Model.TotalPurchasesToday.ToString("C2")</strong>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- CUSTOMER RECEIVABLES CARD -->
+        <div class="col-xl-3 col-md-6">
+            <a asp-controller="Customers" asp-action="Index" class="text-decoration-none">
+                <div class="card h-100 border-start border-4 border-info shadow-sm hover-shadow">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-uppercase small fw-bold text-muted">Customer Receivables</span>
+                            <div class="rounded-circle bg-info bg-opacity-10 p-2 text-info">
+                                <i class="bi bi-wallet2 fs-5"></i>
+                            </div>
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-dark">@Model.CustomerReceivables.ToString("C2")</div>
+                        <div class="small text-muted mt-2">Total Customer Account Balances</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- SUPPLIER PAYABLES CARD -->
+        <div class="col-xl-3 col-md-6">
+            <a asp-controller="Companies" asp-action="Index" class="text-decoration-none">
+                <div class="card h-100 border-start border-4 border-warning shadow-sm hover-shadow">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-uppercase small fw-bold text-muted">Supplier Payables</span>
+                            <div class="rounded-circle bg-warning bg-opacity-10 p-2 text-warning">
+                                <i class="bi bi-credit-card fs-5"></i>
+                            </div>
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-dark">@Model.SupplierPayables.ToString("C2")</div>
+                        <div class="small text-muted mt-2">Total Outstanding Supplier Debts</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- INVENTORY VALUE CARD -->
+        <div class="col-xl-4 col-md-6">
+            <a asp-controller="Products" asp-action="Index" class="text-decoration-none">
+                <div class="card h-100 border-start border-4 border-secondary shadow-sm hover-shadow">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-uppercase small fw-bold text-muted">Total Inventory Valuation</span>
+                            <div class="rounded-circle bg-secondary bg-opacity-10 p-2 text-secondary">
+                                <i class="bi bi-box-seam fs-5"></i>
+                            </div>
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-dark">@Model.InventoryValue.ToString("C2")</div>
+                        <div class="small text-muted mt-2">Valued at Current Stock & Average Cost</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- LOW STOCK ITEMS CARD -->
+        <div class="col-xl-4 col-md-6">
+            <a asp-controller="Products" asp-action="Index" class="text-decoration-none">
+                <div class="card h-100 border-start border-4 @(Model.LowStockCount > 0 ? "border-danger" : "border-success") shadow-sm hover-shadow">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-uppercase small fw-bold text-muted">Low Stock Items</span>
+                            <div class="rounded-circle @(Model.LowStockCount > 0 ? "bg-danger bg-opacity-10 text-danger" : "bg-success bg-opacity-10 text-success") p-2">
+                                <i class="bi bi-exclamation-triangle fs-5"></i>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 mb-0">
+                            <span class="h4 mb-0 fw-bold text-dark">@Model.LowStockCount</span>
+                            @if (Model.LowStockCount > 0)
+                            {
+                                <span class="badge bg-danger">Action Required</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success">Optimal</span>
+                            }
+                        </div>
+                        <div class="small text-muted mt-2">Products at or below min stock level</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- TODAY'S RETURNS CARD -->
+        <div class="col-xl-4 col-md-6">
+            <a asp-controller="Returns" asp-action="CustomerReturns" class="text-decoration-none">
+                <div class="card h-100 border-start border-4 border-dark shadow-sm hover-shadow">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-uppercase small fw-bold text-muted">Today's Returns</span>
+                            <div class="rounded-circle bg-dark bg-opacity-10 p-2 text-dark">
+                                <i class="bi bi-arrow-return-left fs-5"></i>
+                            </div>
+                        </div>
+                        <div class="h4 mb-0 fw-bold text-dark">@Model.TodayReturnsCount</div>
+                        <div class="small text-muted mt-2">Sales returns recorded today</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- 2. QUICK ACTIONS SHORTCUTS GRID -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+            <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-lightning-charge me-2"></i> Quick Actions</h6>
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-lg-2 col-md-4 col-6">
+                    <a asp-controller="Sales" asp-action="Create" class="btn btn-outline-primary w-100 py-3 d-flex flex-column align-items-center justify-content-center h-100 shadow-xs">
+                        <i class="bi bi-receipt fs-3 mb-1"></i>
+                        <span class="fw-bold small">+ Create Sale</span>
+                    </a>
+                </div>
+                <div class="col-lg-2 col-md-4 col-6">
+                    <a asp-controller="Purchases" asp-action="Create" class="btn btn-outline-success w-100 py-3 d-flex flex-column align-items-center justify-content-center h-100 shadow-xs">
+                        <i class="bi bi-cart-plus fs-3 mb-1"></i>
+                        <span class="fw-bold small">+ Create Purchase</span>
+                    </a>
+                </div>
+                <div class="col-lg-2 col-md-4 col-6">
+                    <a asp-controller="Returns" asp-action="CreateReturn" class="btn btn-outline-warning text-dark w-100 py-3 d-flex flex-column align-items-center justify-content-center h-100 shadow-xs">
+                        <i class="bi bi-pencil-square fs-3 mb-1"></i>
+                        <span class="fw-bold small">+ Create Return</span>
+                    </a>
+                </div>
+                <div class="col-lg-2 col-md-4 col-6">
+                    <a asp-controller="Payments" asp-action="CustomerPayments" class="btn btn-outline-info text-dark w-100 py-3 d-flex flex-column align-items-center justify-content-center h-100 shadow-xs">
+                        <i class="bi bi-wallet2 fs-3 mb-1"></i>
+                        <span class="fw-bold small">+ Record Payment</span>
+                    </a>
+                </div>
+                <div class="col-lg-2 col-md-4 col-6">
+                    <a asp-controller="Customers" asp-action="Create" class="btn btn-outline-secondary w-100 py-3 d-flex flex-column align-items-center justify-content-center h-100 shadow-xs">
+                        <i class="bi bi-person-plus fs-3 mb-1"></i>
+                        <span class="fw-bold small">+ Add Customer</span>
+                    </a>
+                </div>
+                <div class="col-lg-2 col-md-4 col-6">
+                    <a asp-controller="Products" asp-action="Create" class="btn btn-outline-dark w-100 py-3 d-flex flex-column align-items-center justify-content-center h-100 shadow-xs">
+                        <i class="bi bi-box-seam fs-3 mb-1"></i>
+                        <span class="fw-bold small">+ Add Product</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. RECENT ACTIVITY TABLES -->
+    <div class="row g-4">
+        <!-- RECENT SALES TABLE -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-clock-history me-2"></i> Recent Sales Invoices</h6>
+                    <a asp-controller="Sales" asp-action="Index" class="btn btn-xs btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th class="text-end">Amount</th>
+                                    <th class="text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.RecentSales != null && Model.RecentSales.Any())
+                                {
+                                    foreach (var sale in Model.RecentSales)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <a asp-controller="Sales" asp-action="Details" asp-route-id="@sale.InvoiceID" class="fw-bold text-decoration-none">
+                                                    @sale.InvoiceNumber
+                                                </a>
+                                            </td>
+                                            <td>@sale.CustomerName</td>
+                                            <td>@sale.InvoiceDate.ToString("dd MMM yyyy")</td>
+                                            <td class="text-end fw-bold text-success">@sale.TotalAmount.ToString("C2")</td>
+                                            <td class="text-center">
+                                                <span class="badge @(sale.PaymentStatus == "PAID" ? "bg-success" : sale.PaymentStatus == "PARTIAL" ? "bg-warning text-dark" : "bg-danger")">
+                                                    @sale.PaymentStatus
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center py-3 text-muted">No recent sales activity found.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RECENT PURCHASES TABLE -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-success"><i class="bi bi-cart-check me-2"></i> Recent Purchase Invoices</h6>
+                    <a asp-controller="Purchases" asp-action="Index" class="btn btn-xs btn-outline-success">View All</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Supplier</th>
+                                    <th>Date</th>
+                                    <th class="text-end">Amount</th>
+                                    <th class="text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.RecentPurchases != null && Model.RecentPurchases.Any())
+                                {
+                                    foreach (var pur in Model.RecentPurchases)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <a asp-controller="Purchases" asp-action="Details" asp-route-id="@pur.InvoiceID" class="fw-bold text-decoration-none text-success">
+                                                    @pur.InvoiceNumber
+                                                </a>
+                                            </td>
+                                            <td>@pur.SupplierName</td>
+                                            <td>@pur.InvoiceDate.ToString("dd MMM yyyy")</td>
+                                            <td class="text-end fw-bold">@pur.TotalAmount.ToString("C2")</td>
+                                            <td class="text-center">
+                                                <span class="badge @(pur.PaymentStatus == "PAID" ? "bg-success" : pur.PaymentStatus == "PARTIAL" ? "bg-warning text-dark" : "bg-danger")">
+                                                    @pur.PaymentStatus
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center py-3 text-muted">No recent purchase activity found.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RECENT RETURNS TABLE -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-warning"><i class="bi bi-arrow-return-left me-2"></i> Recent Customer Returns</h6>
+                    <a asp-controller="Returns" asp-action="CustomerReturns" class="btn btn-xs btn-outline-warning text-dark">View All</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Return #</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th class="text-center">Type</th>
+                                    <th class="text-end">Refund</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.RecentReturns != null && Model.RecentReturns.Any())
+                                {
+                                    foreach (var ret in Model.RecentReturns)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <a asp-controller="Returns" asp-action="SalesReturnDetails" asp-route-id="@ret.SalesReturnID" class="fw-bold text-decoration-none text-danger">
+                                                    @ret.ReturnNumber
+                                                </a>
+                                            </td>
+                                            <td>@ret.CustomerName</td>
+                                            <td>@ret.ReturnDate.ToString("dd MMM yyyy")</td>
+                                            <td class="text-center">
+                                                <span class="badge @(ret.ReturnType == "MANUAL" ? "bg-warning text-dark" : "bg-primary")">
+                                                    @ret.ReturnType
+                                                </span>
+                                            </td>
+                                            <td class="text-end fw-bold text-danger">@ret.NetRefundAmount.ToString("C2")</td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center py-3 text-muted">No recent returns found.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOW STOCK ALERT TABLE -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i> Low Stock Alerts</h6>
+                    <a asp-controller="Products" asp-action="Index" class="btn btn-xs btn-outline-danger">Manage Products</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Product</th>
+                                    <th>SKU</th>
+                                    <th class="text-center">Current Qty</th>
+                                    <th class="text-center">Min Level</th>
+                                    <th class="text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.LowStockProducts != null && Model.LowStockProducts.Any())
+                                {
+                                    foreach (var prod in Model.LowStockProducts)
+                                    {
+                                        <tr>
+                                            <td class="fw-bold">@prod.ProductName</td>
+                                            <td class="small text-muted">@prod.SKU</td>
+                                            <td class="text-center fw-bold text-danger">@prod.CurrentStock.ToString("N2")</td>
+                                            <td class="text-center">@prod.MinStockLevel.ToString("N2")</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-danger">Low Stock</span>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center py-3 text-muted text-success">
+                                            <i class="bi bi-check-circle me-1"></i> All products are at healthy stock levels.
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

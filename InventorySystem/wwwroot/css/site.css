@@ -1,0 +1,270 @@
+/* Wholesale ERP (WIMS) Design Tokens & Modern Stylesheet */
+:root {
+  --erp-slate-900: #0f172a;
+  --erp-slate-800: #1e293b;
+  --erp-slate-700: #334155;
+  --erp-slate-600: #475569;
+  --erp-slate-500: #64748b;
+  --erp-slate-400: #94a3b8;
+  --erp-slate-200: #e2e8f0;
+  --erp-slate-100: #f1f5f9;
+  --erp-slate-50: #f8fafc;
+
+  --erp-primary: #2563eb;
+  --erp-primary-hover: #1d4ed8;
+  --erp-primary-light: #dbeafe;
+
+  --erp-success: #059669;
+  --erp-success-light: #d1fae5;
+
+  --erp-warning: #d97706;
+  --erp-warning-light: #fef3c7;
+
+  --erp-danger: #dc2626;
+  --erp-danger-light: #fee2e2;
+
+  --erp-info: #0284c7;
+  --erp-info-light: #e0f2fe;
+
+  --erp-sidebar-width: 250px;
+  --erp-topbar-height: 60px;
+  --erp-radius: 8px;
+  --erp-font: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+html, body {
+  font-family: var(--erp-font);
+  background-color: var(--erp-slate-50);
+  color: var(--erp-slate-800);
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* LAYOUT SHELL */
+#app-wrapper {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* SIDEBAR */
+#sidebar {
+  width: var(--erp-sidebar-width);
+  min-width: var(--erp-sidebar-width);
+  background-color: var(--erp-slate-900);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s ease-in-out;
+  z-index: 1000;
+}
+
+#sidebar .sidebar-brand {
+  height: var(--erp-topbar-height);
+  display: flex;
+  align-items: center;
+  padding: 0 1.25rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#sidebar .sidebar-brand i {
+  color: var(--erp-primary);
+}
+
+.sidebar-menu {
+  padding: 1rem 0;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.sidebar-heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--erp-slate-400);
+  padding: 0.75rem 1.25rem 0.35rem 1.25rem;
+}
+
+.sidebar-nav-item {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 1.25rem;
+  color: var(--erp-slate-200);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-left: 3px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.sidebar-link:hover {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-link.active {
+  color: #fff;
+  background-color: rgba(37, 99, 235, 0.15);
+  border-left-color: var(--erp-primary);
+  font-weight: 600;
+}
+
+.sidebar-link i {
+  font-size: 1.1rem;
+  width: 1.75rem;
+  margin-right: 0.5rem;
+  color: var(--erp-slate-400);
+  transition: color 0.15s ease;
+}
+
+.sidebar-link:hover i,
+.sidebar-link.active i {
+  color: var(--erp-primary);
+}
+
+/* TOPBAR */
+#main-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+#topbar {
+  height: var(--erp-topbar-height);
+  background-color: #fff;
+  border-bottom: 1px solid var(--erp-slate-200);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 999;
+}
+
+.topbar-search {
+  max-width: 360px;
+  width: 100%;
+}
+
+.topbar-search input {
+  background-color: var(--erp-slate-100);
+  border: 1px solid transparent;
+  border-radius: 20px;
+  padding-left: 2.25rem;
+  font-size: 0.85rem;
+}
+
+.topbar-search input:focus {
+  background-color: #fff;
+  border-color: var(--erp-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.topbar-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--erp-slate-400);
+  font-size: 0.9rem;
+}
+
+/* CARDS */
+.card {
+  background-color: #fff;
+  border: 1px solid var(--erp-slate-200);
+  border-radius: var(--erp-radius);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.card-header {
+  background-color: #fff;
+  border-bottom: 1px solid var(--erp-slate-200);
+  padding: 0.875rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* TABLES */
+.table {
+  font-size: 0.875rem;
+  color: var(--erp-slate-700);
+  margin-bottom: 0;
+}
+
+.table th {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--erp-slate-500);
+  background-color: var(--erp-slate-100);
+  border-bottom: 1px solid var(--erp-slate-200);
+  padding: 0.6rem 1rem;
+}
+
+.table td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--erp-slate-200);
+  vertical-align: middle;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(241, 245, 249, 0.6);
+}
+
+/* BUTTONS */
+.btn {
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 6px;
+  padding: 0.45rem 0.9rem;
+
+}
+
+.btn-primary {
+  background-color: var(--erp-primary);
+  border-color: var(--erp-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--erp-primary-hover);
+  border-color: var(--erp-primary-hover);
+}
+
+/* BADGES */
+.badge {
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 0.3em 0.6em;
+  border-radius: 4px;
+}
+
+/* QUICK ACTION DROPDOWN */
+.quick-action-btn {
+  background-color: var(--erp-primary-light);
+  color: var(--erp-primary);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 0.35rem 0.9rem;
+}
+
+.quick-action-btn:hover {
+  background-color: var(--erp-primary);
+  color: #fff;
+}

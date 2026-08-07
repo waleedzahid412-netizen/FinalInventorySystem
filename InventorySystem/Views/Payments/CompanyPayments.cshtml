@@ -1,0 +1,400 @@
+@model InventorySystem.ViewModels.Payments.CompanyPaymentListViewModel
+@{
+    ViewData["Title"] = "Company Payments";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-wallet2 me-2 text-primary"></i> Company Payments</h1>
+            <p class="text-muted small mb-0">View all vendor disbursements and payment vouchers to suppliers.</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-success shadow-sm" id="btnOpenRecordCompanyModal">
+                <i class="bi bi-plus-circle me-1"></i> Record Payment
+            </button>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body py-3">
+            <form method="get" asp-action="CompanyPayments" class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Company / Supplier</label>
+                    <select name="CompanyID" class="form-select form-select-sm" asp-for="Filter.CompanyID" asp-items="Model.Companies">
+                        <option value="">-- All Companies --</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Invoice #</label>
+                    <input type="text" name="InvoiceNumber" class="form-control form-control-sm" asp-for="Filter.InvoiceNumber" placeholder="Search Invoice #" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Payment Method</label>
+                    <select name="PaymentMethod" class="form-select form-select-sm" asp-for="Filter.PaymentMethod">
+                        <option value="">-- All Methods --</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Bank">Bank</option>
+                        <option value="Cheque">Cheque</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Date From</label>
+                    <input type="date" name="DateFrom" class="form-control form-control-sm" value="@Model.Filter.DateFrom?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Date To</label>
+                    <input type="date" name="DateTo" class="form-control form-control-sm" value="@Model.Filter.DateTo?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-1 d-flex gap-1">
+                    <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i></button>
+                    <a asp-action="CompanyPayments" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Payments Table -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Voucher #</th>
+                            <th>Payment Date</th>
+                            <th>Company / Supplier</th>
+                            <th>Target Invoice</th>
+                            <th>Method</th>
+                            <th>Reference #</th>
+                            <th>Paid By</th>
+                            <th class="text-end">Amount Paid</th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.PagedResult.Items != null && Model.PagedResult.Items.Any())
+                        {
+                            foreach (var p in Model.PagedResult.Items)
+                            {
+                                <tr>
+                                    <td class="fw-bold text-primary">@p.PaymentNumber</td>
+                                    <td>@p.PaymentDate.ToString("dd MMM yyyy")</td>
+                                    <td class="fw-semibold">@p.CompanyName</td>
+                                    <td>
+                                        <a asp-controller="Purchases" asp-action="Details" asp-route-id="@p.PurchaseInvoiceID" class="text-decoration-none">
+                                            #@p.InvoiceNumber
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">
+                                            <i class="bi bi-credit-card me-1"></i> @p.PaymentMethod
+                                        </span>
+                                        @if (p.PaymentMethod == "Cheque")
+                                        {
+                                            var badgeBg = p.ChequeStatus == "Cleared" ? "bg-success" : p.ChequeStatus == "Received" ? "bg-warning text-dark" : p.ChequeStatus == "Bounced" ? "bg-danger" : "bg-secondary";
+                                            <span class="badge @badgeBg ms-1">@p.ChequeStatus</span>
+                                        }
+                                    </td>
+                                    <td>@(string.IsNullOrWhiteSpace(p.ReferenceNumber) ? "-" : p.ReferenceNumber)</td>
+                                    <td class="small">@p.PaidByUserName</td>
+                                    <td class="text-end fw-bold text-primary">PKR @p.Amount.ToString("N2")</td>
+                                    <td class="text-center">
+                                        <a asp-action="CompanyPaymentReceipt" asp-route-id="@p.CompanyPaymentID" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Print Voucher">
+                                            <i class="bi bi-printer me-1"></i> Voucher
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">No vendor payments recorded yet.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Pagination -->
+        @if (Model.PagedResult.TotalPages > 1)
+        {
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2">
+                <span class="small text-muted">Showing @(Model.PagedResult.Items?.Count ?? 0) of @Model.PagedResult.TotalCount payments</span>
+                <ul class="pagination pagination-sm mb-0">
+                    @for (int i = 1; i <= Model.PagedResult.TotalPages; i++)
+                    {
+                        <li class="page-item @(i == Model.PagedResult.PageNumber ? "active" : "")">
+                            <a class="page-link" asp-action="CompanyPayments" asp-route-PageNumber="@i" asp-route-CompanyID="@Model.Filter.CompanyID" asp-route-InvoiceNumber="@Model.Filter.InvoiceNumber" asp-route-PaymentMethod="@Model.Filter.PaymentMethod">@i</a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Record Company Payment Modal -->
+<div class="modal fade" id="recordCompanyPaymentModal" tabindex="-1" aria-labelledby="recordCompanyPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title h6" id="recordCompanyPaymentModalLabel"><i class="bi bi-cash-stack me-2"></i> Record Vendor / Company Payment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="recordCompanyPaymentForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-body py-3">
+                    <div id="companyPaymentModalAlert" class="alert alert-danger p-2 small d-none mb-3"></div>
+
+                    <div class="mb-3">
+                        <label for="modalCompanyID" class="form-label fw-semibold">Company / Supplier <span class="text-danger">*</span></label>
+                        <select class="form-select" id="modalCompanyID" required>
+                            <option value="">-- Select Company --</option>
+                            @foreach (var comp in Model.Companies)
+                            {
+                                <option value="@comp.Value">@comp.Text</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalPurchaseInvoiceID" class="form-label fw-semibold">Target Purchase Invoice</label>
+                        <select class="form-select" id="modalPurchaseInvoiceID">
+                            <option value="0">Auto-Allocate to Oldest Open Invoice</option>
+                        </select>
+                        <div class="form-text small">Select an open invoice or allow auto-allocation across open invoices.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalCompanyAmount" class="form-label fw-semibold">Payment Amount (PKR) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="0.01" class="form-control form-control-lg fw-bold text-primary" id="modalCompanyAmount" placeholder="0.00" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalCompanyPaymentMethod" class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
+                        <select class="form-select" id="modalCompanyPaymentMethod" required>
+                            <option value="Cash">Cash</option>
+                            <option value="Bank">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                        </select>
+                    </div>
+
+                    <!-- Cheque Specific Fields -->
+                    <div id="companyChequeFieldsContainer" class="p-3 bg-light rounded border mb-3 d-none">
+                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-card-heading me-1 text-primary"></i> Cheque Details</h6>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label for="modalCompanyChequeNumber" class="form-label small fw-semibold">Cheque Number <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="modalCompanyChequeNumber" placeholder="e.g. CHQ-882211" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modalCompanyBankName" class="form-label small fw-semibold">Bank Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="modalCompanyBankName" placeholder="e.g. Meezan Bank" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modalCompanyIssueDate" class="form-label small fw-semibold">Issue Date</label>
+                                <input type="date" class="form-control form-control-sm" id="modalCompanyIssueDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modalCompanyChequeDate" class="form-label small fw-semibold">Cheque Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control form-control-sm" id="modalCompanyChequeDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalCompanyReferenceNumber" class="form-label fw-semibold">Reference Number</label>
+                        <input type="text" class="form-control" id="modalCompanyReferenceNumber" placeholder="e.g. Bank Transfer Ref / Voucher #" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalCompanyPaymentDate" class="form-label fw-semibold">Payment Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="modalCompanyPaymentDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalCompanyRemarks" class="form-label fw-semibold">Remarks / Notes</label>
+                        <input type="text" class="form-control" id="modalCompanyRemarks" placeholder="Optional notes" />
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary px-4" id="btnSubmitCompanyPayment">
+                        <span id="companyPaySpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                        <i id="companyPayIcon" class="bi bi-check-circle me-1"></i> Save Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const companyModal = new bootstrap.Modal(document.getElementById('recordCompanyPaymentModal'));
+            const companySelect = document.getElementById('modalCompanyID');
+            const invoiceSelect = document.getElementById('modalPurchaseInvoiceID');
+            const amountInput = document.getElementById('modalCompanyAmount');
+            const methodSelect = document.getElementById('modalCompanyPaymentMethod');
+
+            document.getElementById('btnOpenRecordCompanyModal').addEventListener('click', function () {
+                document.getElementById('recordCompanyPaymentForm').reset();
+                document.getElementById('companyPaymentModalAlert').classList.add('d-none');
+                invoiceSelect.innerHTML = '<option value="0">Auto-Allocate to Oldest Open Invoice</option>';
+                companyModal.show();
+            });
+
+            companySelect.addEventListener('change', function () {
+                const companyId = this.value;
+                invoiceSelect.innerHTML = '<option value="0">Loading open invoices...</option>';
+
+                if (!companyId) {
+                    invoiceSelect.innerHTML = '<option value="0">Auto-Allocate to Oldest Open Invoice</option>';
+                    amountInput.value = '';
+                    return;
+                }
+
+                fetch(`/Payments/GetUnpaidCompanyInvoices?companyId=${companyId}`)
+                    .then(res => res.json())
+                    .then(invoices => {
+                        let options = '<option value="0">Auto-Allocate to Oldest Open Invoice</option>';
+                        if (invoices && invoices.length > 0) {
+                            invoices.forEach(inv => {
+                                options += `<option value="${inv.invoiceID}" data-due="${inv.outstandingBalance}">${inv.invoiceNumber} (Due: PKR ${inv.outstandingBalance.toFixed(2)})</option>`;
+                            });
+                        }
+                        invoiceSelect.innerHTML = options;
+                    })
+                    .catch(err => {
+                        invoiceSelect.innerHTML = '<option value="0">Auto-Allocate to Oldest Open Invoice</option>';
+                    });
+            });
+
+            invoiceSelect.addEventListener('change', function () {
+                const selectedOpt = this.options[this.selectedIndex];
+                const due = selectedOpt ? parseFloat(selectedOpt.getAttribute('data-due') || '0') : 0;
+                if (due > 0) {
+                    amountInput.value = due.toFixed(2);
+                }
+            });
+
+            const chequeFields = document.getElementById('companyChequeFieldsContainer');
+
+            methodSelect.addEventListener('change', function () {
+                if (this.value === 'Cheque') {
+                    chequeFields.classList.remove('d-none');
+                } else {
+                    chequeFields.classList.add('d-none');
+                }
+            });
+
+            document.getElementById('btnSubmitCompanyPayment').addEventListener('click', function () {
+                const alertBox = document.getElementById('companyPaymentModalAlert');
+                alertBox.classList.add('d-none');
+
+                const companyId = parseInt(companySelect.value) || 0;
+                const purchaseInvoiceId = parseInt(invoiceSelect.value) || 0;
+                const amount = parseFloat(amountInput.value) || 0;
+                const method = methodSelect.value;
+                const reference = document.getElementById('modalCompanyReferenceNumber').value;
+                const date = document.getElementById('modalCompanyPaymentDate').value;
+                const remarks = document.getElementById('modalCompanyRemarks').value;
+
+                const chqNum = document.getElementById('modalCompanyChequeNumber').value;
+                const bankName = document.getElementById('modalCompanyBankName').value;
+                const issueDate = document.getElementById('modalCompanyIssueDate').value;
+                const chequeDate = document.getElementById('modalCompanyChequeDate').value;
+
+                if (companyId <= 0) {
+                    alertBox.textContent = 'Please select a company/supplier.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                if (amount <= 0) {
+                    alertBox.textContent = 'Payment amount must be greater than zero.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                if (method === 'Cheque') {
+                    if (!chqNum.trim()) {
+                        alertBox.textContent = 'Cheque Number is required.';
+                        alertBox.classList.remove('d-none');
+                        return;
+                    }
+                    if (!bankName.trim()) {
+                        alertBox.textContent = 'Bank Name is required.';
+                        alertBox.classList.remove('d-none');
+                        return;
+                    }
+                    if (!chequeDate) {
+                        alertBox.textContent = 'Cheque Date is required.';
+                        alertBox.classList.remove('d-none');
+                        return;
+                    }
+                } else if (method === 'Bank' && !reference.trim()) {
+                    alertBox.textContent = 'Reference Number is required for Bank payments.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                const payload = {
+                    CompanyID: companyId,
+                    PurchaseInvoiceID: purchaseInvoiceId > 0 ? purchaseInvoiceId : null,
+                    Amount: amount,
+                    PaymentMethod: method,
+                    ReferenceNumber: reference,
+                    PaymentDate: date,
+                    Remarks: remarks,
+                    ChequeNumber: chqNum,
+                    BankName: bankName,
+                    IssueDate: issueDate || null,
+                    ChequeDate: chequeDate || null
+                };
+
+                const token = document.querySelector('#recordCompanyPaymentForm input[name="__RequestVerificationToken"]').value;
+                const btn = this;
+                btn.disabled = true;
+                document.getElementById('companyPaySpinner').classList.remove('d-none');
+                document.getElementById('companyPayIcon').classList.add('d-none');
+
+                fetch('/Payments/RecordCompanyPayment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': token
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    document.getElementById('companyPaySpinner').classList.add('d-none');
+                    document.getElementById('companyPayIcon').classList.remove('d-none');
+
+                    if (data.success) {
+                        companyModal.hide();
+                        window.location.reload();
+                    } else {
+                        alertBox.textContent = data.message || 'Failed to record payment.';
+                        alertBox.classList.remove('d-none');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    document.getElementById('companyPaySpinner').classList.add('d-none');
+                    document.getElementById('companyPayIcon').classList.remove('d-none');
+                    alertBox.textContent = 'An error occurred while saving payment.';
+                    alertBox.classList.remove('d-none');
+                });
+            });
+        });
+    </script>
+}

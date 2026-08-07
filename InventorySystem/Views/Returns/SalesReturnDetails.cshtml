@@ -1,0 +1,187 @@
+@model InventorySystem.DTOs.Returns.SalesReturnDetailsDto
+@{
+    ViewData["Title"] = $"Sales Return #{Model.Header.ReturnNumber}";
+    var header = Model.Header;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="h3 mb-0 text-gray-800"><i class="bi bi-arrow-return-left text-danger me-2"></i> Sales Return #@header.ReturnNumber</h2>
+        <p class="text-muted small mb-0">Processed on @header.ReturnDate.ToString("dd MMM yyyy HH:mm") UTC by <strong>@header.CreatedByUserName</strong></p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="DownloadSalesReturnPdf" asp-route-id="@header.SalesReturnID" class="btn btn-sm btn-danger">
+            <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF Receipt
+        </a>
+        <a asp-action="CustomerReturns" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to Returns
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- HEADER INFORMATION -->
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-info-circle me-2"></i> Return Summary & Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Return Type</span>
+                        @if (string.Equals(header.ReturnType, "MANUAL", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-pencil-square me-1"></i> Manual Return</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-primary px-2 py-1"><i class="bi bi-receipt me-1"></i> Invoice Return</span>
+                        }
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Sales Invoice</span>
+                        @if (header.InvoiceID.HasValue && header.InvoiceID.Value > 0)
+                        {
+                            <a asp-controller="Sales" asp-action="Details" asp-route-id="@header.InvoiceID" class="fw-bold text-decoration-none">
+                                @header.InvoiceNumber <i class="bi bi-box-arrow-up-right small"></i>
+                            </a>
+                        }
+                        else
+                        {
+                            <span class="fw-bold text-muted">N/A (No Invoice)</span>
+                        }
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Settlement Method</span>
+                        @if (string.Equals(header.SettlementMethod, "CASH", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span class="badge bg-success px-2 py-1"><i class="bi bi-cash-stack me-1"></i> Cash Refund</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-info text-dark px-2 py-1"><i class="bi bi-person-badge me-1"></i> Account Adjustment</span>
+                        }
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted small d-block">Customer</span>
+                        <span class="fw-bold">@header.CustomerName</span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(header.WarehouseName))
+                    {
+                        <div class="col-md-4">
+                            <span class="text-muted small d-block">Restock Warehouse</span>
+                            <span class="fw-bold">@header.WarehouseName</span>
+                        </div>
+                    }
+                    <div class="col-md-4">
+                        <span class="text-muted small d-block">Scheme Recalculation</span>
+                        <span class="badge @(header.IncludeSchemeCalculation ? "bg-info" : "bg-secondary")">
+                            @(header.IncludeSchemeCalculation ? "Enabled" : "Disabled")
+                        </span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(header.Reason))
+                    {
+                        <div class="col-md-12">
+                            <span class="text-muted small d-block">Remarks / Return Reason</span>
+                            <div class="p-2 bg-light rounded border text-dark">@header.Reason</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- RETURNED ITEMS TABLE -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-box-seam me-2"></i> Returned Line Items</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Product</th>
+                                <th class="text-center">Return Qty</th>
+                                <th>Condition</th>
+                                <th>Reason</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Refund Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Items != null && Model.Items.Any())
+                            {
+                                int idx = 1;
+                                foreach (var item in Model.Items)
+                                {
+                                    <tr>
+                                        <td>@(idx++)</td>
+                                        <td>
+                                            <div class="fw-bold">@item.ProductName</div>
+                                            <span class="small text-muted">@(string.IsNullOrWhiteSpace(item.SKU) ? "" : item.SKU + " | ")Base Qty: @item.ConvertedQuantity.ToString("N2")</span>
+                                        </td>
+                                        <td class="text-center fw-bold">@item.Quantity.ToString("N2") @item.UnitName</td>
+                                        <td>
+                                            <span class="badge @(string.Equals(item.ReturnCondition, "Sellable", StringComparison.OrdinalIgnoreCase) ? "bg-success" : "bg-warning text-dark")">
+                                                @item.ReturnCondition
+                                            </span>
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(item.Reason) ? "-" : item.Reason)</td>
+                                        <td class="text-end">@item.RefundUnitPrice.ToString("C2")</td>
+                                        <td class="text-end fw-semibold">@item.RefundAmount.ToString("C2")</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FINANCIAL BREAKDOWN -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-wallet2 me-2"></i> Settlement & Refund Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Gross Returned Value:</span>
+                    <span class="fw-bold">@header.GrossAmount.ToString("C2")</span>
+                </div>
+                @if (header.ClawbackPenalty > 0)
+                {
+                    <div class="d-flex justify-content-between mb-2 text-danger">
+                        <span class="text-muted">Discount Clawback Penalty:</span>
+                        <span class="fw-bold"> -@header.ClawbackPenalty.ToString("C2")</span>
+                    </div>
+                }
+                @if (header.PromoPenalty > 0)
+                {
+                    <div class="d-flex justify-content-between mb-2 text-danger">
+                        <span class="text-muted">Promo Clawback Penalty:</span>
+                        <span class="fw-bold"> -@header.PromoPenalty.ToString("C2")</span>
+                    </div>
+                }
+                <hr />
+                <div class="p-3 bg-light rounded border text-center">
+                    <span class="text-muted small d-block">NET REFUND AMOUNT</span>
+                    <span class="fs-3 fw-bold text-success">@header.NetRefundAmount.ToString("C2")</span>
+                    <div class="small text-muted mt-2 fw-semibold">
+                        @if (string.Equals(header.SettlementMethod, "CASH", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span class="text-success"><i class="bi bi-cash-stack me-1"></i> Settled via Cash Refund (No Ledger Credit)</span>
+                        }
+                        else
+                        {
+                            <span class="text-primary"><i class="bi bi-person-badge me-1"></i> Posted Credit to Customer Ledger</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

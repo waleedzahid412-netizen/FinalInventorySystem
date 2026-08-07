@@ -1,0 +1,66 @@
+@model InventorySystem.DTOs.Common.PagedResult<InventorySystem.DTOs.Customers.CustomerSalesHistoryDto>
+
+@if (Model == null || !Model.Items.Any())
+{
+    <div class="alert alert-info my-3">
+        <i class="bi bi-info-circle me-2"></i> No sales invoice history found for this customer.
+    </div>
+}
+else
+{
+    <div class="table-responsive my-3">
+        <table class="table table-hover align-middle border">
+            <thead class="table-light">
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Invoice Date</th>
+                    <th class="text-end">Grand Total (PKR)</th>
+                    <th class="text-end">Paid Amount (PKR)</th>
+                    <th class="text-end">Outstanding (PKR)</th>
+                    <th class="text-center">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var inv in Model.Items)
+                {
+                    <tr>
+                        <td class="fw-semibold">@inv.InvoiceNumber</td>
+                        <td>@inv.InvoiceDate.ToString("dd MMM yyyy")</td>
+                        <td class="text-end fw-bold">@inv.GrandTotal.ToString("N2")</td>
+                        <td class="text-end text-success">@inv.PaidAmount.ToString("N2")</td>
+                        <td class="text-end text-danger fw-semibold">@inv.OutstandingAmount.ToString("N2")</td>
+                        <td class="text-center">
+                            @if (inv.PaymentStatus.ToUpper() == "PAID")
+                            {
+                                <span class="badge bg-success">Paid</span>
+                            }
+                            else if (inv.PaymentStatus.ToUpper() == "PARTIAL")
+                            {
+                                <span class="badge bg-warning text-dark">Partial</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Unpaid</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav aria-label="Sales history pagination">
+            <ul class="pagination pagination-sm justify-content-center">
+                @for (int p = 1; p <= Model.TotalPages; p++)
+                {
+                    int currentPage = p;
+                    <li class="page-item @(p == Model.PageNumber ? "active" : "")">
+                        <button type="button" class="page-link" onclick="loadSalesTab(@ViewBag.CustomerID, @currentPage)">@p</button>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+}
