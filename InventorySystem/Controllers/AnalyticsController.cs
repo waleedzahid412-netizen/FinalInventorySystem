@@ -18,12 +18,14 @@ namespace InventorySystem.Controllers
         private readonly IAnalyticsService _analyticsService;
         private readonly ApplicationDbContext _context;
         private readonly ILogger<AnalyticsController> _logger;
+        private readonly IPdfService _pdfService;
 
-        public AnalyticsController(IAnalyticsService analyticsService, ApplicationDbContext context, ILogger<AnalyticsController> logger)
+        public AnalyticsController(IAnalyticsService analyticsService, ApplicationDbContext context, ILogger<AnalyticsController> logger, IPdfService pdfService)
         {
             _analyticsService = analyticsService;
             _context = context;
             _logger = logger;
+            _pdfService = pdfService;
         }
 
         [HttpGet]
@@ -123,6 +125,148 @@ namespace InventorySystem.Controllers
             {
                 _logger.LogError(ex, "Error in GetCategorySales API endpoint.");
                 return Json(new List<CategorySalesDto>());
+            }
+        }
+
+        // ===== WAVE 3 API ENDPOINTS =====
+
+        [HttpPost]
+        public async Task<IActionResult> GetPaymentAnalytics([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (filter == null) filter = new AnalyticsFilterDto();
+                var data = await _analyticsService.GetPaymentAnalyticsAsync(filter, cancellationToken);
+                return Json(data ?? new PaymentAnalyticsDto());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetPaymentAnalytics API endpoint.");
+                return Json(new PaymentAnalyticsDto());
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> GetInventoryInsights([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (filter == null) filter = new AnalyticsFilterDto();
+                var data = await _analyticsService.GetInventoryInsightsAsync(filter, cancellationToken);
+                return Json(data ?? new InventoryInsightsDto());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetInventoryInsights API endpoint.");
+                return Json(new InventoryInsightsDto());
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> GetStockRiskItems([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (filter == null) filter = new AnalyticsFilterDto();
+                var data = await _analyticsService.GetStockRiskItemsAsync(filter, cancellationToken);
+                return Json(data ?? new List<StockRiskItemDto>());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetStockRiskItems API endpoint.");
+                return Json(new List<StockRiskItemDto>());
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> GetInventoryMovement([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (filter == null) filter = new AnalyticsFilterDto();
+                var data = await _analyticsService.GetInventoryMovementAsync(filter, cancellationToken);
+                return Json(data ?? new InventoryMovementDto());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetInventoryMovement API endpoint.");
+                return Json(new InventoryMovementDto());
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> GetPromotionPerformance([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (filter == null) filter = new AnalyticsFilterDto();
+                var data = await _analyticsService.GetPromotionPerformanceAsync(filter, cancellationToken);
+                return Json(data ?? new PromotionPerformanceDto());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetPromotionPerformance API endpoint.");
+                return Json(new PromotionPerformanceDto());
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> GetTopCompanies([FromBody] AnalyticsFilterDto filter, [FromQuery] int topCount = 5, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (filter == null) filter = new AnalyticsFilterDto();
+                var data = await _analyticsService.GetTopCompaniesAsync(filter, topCount, cancellationToken);
+                return Json(data ?? new List<TopCompanyDto>());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetTopCompanies API endpoint.");
+                return Json(new List<TopCompanyDto>());
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> GetBusinessInsights([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (filter == null) filter = new AnalyticsFilterDto();
+                var data = await _analyticsService.GetBusinessInsightsAsync(filter, cancellationToken);
+                return Json(data ?? new List<BusinessInsightDto>());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetBusinessInsights API endpoint.");
+                return Json(new List<BusinessInsightDto>());
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExportPdf([FromQuery] string preset = "ThisMonth", [FromQuery] int? warehouseId = null, [FromQuery] int? customerId = null, [FromQuery] int? categoryId = null, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var filter = new AnalyticsFilterDto
+                {
+                    Preset = preset,
+                    WarehouseID = warehouseId,
+                    CustomerID = customerId,
+                    CategoryID = categoryId
+                };
+
+                var kpi = await _analyticsService.GetKpiSummaryAsync(filter, cancellationToken);
+                var inv = await _analyticsService.GetInventoryInsightsAsync(filter, cancellationToken);
+                var insights = await _analyticsService.GetBusinessInsightsAsync(filter, cancellationToken);
+                var risk = await _analyticsService.GetStockRiskItemsAsync(filter, cancellationToken);
+
+                byte[] pdfBytes = _pdfService.GenerateAnalyticsReportPdf(kpi, inv, insights, risk, preset);
+                return File(pdfBytes, "application/pdf", $"WIMS_Analytics_Report_{preset}_{DateTime.Now:yyyyMMdd_HHmm}.pdf");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting Analytics PDF report.");
+                return RedirectToAction(nameof(Index));
             }
         }
 

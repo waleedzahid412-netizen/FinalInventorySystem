@@ -127,6 +127,11 @@ namespace InventorySystem.Services.Implementations
                 .GroupBy(i => i.InvoiceItemID!.Value)
                 .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
 
+            var priorChargedGrouped = (priorReturnItems ?? new List<SalesReturnItem>())
+                .Where(i => i.InvoiceItemID.HasValue)
+                .GroupBy(i => i.InvoiceItemID!.Value)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.PromoPenaltyQuantity));
+
             decimal grossReturnedValue = 0m;
             decimal clawbackPenalty = 0m;
             decimal promoPenalty = 0m;
@@ -237,56 +242,130 @@ namespace InventorySystem.Services.Implementations
                             decimal freeEarnedAfter = Math.Floor(buyRemainingAfterReturn / thresholdBaseQty) * freePerThreshold;
                             decimal freeBaseQtyAtRisk = Math.Max(0m, freeEarnedBefore - freeEarnedAfter);
 
-                            if (freeBaseQtyAtRisk > 0 || freeItem.Quantity > 0)
-                            {
-                                decimal freeConversion = freeItem.ProductUnit?.ConversionToBaseUnit > 0 ? freeItem.ProductUnit.ConversionToBaseUnit : 1m;
-                                decimal freeAtRiskDisplayQty = freeBaseQtyAtRisk / freeConversion;
+                            decimal freeConversion = freeItem.ProductUnit?.ConversionToBaseUnit > 0 ? freeItem.ProductUnit.ConversionToBaseUnit : 1m;
+                            decimal freeAtRiskDisplayQty = freeBaseQtyAtRisk / freeConversion;
 
-                                decimal freePriorReturnedDisplayQty = priorDisplayGrouped.TryGetValue(freeItem.InvoiceItemID, out var fPriorQty) ? fPriorQty : 0m;
-                                decimal physicallyRemainingFreeQty = Math.Max(0m, freeItem.Quantity - freePriorReturnedDisplayQty);
+                            decimal freePriorReturnedDisplayQty = priorDisplayGrouped.TryGetValue(freeItem.InvoiceItemID, out var fPriorQty) ? fPriorQty : 0m;
 
-                                decimal maxReturnableFreeQty = Math.Min(freeAtRiskDisplayQty, physicallyRemainingFreeQty);
+                            var priorItemsList = priorReturnItems ?? new List<SalesReturnItem>();
+                            decimal previousPromoPenaltyQuantity = priorItemsList
+                                .Where(i => i.InvoiceItemID == freeItem.InvoiceItemID)
+                                .Sum(i => i.PromoPenaltyQuantity);
 
-                                decimal selectedFreeReturnQty = itemsInput.FirstOrDefault(i => i.InvoiceItemID == freeItem.InvoiceItemID)?.Quantity ?? 0m;
+                            decimal freeItemPrice = freeItem.UnitPrice > 0 ? freeItem.UnitPrice : (freeItem.Product != null && freeItem.Product.BaseSellingPrice > 0 ? freeItem.Product.BaseSellingPrice : 0m);
 
-                                // Strict server validation (No silent clamping)
-                                if (selectedFreeReturnQty > maxReturnableFreeQty + 0.0001m)
+                            decimal priorReturnedChargedUnits = priorItemsList
+                                .Where(i => i.InvoiceItemID == freeItem.InvoiceItemID && i.RefundAmount > 0)
+                                .Sum(i =>
                                 {
-                                    return OperationResult<ClawbackPreviewDto>.Fail($"Selected return quantity ({selectedFreeReturnQty}) for free promotional item '{freeItem.Product?.ProductName ?? "Free Item"}' exceeds maximum returnable quantity ({maxReturnableFreeQty}).");
-                                }
-
-                                decimal retainedFreeQtyAfterReturn = Math.Max(0m, maxReturnableFreeQty - selectedFreeReturnQty);
-
-                                decimal freeItemPrice = freeItem.UnitPrice > 0 ? freeItem.UnitPrice : (freeItem.Product != null && freeItem.Product.BaseSellingPrice > 0 ? freeItem.Product.BaseSellingPrice : 0m);
-                                decimal penalty = Math.Round(retainedFreeQtyAfterReturn * freeItemPrice, 2);
-
-                                if (retainedFreeQtyAfterReturn > 0)
-                                {
-                                    promoPenalty += penalty;
-                                    string freeProdName = freeItem.Product?.ProductName ?? "Free Item";
-                                    breakdown.Add($"Promotion '{campaign.Name}': {retainedFreeQtyAfterReturn:N2} free unit(s) ('{freeProdName}') kept by customer. Promotional penalty: {penalty:C}");
-                                }
-
-                                freePromotions.Add(new FreePromotionClawbackDto
-                                {
-                                    PromotionId = campaign.PromotionID,
-                                    PromotionName = campaign.Name,
-                                    QualifyingInvoiceItemId = buyItem?.InvoiceItemID ?? 0,
-                                    QualifyingProductName = buyItem?.Product?.ProductName ?? "Qualifying Product",
-                                    FreeInvoiceItemId = freeItem.InvoiceItemID,
-                                    FreeProductId = freeItem.ProductID,
-                                    FreeProductName = freeItem.Product?.ProductName ?? "Free Item",
-                                    OriginalFreeQuantity = freeItem.Quantity,
-                                    PreviouslyReturnedFreeQuantity = freePriorReturnedDisplayQty,
-                                    PhysicallyRemainingFreeQuantity = physicallyRemainingFreeQty,
-                                    AtRiskFreeQuantity = freeAtRiskDisplayQty,
-                                    MaxReturnableFreeQuantity = maxReturnableFreeQty,
-                                    CurrentlySelectedFreeReturnQuantity = selectedFreeReturnQty,
-                                    RetainedFreeQuantityAfterCurrentReturn = retainedFreeQtyAfterReturn,
-                                    UnitValue = freeItemPrice,
-                                    RetainedValue = penalty
+                                    decimal price = i.RefundUnitPrice > 0 ? i.RefundUnitPrice : (freeItemPrice > 0 ? freeItemPrice : 1m);
+                                    return Math.Min(i.Quantity, Math.Round(i.RefundAmount / price, 3));
                                 });
+
+                            // Step 1: PreviouslyChargedFreeQty = Math.Max(0m, PreviousPromoPenaltyQuantity - PriorReturnedChargedUnits)
+                            decimal previouslyChargedFreeQty = Math.Max(0m, previousPromoPenaltyQuantity - priorReturnedChargedUnits);
+                            decimal physicallyRemainingFreeQty = Math.Max(0m, freeItem.Quantity - freePriorReturnedDisplayQty);
+
+                            // Max returnable free quantity is proportional to returned paid items plus previously charged unreturned free units
+                            decimal maxReturnableFreeQty = Math.Min(physicallyRemainingFreeQty, freeAtRiskDisplayQty + previouslyChargedFreeQty);
+
+                            decimal selectedFreeReturnQty = itemsInput.FirstOrDefault(i => i.InvoiceItemID == freeItem.InvoiceItemID)?.Quantity ?? 0m;
+
+                            // Strict server validation (No silent clamping)
+                            if (selectedFreeReturnQty > maxReturnableFreeQty + 0.0001m)
+                            {
+                                return OperationResult<ClawbackPreviewDto>.Fail($"Selected return quantity ({selectedFreeReturnQty}) for free promotional item '{freeItem.Product?.ProductName ?? "Free Item"}' exceeds maximum returnable quantity ({maxReturnableFreeQty}).");
                             }
+
+                            // Step 2: ReturnedPreviouslyChargedQty = Math.Min(PreviouslyChargedFreeQty, ReturnedNowQty)
+                            decimal returnedPreviouslyChargedQty = Math.Min(previouslyChargedFreeQty, selectedFreeReturnQty);
+
+                            // Step 3: RemainingPreviouslyChargedQty = Math.Max(0m, PreviouslyChargedFreeQty - ReturnedPreviouslyChargedQty)
+                            decimal remainingPreviouslyChargedQty = Math.Max(0m, previouslyChargedFreeQty - returnedPreviouslyChargedQty);
+
+                            // Step 4: FreeRefund = Math.Round(ReturnedPreviouslyChargedQty * FreeItemUnitPrice, 2)
+                            decimal freeRefund = Math.Round(returnedPreviouslyChargedQty * freeItemPrice, 2);
+                            grossReturnedValue += freeRefund;
+
+                            // Step 5: RetainedTotalFreeQty = Math.Max(0m, PhysicallyRemainingFreeQty - ReturnedNowQty)
+                            decimal retainedTotalFreeQty = Math.Max(0m, physicallyRemainingFreeQty - selectedFreeReturnQty);
+
+                            // Step 6: RemainingUnchargedQty = Math.Max(0m, RetainedTotalFreeQty - RemainingPreviouslyChargedQty)
+                            decimal remainingUnchargedQty = Math.Max(0m, retainedTotalFreeQty - remainingPreviouslyChargedQty);
+
+                            // Step 7: UnearnedUnchargedQty = Math.Max(0m, RemainingUnchargedQty - FreeEarnedAfter)
+                            decimal unearnedUnchargedQty = Math.Max(0m, remainingUnchargedQty - freeEarnedAfter);
+
+                            // Step 8: NewlyChargedFreeQty = UnearnedUnchargedQty (ONLY units newly penalized by THIS transaction)
+                            decimal newlyChargedFreeQty = unearnedUnchargedQty;
+
+                            // Step 9: PromoPenaltyAmount = Math.Round(NewlyChargedFreeQty * FreeItemUnitPrice, 2)
+                            decimal promoPenaltyAmount = Math.Round(newlyChargedFreeQty * freeItemPrice, 2);
+
+                            _logger.LogInformation(
+                                "Promotional Free Item Calculation breakdown: " +
+                                "InvoiceItemID={InvoiceItemID}, " +
+                                "OriginalFreeQty={OriginalFreeQty}, " +
+                                "PreviouslyReturnedFreeQty={PreviouslyReturnedFreeQty}, " +
+                                "PreviouslyChargedFreeQty={PreviouslyChargedFreeQty}, " +
+                                "PhysicallyRemainingFreeQty={PhysicallyRemainingFreeQty}, " +
+                                "ReturnedNowQty={ReturnedNowQty}, " +
+                                "ReturnedPreviouslyChargedQty={ReturnedPreviouslyChargedQty}, " +
+                                "RemainingPreviouslyChargedQty={RemainingPreviouslyChargedQty}, " +
+                                "NewlyUnearnedFreeQty={NewlyUnearnedFreeQty}, " +
+                                "NewPenaltyQty={NewPenaltyQty}, " +
+                                "FreeItemUnitPrice={FreeItemUnitPrice}, " +
+                                "FreeRefund={FreeRefund}, " +
+                                "PromoPenalty={PromoPenalty}",
+                                freeItem.InvoiceItemID,
+                                freeItem.Quantity,
+                                freePriorReturnedDisplayQty,
+                                previouslyChargedFreeQty,
+                                physicallyRemainingFreeQty,
+                                selectedFreeReturnQty,
+                                returnedPreviouslyChargedQty,
+                                remainingPreviouslyChargedQty,
+                                unearnedUnchargedQty,
+                                newlyChargedFreeQty,
+                                freeItemPrice,
+                                freeRefund,
+                                promoPenaltyAmount);
+
+                            if (promoPenaltyAmount > 0)
+                            {
+                                promoPenalty += promoPenaltyAmount;
+                                string freeProdName = freeItem.Product?.ProductName ?? "Free Item";
+                                breakdown.Add($"Promotion '{campaign.Name}': {newlyChargedFreeQty:N2} free unit(s) ('{freeProdName}') newly subject to penalty. Promotional penalty: {promoPenaltyAmount:C}");
+                            }
+
+                            freePromotions.Add(new FreePromotionClawbackDto
+                            {
+                                PromotionId = campaign.PromotionID,
+                                PromotionName = campaign.Name,
+                                QualifyingInvoiceItemId = buyItem?.InvoiceItemID ?? 0,
+                                QualifyingProductName = buyItem?.Product?.ProductName ?? "Qualifying Product",
+                                FreeInvoiceItemId = freeItem.InvoiceItemID,
+                                FreeProductId = freeItem.ProductID,
+                                FreeProductName = freeItem.Product?.ProductName ?? "Free Item",
+                                OriginalFreeQuantity = freeItem.Quantity,
+                                PreviouslyReturnedFreeQuantity = freePriorReturnedDisplayQty,
+                                PreviouslyChargedFreeQuantity = previousPromoPenaltyQuantity,
+                                PreviouslyReturnedChargedFreeQuantity = priorReturnedChargedUnits,
+                                UnreturnedChargedFreeQuantity = previouslyChargedFreeQty,
+                                PhysicallyRemainingFreeQuantity = physicallyRemainingFreeQty,
+                                AtRiskFreeQuantity = freeAtRiskDisplayQty,
+                                MaxReturnableFreeQuantity = maxReturnableFreeQty,
+                                CurrentlySelectedFreeReturnQuantity = selectedFreeReturnQty,
+                                RetainedFreeQuantityAfterCurrentReturn = retainedTotalFreeQty,
+                                ReturnedPreviouslyChargedQuantity = returnedPreviouslyChargedQty,
+                                RemainingPreviouslyChargedQuantity = remainingPreviouslyChargedQty,
+                                NewlyUnearnedFreeQuantity = unearnedUnchargedQty,
+                                IsPreviouslyCharged = previouslyChargedFreeQty > 0,
+                                NewPenaltyChargedQuantity = newlyChargedFreeQty,
+                                RefundIfReturned = Math.Round(Math.Min(1m, previouslyChargedFreeQty) * freeItemPrice, 2),
+                                UnitValue = freeItemPrice,
+                                RetainedValue = promoPenaltyAmount
+                            });
                         }
                     }
                 }
@@ -344,7 +423,7 @@ namespace InventorySystem.Services.Implementations
             var now = DateTime.UtcNow;
             string returnNumber = await _returnRepository.GenerateSalesReturnNumberAsync(cancellationToken);
 
-            var validItemsToProcess = new List<(ReturnItemInput Input, SalesInvoiceItem InvoiceItem, decimal ConvertedQty, decimal RefundUnitPrice, decimal LineRefund)>();
+            var validItemsToProcess = new List<(ReturnItemInput Input, SalesInvoiceItem InvoiceItem, decimal ConvertedQty, decimal RefundUnitPrice, decimal LineRefund, decimal PromoPenaltyQty, decimal PromoPenaltyAmt)>();
 
             foreach (var itemInput in request.Items.Where(i => i.Quantity > 0))
             {
@@ -358,10 +437,19 @@ namespace InventorySystem.Services.Implementations
                 decimal conversionFactor = invoiceItem.ProductUnit?.ConversionToBaseUnit > 0 ? invoiceItem.ProductUnit.ConversionToBaseUnit : 1m;
                 decimal requestedConverted = UnitConversionHelper.ToBaseUnits(itemInput.Quantity, conversionFactor);
 
-                decimal refundUnitPrice = isFree ? 0m : invoiceItem.UnitPrice;
-                decimal lineRefund = isFree ? 0m : Math.Round(itemInput.Quantity * refundUnitPrice, 2);
+                var freeDto = preview.FreePromotions?.FirstOrDefault(f => f.FreeInvoiceItemId == invoiceItem.InvoiceItemID);
+                decimal freeItemPrice = invoiceItem.UnitPrice > 0 ? invoiceItem.UnitPrice : (invoiceItem.Product != null && invoiceItem.Product.BaseSellingPrice > 0 ? invoiceItem.Product.BaseSellingPrice : 0m);
 
-                validItemsToProcess.Add((itemInput, invoiceItem, requestedConverted, refundUnitPrice, lineRefund));
+                decimal unreturnedChargedFreeQty = freeDto?.UnreturnedChargedFreeQuantity ?? 0m;
+                decimal chargedReturnedQty = isFree ? Math.Min(itemInput.Quantity, unreturnedChargedFreeQty) : 0m;
+
+                decimal refundUnitPrice = isFree ? freeItemPrice : invoiceItem.UnitPrice;
+                decimal lineRefund = isFree ? Math.Round(chargedReturnedQty * freeItemPrice, 2) : Math.Round(itemInput.Quantity * refundUnitPrice, 2);
+
+                decimal promoPenaltyQty = freeDto?.NewPenaltyChargedQuantity ?? 0m;
+                decimal promoPenaltyAmt = freeDto?.RetainedValue ?? 0m;
+
+                validItemsToProcess.Add((itemInput, invoiceItem, requestedConverted, refundUnitPrice, lineRefund, promoPenaltyQty, promoPenaltyAmt));
             }
 
             string settlementMethod = string.Equals(request.SettlementMethod, "CASH", StringComparison.OrdinalIgnoreCase) ? "CASH" : "ACCOUNT_ADJUSTMENT";
@@ -406,6 +494,8 @@ namespace InventorySystem.Services.Implementations
                         ConvertedQuantity = tuple.ConvertedQty,
                         RefundUnitPrice = tuple.RefundUnitPrice,
                         RefundAmount = tuple.LineRefund,
+                        PromoPenaltyQuantity = tuple.PromoPenaltyQty,
+                        PromoPenaltyAmount = tuple.PromoPenaltyAmt,
                         Reason = tuple.Input.Reason,
                         ReturnCondition = string.IsNullOrWhiteSpace(tuple.Input.ReturnCondition) ? "Sellable" : tuple.Input.ReturnCondition
                     };
@@ -448,8 +538,41 @@ namespace InventorySystem.Services.Implementations
                     await _returnRepository.AddInventoryTransactionAsync(invTx, cancellationToken);
                 }
 
-                // 3. Customer Ledger Entry (ONLY IF ACCOUNT_ADJUSTMENT)
-                if (string.Equals(settlementMethod, "ACCOUNT_ADJUSTMENT", StringComparison.OrdinalIgnoreCase) && preview.NetRefundAmount > 0)
+                // Also insert SalesReturnItem for any retained free items that incurred a NEW PromoPenalty (where Quantity returned = 0)
+                if (preview.FreePromotions != null)
+                {
+                    var processedInvoiceItemIds = validItemsToProcess.Select(v => v.InvoiceItem.InvoiceItemID).ToHashSet();
+                    foreach (var freeDto in preview.FreePromotions)
+                    {
+                        if (!processedInvoiceItemIds.Contains(freeDto.FreeInvoiceItemId) && freeDto.NewPenaltyChargedQuantity > 0)
+                        {
+                            var freeInvoiceItem = invoice.Items.FirstOrDefault(i => i.InvoiceItemID == freeDto.FreeInvoiceItemId);
+                            if (freeInvoiceItem != null)
+                            {
+                                var penaltyReturnItem = new SalesReturnItem
+                                {
+                                    SalesReturnID = salesReturn.SalesReturnID,
+                                    InvoiceItemID = freeInvoiceItem.InvoiceItemID,
+                                    ProductID = freeInvoiceItem.ProductID,
+                                    ProductUnitID = freeInvoiceItem.ProductUnitID,
+                                    Quantity = 0m,
+                                    ConvertedQuantity = 0m,
+                                    RefundUnitPrice = freeDto.UnitValue,
+                                    RefundAmount = 0m,
+                                    PromoPenaltyQuantity = freeDto.NewPenaltyChargedQuantity,
+                                    PromoPenaltyAmount = freeDto.RetainedValue,
+                                    Reason = "Promotional penalty for retained free item",
+                                    ReturnCondition = "Sellable"
+                                };
+                                await _context.SalesReturnItems.AddAsync(penaltyReturnItem, cancellationToken);
+                            }
+                        }
+                    }
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+
+                // 3. Customer Ledger Entry (Created for all returns with NetRefundAmount > 0 regardless of SettlementMethod)
+                if (preview.NetRefundAmount > 0)
                 {
                     var customerLedger = new CustomerLedger
                     {
@@ -640,8 +763,8 @@ namespace InventorySystem.Services.Implementations
                     await _returnRepository.AddInventoryTransactionAsync(invTx, cancellationToken);
                 }
 
-                // 3. Customer Ledger Entry (ONLY IF ACCOUNT_ADJUSTMENT)
-                if (string.Equals(settlementMethod, "ACCOUNT_ADJUSTMENT", StringComparison.OrdinalIgnoreCase) && netRefundAmount > 0)
+                // 3. Customer Ledger Entry (Created for all returns with NetRefundAmount > 0 regardless of SettlementMethod)
+                if (netRefundAmount > 0)
                 {
                     var customerLedger = new CustomerLedger
                     {

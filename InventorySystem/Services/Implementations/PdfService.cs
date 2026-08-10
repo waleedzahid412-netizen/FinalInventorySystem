@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using InventorySystem.DTOs.Analytics;
 using InventorySystem.DTOs.Purchases;
 using InventorySystem.DTOs.Sales;
 using InventorySystem.Services.Interfaces;
@@ -505,6 +506,149 @@ namespace InventorySystem.Services.Implementations
                         col.Item().PaddingTop(5).Row(row =>
                         {
                             row.RelativeItem().Text($"Generated on {DateTime.UtcNow:dd MMM yyyy HH:mm UTC}").FontSize(8).FontColor(Colors.Grey.Medium);
+                            row.RelativeItem().AlignRight().Text(x =>
+                            {
+                                x.Span("Page ");
+                                x.CurrentPageNumber();
+                                x.Span(" of ");
+                                x.TotalPages();
+                            });
+                        });
+                    });
+                });
+            });
+
+            return document.GeneratePdf();
+        }
+
+        public byte[] GenerateAnalyticsReportPdf(AnalyticsKpiSummaryDto kpi, InventoryInsightsDto inventory, System.Collections.Generic.List<BusinessInsightDto> insights, System.Collections.Generic.List<StockRiskItemDto> stockRisk, string preset)
+        {
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(30);
+                    page.PageColor(Colors.White);
+                    page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Grey.Darken3));
+
+                    page.Header().Column(col =>
+                    {
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text("WHOLESALE DISTRIBUTOR").FontSize(18).Bold().FontColor(Colors.Blue.Darken2);
+                                c.Item().Text("Analytics & Business Intelligence Executive Report").FontSize(11).SemiBold().FontColor(Colors.Grey.Medium);
+                            });
+
+                            row.ConstantItem(180).Column(c =>
+                            {
+                                c.Item().Text($"Filter Range: {preset}").FontSize(11).Bold().AlignRight();
+                                c.Item().Text($"Date: {DateTime.Now:dd MMM yyyy}").FontSize(9).AlignRight();
+                            });
+                        });
+
+                        col.Item().PaddingVertical(8).LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
+                    });
+
+                    page.Content().Column(col =>
+                    {
+                        // 1. KPI SUMMARY TABLE
+                        col.Item().PaddingBottom(5).Text("1. Executive Financial Summary").FontSize(12).Bold().FontColor(Colors.Blue.Darken2);
+                        col.Item().PaddingBottom(12).Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.RelativeColumn(2);
+                                columns.RelativeColumn(2);
+                                columns.RelativeColumn(2);
+                                columns.RelativeColumn(3);
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Metric").Bold();
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text("Current").Bold();
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text("Previous").Bold();
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text("Change").Bold();
+                            });
+
+                            void AddRow(string title, KpiMetricDto metric)
+                            {
+                                if (metric == null) return;
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(4).Text(title);
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(4).AlignRight().Text(metric.FormattedCurrentValue);
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(4).AlignRight().Text(metric.FormattedPreviousValue);
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(4).AlignRight().Text(metric.ComparisonText);
+                            }
+
+                            if (kpi != null)
+                            {
+                                AddRow("Total Sales", kpi.TotalSales);
+                                AddRow("Total Purchases", kpi.TotalPurchases);
+                                AddRow("Gross Profit", kpi.EstimatedGrossProfit);
+                                AddRow("Total Discounts", kpi.TotalDiscounts);
+                                AddRow("Total Returns", kpi.TotalReturns);
+                                AddRow("Net Sales", kpi.NetSales);
+                            }
+                        });
+
+                        // 2. INVENTORY INSIGHTS SUMMARY
+                        col.Item().PaddingBottom(5).Text("2. Inventory Valuation & Risk Summary").FontSize(12).Bold().FontColor(Colors.Blue.Darken2);
+                        if (inventory != null)
+                        {
+                            col.Item().PaddingBottom(10).Row(r =>
+                            {
+                                r.RelativeItem().Text($"Total Stock Value: PKR {inventory.TotalInventoryValue:N2}").Bold();
+                                r.RelativeItem().Text($"Products Count: {inventory.TotalProductCount}").Bold();
+                                r.RelativeItem().Text($"Low Stock Items: {inventory.LowStockProductCount}").Bold().FontColor(Colors.Orange.Darken2);
+                                r.RelativeItem().Text($"Out of Stock: {inventory.OutOfStockProductCount}").Bold().FontColor(Colors.Red.Darken2);
+                            });
+                        }
+
+                        // 3. STOCK RISK ACTION TABLE
+                        if (stockRisk != null && stockRisk.Any())
+                        {
+                            col.Item().PaddingBottom(5).Text("3. High Stock Risk Items").FontSize(12).Bold().FontColor(Colors.Red.Darken2);
+                            col.Item().Table(table =>
+                            {
+                                table.ColumnsDefinition(columns =>
+                                {
+                                    columns.RelativeColumn(3);
+                                    columns.RelativeColumn(2);
+                                    columns.RelativeColumn(1);
+                                    columns.RelativeColumn(1);
+                                    columns.RelativeColumn(1);
+                                });
+
+                                table.Header(header =>
+                                {
+                                    header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("Product").Bold();
+                                    header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("Category").Bold();
+                                    header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignRight().Text("Current").Bold();
+                                    header.Cell().Background(Colors.Grey.Lighten3).Padding(4).AlignRight().Text("Reorder").Bold();
+                                    header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("Status").Bold();
+                                });
+
+                                foreach (var item in stockRisk.Take(10))
+                                {
+                                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(3).Text(item.ProductName);
+                                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(3).Text(item.CategoryName);
+                                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(3).AlignRight().Text($"{item.CurrentStock:N0}");
+                                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(3).AlignRight().Text($"{item.ReorderLevel:N0}");
+                                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(3).Text(item.RiskLevel).FontColor(item.RiskLevel == "OUT_OF_STOCK" ? Colors.Red.Medium : Colors.Orange.Darken1).Bold();
+                                }
+                            });
+                        }
+                    });
+
+                    page.Footer().Column(col =>
+                    {
+                        col.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+                        col.Item().PaddingTop(4).Row(row =>
+                        {
+                            row.RelativeItem().Text($"WIMS ERP Analytics — Generated on {DateTime.Now:dd MMM yyyy HH:mm}").FontSize(8).FontColor(Colors.Grey.Medium);
                             row.RelativeItem().AlignRight().Text(x =>
                             {
                                 x.Span("Page ");

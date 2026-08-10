@@ -155,11 +155,11 @@ namespace InventorySystem.Controllers
             {
                 id = u.ProductUnitID,
                 productUnitId = u.ProductUnitID,
-                productUnitID = u.ProductUnitID,
                 name = u.UnitName,
                 unitName = u.UnitName,
                 purchasePrice = 0m,
-                conversionFactor = u.ConversionToBaseUnit
+                conversionFactor = u.ConversionToBaseUnit,
+                conversionToBaseUnit = u.ConversionToBaseUnit
             });
             return Json(result);
         }

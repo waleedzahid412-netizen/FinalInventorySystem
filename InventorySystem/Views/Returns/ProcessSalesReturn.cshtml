@@ -80,21 +80,7 @@
                                         <td class="text-center fw-semibold">@item.OriginalQuantity.ToString("N2")</td>
                                         <td class="text-center text-muted">@item.AlreadyReturnedQuantity.ToString("N2")</td>
                                         <td class="text-center" style="width: 150px;">
-                                            @if (string.Equals(item.ItemType, "FREE", StringComparison.OrdinalIgnoreCase))
-                                            {
-                                                if (isFullyReturned)
-                                                {
-                                                    <span class="badge bg-secondary">Fully Returned</span>
-                                                }
-                                                else
-                                                {
-                                                    <div class="form-check form-switch d-flex justify-content-center align-items-center my-1">
-                                                        <input class="form-check-input free-item-toggle me-2" type="checkbox" role="switch" id="freeToggle_@item.InvoiceItemID" data-max-qty="@item.RemainingReturnableQuantity" />
-                                                        <label class="form-check-label free-toggle-label small fw-semibold text-danger" for="freeToggle_@item.InvoiceItemID">Return Free Item</label>
-                                                    </div>
-                                                }
-                                            }
-                                            else if (isFullyReturned)
+                                            @if (isFullyReturned)
                                             {
                                                 <span class="badge bg-secondary">Fully Returned</span>
                                                 <input type="number" class="form-control form-control-sm return-qty d-none" value="0" disabled />
@@ -242,47 +228,52 @@
 
             function buildReturnItemsList() {
                 const items = [];
-                // Paid line items from main table
+                const itemMap = new Map();
+
+                // 1. Line items from main table (both paid and free)
                 $('#returnItemsTable tbody tr').each(function () {
                     const $row = $(this);
-                    const itemType = ($row.data('item-type') || '').toString();
-                    if (itemType.toUpperCase() === 'FREE') return; // Handled via promo container or explicit input
-
                     const qty = parseFloat($row.find('.return-qty').val()) || 0;
                     const itemId = parseInt($row.data('item-id'));
                     const prodId = parseInt($row.data('product-id'));
-                    const unitId = parseInt($row.data('product-unit-id'));
+                    const unitId = parseInt($row.data('product-unit-id')) || 1;
 
-                    if (qty > 0) {
-                        items.push({
+                    if (itemId > 0) {
+                        itemMap.set(itemId, {
                             invoiceItemId: itemId,
                             productId: prodId,
                             productUnitId: unitId,
                             quantity: qty,
-                            reason: $row.find('.item-reason').val(),
-                            returnCondition: $row.find('.item-condition').val()
+                            reason: $row.find('.item-reason').val() || 'Sales Return',
+                            returnCondition: $row.find('.item-condition').val() || 'Sellable'
                         });
                     }
                 });
 
-                // Free promotional line items from promo container or table
+                // 2. Override/update from promo container (.free-return-qty) if modified in promo section
                 $('.free-return-qty').each(function () {
                     const $input = $(this);
-                    const qty = parseFloat($input.val()) || 0;
                     const itemId = parseInt($input.data('free-item-id'));
-                    const prodId = parseInt($input.data('free-prod-id'));
-                    const unitId = parseInt($input.data('free-unit-id')) || 1;
-
+                    const qty = parseFloat($input.val()) || 0;
                     if (itemId > 0) {
-                        items.push({
-                            invoiceItemId: itemId,
-                            productId: prodId,
-                            productUnitId: unitId,
-                            quantity: qty,
-                            reason: 'Promotional Free Item Return',
-                            returnCondition: 'Sellable'
-                        });
+                        if (itemMap.has(itemId)) {
+                            itemMap.get(itemId).quantity = qty;
+                        } else {
+                            const prodId = parseInt($input.data('free-prod-id'));
+                            itemMap.set(itemId, {
+                                invoiceItemId: itemId,
+                                productId: prodId,
+                                productUnitId: 1,
+                                quantity: qty,
+                                reason: 'Promotional Free Item Return',
+                                returnCondition: 'Sellable'
+                            });
+                        }
                     }
+                });
+
+                itemMap.forEach(function (val) {
+                    items.push(val);
                 });
 
                 return items;
@@ -329,16 +320,19 @@
                             if (data.freePromotions && data.freePromotions.length > 0) {
                                 let promoHtml = '';
                                 data.freePromotions.forEach(function (fp) {
+                                    const chargedBadge = fp.isPreviouslyCharged ? `<span class="badge bg-warning text-dark ms-2"><i class="bi bi-currency-dollar me-1"></i> ${fp.unreturnedChargedFreeQuantity} Previously Charged ($${fp.unitValue.toFixed(2)}/unit)</span>` : '';
+                                    const statusNote = fp.isPreviouslyCharged ? `<div class="alert alert-info py-1 px-2 small mb-2"><i class="bi bi-info-circle-fill me-1"></i> Physical remaining: <strong>${fp.maxReturnableFreeQuantity}</strong> (${fp.unreturnedChargedFreeQuantity} previously charged + ${fp.maxReturnableFreeQuantity - fp.unreturnedChargedFreeQuantity} uncharged). Returning charged units refunds $${fp.unitValue.toFixed(2)}/unit.</div>` : '';
                                     promoHtml += `
                                         <div class="p-3 border rounded bg-white mb-3 shadow-sm promo-card" data-free-item-id="${fp.freeInvoiceItemId}">
-                                            <div class="fw-bold text-dark mb-1"><i class="bi bi-gift-fill text-primary me-1"></i> Promotion: ${fp.promotionName}</div>
+                                            <div class="fw-bold text-dark mb-1"><i class="bi bi-gift-fill text-primary me-1"></i> Promotion: ${fp.promotionName} ${chargedBadge}</div>
                                             <div class="small text-muted mb-2">
                                                 Qualifying Product: <strong>${fp.qualifyingProductName}</strong> | Free Item: <strong>${fp.freeProductName}</strong>
                                             </div>
+                                            ${statusNote}
                                             <div class="row align-items-center g-2 mb-2 small text-secondary">
-                                                <div class="col-md-3">Granted: <strong>${fp.originalFreeQuantity}</strong></div>
+                                                <div class="col-md-3">Original Free: <strong>${fp.originalFreeQuantity}</strong></div>
                                                 <div class="col-md-3">Prior Returned: <strong>${fp.previouslyReturnedFreeQuantity}</strong></div>
-                                                <div class="col-md-3 text-warning-emphasis">At Risk: <strong>${fp.atRiskFreeQuantity}</strong></div>
+                                                <div class="col-md-3 text-warning-emphasis">Unreturned Charged: <strong>${fp.unreturnedChargedFreeQuantity}</strong></div>
                                                 <div class="col-md-3 text-danger-emphasis">Max Returnable: <strong>${fp.maxReturnableFreeQuantity}</strong></div>
                                             </div>
                                             <div class="row align-items-center g-2 bg-light p-2 rounded">
@@ -394,11 +388,28 @@
                 });
             }
 
-            $(document).on('input change', '.return-qty, #includeSchemeCalculation', function () {
+            $(document).on('input change', '.return-qty', function () {
+                const $tr = $(this).closest('tr');
+                const itemId = parseInt($tr.data('item-id'));
+                const val = $(this).val();
+                const $promoInput = $(`.free-return-qty[data-free-item-id="${itemId}"]`);
+                if ($promoInput.length > 0 && $promoInput.val() !== val) {
+                    $promoInput.val(val);
+                }
                 previewClawback(false);
             });
 
-            $(document).on('change', '.free-return-qty', function () {
+            $(document).on('input change', '.free-return-qty', function () {
+                const itemId = parseInt($(this).data('free-item-id'));
+                const val = $(this).val();
+                const $trInput = $(`#returnItemsTable tbody tr[data-item-id="${itemId}"]`).find('.return-qty');
+                if ($trInput.length > 0 && $trInput.val() !== val) {
+                    $trInput.val(val);
+                }
+                previewClawback(false);
+            });
+
+            $(document).on('change', '#includeSchemeCalculation', function () {
                 previewClawback(false);
             });
 

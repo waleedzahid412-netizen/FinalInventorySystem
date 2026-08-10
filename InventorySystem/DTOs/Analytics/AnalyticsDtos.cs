@@ -69,4 +69,85 @@ namespace InventorySystem.DTOs.Analytics
         public decimal SalesAmount { get; set; }
         public decimal Percentage { get; set; }
     }
+
+    // ===== WAVE 3 DTOs =====
+
+    public class InvoiceStatusBreakdownDto
+    {
+        public string Status { get; set; } = string.Empty; // Paid | Partial | Unpaid
+        public int Count { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal Percentage { get; set; }
+    }
+
+    public class PaymentAnalyticsDto
+    {
+        public decimal CustomerPaymentsCollected { get; set; }
+        public decimal CompanyPaymentsMade { get; set; }
+        public decimal TotalOutstandingReceivables { get; set; }
+        public decimal TotalOutstandingPayables { get; set; }
+        public List<InvoiceStatusBreakdownDto> InvoiceStatuses { get; set; } = new List<InvoiceStatusBreakdownDto>();
+    }
+
+    public class CategoryInventoryValueDto
+    {
+        public string CategoryName { get; set; } = string.Empty;
+        public decimal TotalValue { get; set; }
+        public decimal Percentage { get; set; }
+        public int ProductCount { get; set; }
+    }
+
+    public class InventoryInsightsDto
+    {
+        public decimal TotalInventoryValue { get; set; }
+        public int TotalProductCount { get; set; }
+        public int LowStockProductCount { get; set; }
+        public int OutOfStockProductCount { get; set; }
+        public List<CategoryInventoryValueDto> ValueByCategory { get; set; } = new List<CategoryInventoryValueDto>();
+    }
+
+    public class StockRiskItemDto
+    {
+        public int ProductID { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public string CategoryName { get; set; } = string.Empty;
+        public decimal CurrentStock { get; set; }
+        public decimal ReorderLevel { get; set; }
+        public string BaseUnit { get; set; } = string.Empty;
+        public string RiskLevel { get; set; } = "LOW_STOCK"; // OUT_OF_STOCK | LOW_STOCK
+    }
+
+    public class InventoryMovementDto
+    {
+        public decimal PurchasedQuantity { get; set; }
+        public decimal SoldQuantity { get; set; }
+        public decimal SalesReturnQuantity { get; set; }
+        public decimal AdjustmentQuantity { get; set; }
+    }
+
+    public class PromotionPerformanceDto
+    {
+        public decimal TotalDiscountAmount { get; set; }
+        public int PromoInvoicesCount { get; set; }
+        public int RegularDiscountsCount { get; set; }
+        public decimal TotalInvoicePromotionsAmount { get; set; }
+        public decimal TotalRegularDiscountsAmount { get; set; }
+    }
+
+    public class TopCompanyDto
+    {
+        public int CompanyID { get; set; }
+        public string CompanyName { get; set; } = string.Empty;
+        public decimal TotalPurchases { get; set; }
+        public int InvoiceCount { get; set; }
+        public decimal OutstandingPayable { get; set; }
+    }
+
+    public class BusinessInsightDto
+    {
+        public string Type { get; set; } = "INFO"; // DANGER | WARNING | SUCCESS | INFO
+        public string Title { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public string Icon { get; set; } = "bi-info-circle";
+    }
 }

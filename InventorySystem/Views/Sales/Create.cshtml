@@ -537,7 +537,10 @@
                     .then(units => {
                         let options = '<option value="">-- Select Unit --</option>';
                         units.forEach(u => {
-                            options += `<option value="${u.productUnitID}" data-conv="${u.conversionToBaseUnit}">${u.unitName} (${u.conversionToBaseUnit} Base Units)</option>`;
+                            const unitId = u.productUnitId || u.productUnitID || u.id;
+                            const unitName = u.unitName || u.name || 'Unit';
+                            const conv = u.conversionFactor !== undefined ? u.conversionFactor : (u.conversionToBaseUnit !== undefined ? u.conversionToBaseUnit : 1);
+                            options += `<option value="${unitId}" data-conv="${conv}">${unitName} (${conv})</option>`;
                         });
                         unitSelect.innerHTML = options;
 

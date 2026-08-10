@@ -49,6 +49,14 @@ namespace InventorySystem.Models.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal RefundAmount { get; set; } = 0;
 
+        /// <summary>Quantity of free item retained and charged as PromoPenalty in this return transaction.</summary>
+        [Column(TypeName = "decimal(18,3)")]
+        public decimal PromoPenaltyQuantity { get; set; } = 0;
+
+        /// <summary>Penalty amount charged for retained free units in this return transaction.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal PromoPenaltyAmount { get; set; } = 0;
+
         [MaxLength(50)]
         public string? Reason { get; set; }
 

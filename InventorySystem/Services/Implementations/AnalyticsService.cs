@@ -383,5 +383,368 @@ namespace InventorySystem.Services.Implementations
 
             return (startDate, endDate, prevStartDate, prevEndDate);
         }
+
+        // ===== WAVE 3 SERVICE METHODS =====
+
+        public async Task<PaymentAnalyticsDto> GetPaymentAnalyticsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            var (startDate, endDate, _, _) = ResolveDates(filter);
+
+            var custPayments = await _context.CustomerPayments.AsNoTracking()
+                .Where(p => !p.IsDeleted && p.PaymentDate >= startDate && p.PaymentDate <= endDate)
+                .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
+
+            var compPayments = await _context.CompanyPayments.AsNoTracking()
+                .Where(p => !p.IsDeleted && p.PaymentDate >= startDate && p.PaymentDate <= endDate)
+                .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
+
+            var customerReceivables = await _context.CustomerLedgers.AsNoTracking()
+                .Where(l => l.Customer != null && !l.Customer.IsDeleted)
+                .SumAsync(l => (decimal?)(l.DebitAmount - l.CreditAmount), cancellationToken) ?? 0m;
+
+            var companyPayables = await _context.CompanyLedgers.AsNoTracking()
+                .Where(l => l.Company != null && !l.Company.IsDeleted)
+                .SumAsync(l => (decimal?)(l.CreditAmount - l.DebitAmount), cancellationToken) ?? 0m;
+
+            var salesQuery = _context.SalesInvoices.AsNoTracking()
+                .Where(s => !s.IsDeleted && s.InvoiceDate >= startDate && s.InvoiceDate <= endDate);
+
+            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
+                salesQuery = salesQuery.Where(s => s.WarehouseID == filter.WarehouseID.Value);
+            if (filter.CustomerID.HasValue && filter.CustomerID.Value > 0)
+                salesQuery = salesQuery.Where(s => s.CustomerID == filter.CustomerID.Value);
+
+            var statusGroups = await salesQuery
+                .GroupBy(s => s.PaymentStatus ?? "UNPAID")
+                .Select(g => new
+                {
+                    Status = g.Key,
+                    Count = g.Count(),
+                    TotalAmount = g.Sum(s => s.GrandTotal)
+                })
+                .ToListAsync(cancellationToken);
+
+            decimal grandTotalAll = statusGroups.Sum(g => g.TotalAmount);
+
+            var breakdowns = statusGroups.Select(g => new InvoiceStatusBreakdownDto
+            {
+                Status = g.Status,
+                Count = g.Count,
+                TotalAmount = g.TotalAmount,
+                Percentage = grandTotalAll > 0 ? Math.Round((g.TotalAmount / grandTotalAll) * 100m, 1) : 0m
+            }).ToList();
+
+            return new PaymentAnalyticsDto
+            {
+                CustomerPaymentsCollected = custPayments,
+                CompanyPaymentsMade = compPayments,
+                TotalOutstandingReceivables = Math.Max(0m, customerReceivables),
+                TotalOutstandingPayables = Math.Max(0m, companyPayables),
+                InvoiceStatuses = breakdowns
+            };
+        }
+
+        public async Task<InventoryInsightsDto> GetInventoryInsightsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            var stockQuery = _context.InventoryStocks.AsNoTracking()
+                .Include(s => s.Product).ThenInclude(p => p.Category)
+                .Where(s => !s.Product.IsDeleted);
+
+            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
+                stockQuery = stockQuery.Where(s => s.WarehouseID == filter.WarehouseID.Value);
+            if (filter.CategoryID.HasValue && filter.CategoryID.Value > 0)
+                stockQuery = stockQuery.Where(s => s.Product.CategoryID == filter.CategoryID.Value);
+
+            var stocks = await stockQuery.ToListAsync(cancellationToken);
+
+            var productStockGrouped = stocks
+                .GroupBy(s => new { s.ProductID, s.Product.ProductName, s.Product.ReorderLevel, s.Product.AveragePurchaseCost, CategoryName = s.Product.Category != null ? s.Product.Category.Name : "Uncategorized" })
+                .Select(g => new
+                {
+                    g.Key.ProductID,
+                    g.Key.ProductName,
+                    g.Key.CategoryName,
+                    TotalStock = g.Sum(s => s.Quantity),
+                    ReorderLevel = g.Key.ReorderLevel,
+                    StockValue = g.Sum(s => s.Quantity * g.Key.AveragePurchaseCost)
+                })
+                .ToList();
+
+            decimal totalInventoryValue = productStockGrouped.Sum(p => Math.Max(0m, p.StockValue));
+            int totalProducts = productStockGrouped.Count;
+            int lowStockCount = productStockGrouped.Count(p => p.TotalStock > 0 && p.TotalStock <= p.ReorderLevel);
+            int outOfStockCount = productStockGrouped.Count(p => p.TotalStock <= 0);
+
+            var categoryGrouped = productStockGrouped
+                .GroupBy(p => p.CategoryName)
+                .Select(g => new CategoryInventoryValueDto
+                {
+                    CategoryName = g.Key,
+                    TotalValue = g.Sum(p => Math.Max(0m, p.StockValue)),
+                    ProductCount = g.Count(),
+                    Percentage = totalInventoryValue > 0 ? Math.Round((g.Sum(p => Math.Max(0m, p.StockValue)) / totalInventoryValue) * 100m, 1) : 0m
+                })
+                .OrderByDescending(c => c.TotalValue)
+                .ToList();
+
+            return new InventoryInsightsDto
+            {
+                TotalInventoryValue = totalInventoryValue,
+                TotalProductCount = totalProducts,
+                LowStockProductCount = lowStockCount,
+                OutOfStockProductCount = outOfStockCount,
+                ValueByCategory = categoryGrouped
+            };
+        }
+
+        public async Task<List<StockRiskItemDto>> GetStockRiskItemsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            var stockQuery = _context.InventoryStocks.AsNoTracking()
+                .Include(s => s.Product).ThenInclude(p => p.Category)
+                .Include(s => s.Product).ThenInclude(p => p.BaseUnit)
+                .Where(s => !s.Product.IsDeleted);
+
+            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
+                stockQuery = stockQuery.Where(s => s.WarehouseID == filter.WarehouseID.Value);
+            if (filter.CategoryID.HasValue && filter.CategoryID.Value > 0)
+                stockQuery = stockQuery.Where(s => s.Product.CategoryID == filter.CategoryID.Value);
+
+            var stocks = await stockQuery.ToListAsync(cancellationToken);
+
+            var riskItems = stocks
+                .GroupBy(s => new { 
+                    s.ProductID, 
+                    s.Product.ProductName, 
+                    s.Product.ReorderLevel, 
+                    CategoryName = s.Product.Category != null ? s.Product.Category.Name : "Uncategorized",
+                    BaseUnitName = s.Product.BaseUnit != null ? s.Product.BaseUnit.UnitName : "Units"
+                })
+                .Select(g => new
+                {
+                    g.Key.ProductID,
+                    g.Key.ProductName,
+                    g.Key.CategoryName,
+                    CurrentStock = g.Sum(s => s.Quantity),
+                    ReorderLevel = g.Key.ReorderLevel,
+                    BaseUnit = g.Key.BaseUnitName
+                })
+                .Where(p => p.CurrentStock <= p.ReorderLevel)
+                .OrderBy(p => p.CurrentStock)
+                .Select(p => new StockRiskItemDto
+                {
+                    ProductID = p.ProductID,
+                    ProductName = p.ProductName,
+                    CategoryName = p.CategoryName,
+                    CurrentStock = p.CurrentStock,
+                    ReorderLevel = p.ReorderLevel,
+                    BaseUnit = p.BaseUnit,
+                    RiskLevel = p.CurrentStock <= 0 ? "OUT_OF_STOCK" : "LOW_STOCK"
+                })
+                .Take(15)
+                .ToList();
+
+            return riskItems;
+        }
+
+        public async Task<InventoryMovementDto> GetInventoryMovementAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            var (startDate, endDate, _, _) = ResolveDates(filter);
+
+            var txQuery = _context.InventoryTransactions.AsNoTracking()
+                .Where(t => t.CreatedAt >= startDate && t.CreatedAt <= endDate);
+
+            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
+                txQuery = txQuery.Where(t => t.WarehouseID == filter.WarehouseID.Value);
+
+            var grouped = await txQuery
+                .GroupBy(t => t.TransactionType)
+                .Select(g => new
+                {
+                    Type = g.Key,
+                    Quantity = g.Sum(t => Math.Abs(t.Quantity))
+                })
+                .ToListAsync(cancellationToken);
+
+            decimal purchased = grouped.Where(g => g.Type.Contains("PURCHASE", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
+            decimal sold = grouped.Where(g => g.Type.Contains("SALE", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
+            decimal returned = grouped.Where(g => g.Type.Contains("RETURN", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
+            decimal adjusted = grouped.Where(g => g.Type.Contains("ADJUSTMENT", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
+
+            return new InventoryMovementDto
+            {
+                PurchasedQuantity = purchased,
+                SoldQuantity = sold,
+                SalesReturnQuantity = returned,
+                AdjustmentQuantity = adjusted
+            };
+        }
+
+        public async Task<PromotionPerformanceDto> GetPromotionPerformanceAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            var (startDate, endDate, _, _) = ResolveDates(filter);
+
+            var salesQuery = _context.SalesInvoices.AsNoTracking()
+                .Where(s => !s.IsDeleted && s.InvoiceDate >= startDate && s.InvoiceDate <= endDate);
+
+            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
+                salesQuery = salesQuery.Where(s => s.WarehouseID == filter.WarehouseID.Value);
+            if (filter.CustomerID.HasValue && filter.CustomerID.Value > 0)
+                salesQuery = salesQuery.Where(s => s.CustomerID == filter.CustomerID.Value);
+
+            var invoices = await salesQuery
+                .Select(s => new { s.InvoiceID, s.DiscountTotal, s.GrandTotal })
+                .ToListAsync(cancellationToken);
+
+            decimal totalDiscount = invoices.Sum(i => i.DiscountTotal);
+            int invoicesWithDiscount = invoices.Count(i => i.DiscountTotal > 0);
+
+            var promoInvoices = await _context.InvoicePromotions.AsNoTracking()
+                .Where(p => !p.SalesInvoice.IsDeleted && p.SalesInvoice.InvoiceDate >= startDate && p.SalesInvoice.InvoiceDate <= endDate)
+                .SumAsync(p => (decimal?)p.DiscountAmount, cancellationToken) ?? 0m;
+
+            return new PromotionPerformanceDto
+            {
+                TotalDiscountAmount = totalDiscount,
+                PromoInvoicesCount = invoicesWithDiscount,
+                RegularDiscountsCount = invoicesWithDiscount,
+                TotalInvoicePromotionsAmount = promoInvoices,
+                TotalRegularDiscountsAmount = Math.Max(0m, totalDiscount - promoInvoices)
+            };
+        }
+
+        public async Task<List<TopCompanyDto>> GetTopCompaniesAsync(AnalyticsFilterDto filter, int topCount = 5, CancellationToken cancellationToken = default)
+        {
+            var (startDate, endDate, _, _) = ResolveDates(filter);
+
+            var query = _context.PurchaseInvoices.AsNoTracking()
+                .Include(p => p.Company)
+                .Where(p => !p.IsDeleted && p.InvoiceDate >= startDate && p.InvoiceDate <= endDate);
+
+            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
+                query = query.Where(p => p.WarehouseID == filter.WarehouseID.Value);
+
+            var grouped = await query
+                .GroupBy(p => new { p.CompanyID, p.Company.CompanyName })
+                .Select(g => new
+                {
+                    g.Key.CompanyID,
+                    CompanyName = g.Key.CompanyName,
+                    TotalPurchases = g.Sum(p => p.GrandTotal),
+                    InvoiceCount = g.Count()
+                })
+                .OrderByDescending(c => c.TotalPurchases)
+                .Take(topCount)
+                .ToListAsync(cancellationToken);
+
+            var companyIds = grouped.Select(c => c.CompanyID).ToList();
+            var payables = await _context.CompanyLedgers.AsNoTracking()
+                .Where(l => companyIds.Contains(l.CompanyID))
+                .GroupBy(l => l.CompanyID)
+                .Select(g => new { CompanyID = g.Key, Balance = g.Sum(l => l.CreditAmount - l.DebitAmount) })
+                .ToDictionaryAsync(x => x.CompanyID, x => x.Balance, cancellationToken);
+
+            return grouped.Select(c => new TopCompanyDto
+            {
+                CompanyID = c.CompanyID,
+                CompanyName = c.CompanyName,
+                TotalPurchases = c.TotalPurchases,
+                InvoiceCount = c.InvoiceCount,
+                OutstandingPayable = Math.Max(0m, payables.ContainsKey(c.CompanyID) ? payables[c.CompanyID] : 0m)
+            }).ToList();
+        }
+
+        public async Task<List<BusinessInsightDto>> GetBusinessInsightsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            var insights = new List<BusinessInsightDto>();
+            var kpi = await GetKpiSummaryAsync(filter, cancellationToken);
+            var inv = await GetInventoryInsightsAsync(filter, cancellationToken);
+
+            // 1. Stock Out Emergency
+            if (inv.OutOfStockProductCount > 0)
+            {
+                insights.Add(new BusinessInsightDto
+                {
+                    Type = "DANGER",
+                    Title = "Critical Stockout Warning",
+                    Message = $"{inv.OutOfStockProductCount} product(s) are currently completely out of stock. Immediate reorder recommended to prevent revenue loss.",
+                    Icon = "bi-exclamation-octagon-fill"
+                });
+            }
+
+            // 2. Low Stock Warning
+            if (inv.LowStockProductCount > 0)
+            {
+                insights.Add(new BusinessInsightDto
+                {
+                    Type = "WARNING",
+                    Title = "Reorder Level Alert",
+                    Message = $"{inv.LowStockProductCount} product(s) have fallen below their minimum reorder levels. Check the stock risk table.",
+                    Icon = "bi-triangle-fill"
+                });
+            }
+
+            // 3. Customer Receivables Collection
+            if (kpi.CustomerReceivables.CurrentValue > 0)
+            {
+                insights.Add(new BusinessInsightDto
+                {
+                    Type = "INFO",
+                    Title = "Outstanding Receivables",
+                    Message = $"Total customer receivables balance is PKR {kpi.CustomerReceivables.CurrentValue:N2}. Prioritize collection from high-balance accounts.",
+                    Icon = "bi-person-badge"
+                });
+            }
+
+            // 4. Sales Growth Trend
+            if (kpi.TotalSales.PercentageChange > 10m)
+            {
+                insights.Add(new BusinessInsightDto
+                {
+                    Type = "SUCCESS",
+                    Title = "Sales Surge",
+                    Message = $"Gross sales increased by {kpi.TotalSales.PercentageChange:0.0}% compared to the previous period!",
+                    Icon = "bi-graph-up-arrow"
+                });
+            }
+            else if (kpi.TotalSales.PercentageChange < -10m)
+            {
+                insights.Add(new BusinessInsightDto
+                {
+                    Type = "WARNING",
+                    Title = "Sales Decline Alert",
+                    Message = $"Gross sales dropped by {Math.Abs(kpi.TotalSales.PercentageChange):0.0}% compared to the previous period.",
+                    Icon = "bi-graph-down-arrow"
+                });
+            }
+
+            // 5. Returns Rate
+            if (kpi.TotalSales.CurrentValue > 0)
+            {
+                decimal returnRate = (kpi.TotalReturns.CurrentValue / kpi.TotalSales.CurrentValue) * 100m;
+                if (returnRate > 5m)
+                {
+                    insights.Add(new BusinessInsightDto
+                    {
+                        Type = "WARNING",
+                        Title = "High Return Rate",
+                        Message = $"Sales returns equal {returnRate:0.1}% of gross sales for this period. Review product quality and customer feedback.",
+                        Icon = "bi-arrow-return-left"
+                    });
+                }
+            }
+
+            if (!insights.Any())
+            {
+                insights.Add(new BusinessInsightDto
+                {
+                    Type = "SUCCESS",
+                    Title = "Stable System Performance",
+                    Message = "All key performance indicators and inventory levels are within normal operational parameters.",
+                    Icon = "bi-check-circle-fill"
+                });
+            }
+
+            return insights;
+        }
     }
 }

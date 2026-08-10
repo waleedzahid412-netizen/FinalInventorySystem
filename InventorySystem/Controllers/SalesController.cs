@@ -249,7 +249,8 @@ namespace InventorySystem.Controllers
                         unitName = pu.Unit != null ? pu.Unit.UnitName : "Unit",
                         salePrice = pu.SellingPrice ?? (pu.Product != null ? pu.Product.BaseSellingPrice * pu.ConversionToBaseUnit : 0m),
                         sellingPrice = pu.SellingPrice ?? (pu.Product != null ? pu.Product.BaseSellingPrice * pu.ConversionToBaseUnit : 0m),
-                        conversionFactor = pu.ConversionToBaseUnit
+                        conversionFactor = pu.ConversionToBaseUnit,
+                        conversionToBaseUnit = pu.ConversionToBaseUnit
                     })
                     .ToListAsync(cancellationToken);
 

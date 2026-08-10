@@ -10,10 +10,16 @@
             <h2 class="h3 fw-bold text-dark mb-1"><i class="bi bi-graph-up-arrow me-2 text-primary"></i> Analytics & Insights</h2>
             <p class="text-muted mb-0">Analyze sales, purchasing, inventory, customers, products, and profitability to make better business decisions.</p>
         </div>
-        <div class="mt-3 mt-md-0">
+        <div class="mt-3 mt-md-0 d-flex gap-2 align-items-center flex-wrap">
             <span class="badge bg-light text-dark border px-3 py-2 fs-6">
                 <i class="bi bi-clock me-1 text-primary"></i> Live ERP Business Intelligence
             </span>
+            <button type="button" class="btn btn-outline-danger btn-sm fw-bold shadow-sm" id="btnExportPdf">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm fw-bold shadow-sm" id="btnPrintReport" onclick="window.print();">
+                <i class="bi bi-printer me-1"></i> Print
+            </button>
         </div>
     </div>
 
@@ -22,7 +28,7 @@
         <div class="card-body p-3">
             <form id="analyticsFilterForm" onsubmit="return false;">
                 <div class="row g-3 align-items-end">
-                    <!-- Date Presets -->
+                    <!-- Time Range Presets -->
                     <div class="col-12">
                         <label class="form-label fw-bold text-secondary mb-2 small text-uppercase">Time Range Presets</label>
                         <div class="btn-group w-100 flex-wrap" role="group" id="presetGroup">
@@ -81,7 +87,12 @@
         </div>
     </div>
 
-    <!-- KPI SUMMARY CARDS GRID -->
+    <!-- AUTOMATED BUSINESS INSIGHTS ENGINE -->
+    <div id="businessInsightsContainer" class="row g-3 mb-4">
+        <!-- Dynamic Alert Banners populated via AJAX -->
+    </div>
+
+    <!-- KPI SUMMARY CARDS GRID (WAVE 1) -->
     <div class="row g-3 mb-4" id="kpiCardsContainer">
         <!-- 1. Total Sales -->
         <div class="col-sm-6 col-xl-3">
@@ -240,7 +251,7 @@
         </div>
     </div>
 
-    <!-- WAVE 2 — CORE CHARTS GRID -->
+    <!-- CORE CHARTS GRID (WAVE 2) -->
     <div class="row g-4 mb-4">
         <!-- 1. SALES TREND CHART -->
         <div class="col-12">
@@ -309,8 +320,8 @@
             <div class="card border-0 shadow-sm rounded-3 h-100">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-people text-info me-2"></i> Top Customers by Revenue</h5>
-                        <p class="text-muted small mb-0">Highest spending wholesale customer accounts.</p>
+                        <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-people text-info me-2"></i> Top Customers</h5>
+                        <p class="text-muted small mb-0">Identify key accounts and outstanding balances.</p>
                     </div>
                     <select class="form-select form-select-sm w-auto" id="topCustomersCount">
                         <option value="5">Top 5</option>
@@ -336,7 +347,7 @@
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3">
                     <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-pie-chart text-success me-2"></i> Sales by Product Category</h5>
-                    <p class="text-muted small mb-0">Revenue distribution across categories.</p>
+                    <p class="text-muted small mb-0">Distribution of gross revenue across categories.</p>
                 </div>
                 <div class="card-body position-relative" style="min-height: 320px;">
                     <div id="categorySalesSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
@@ -345,7 +356,7 @@
                     </div>
                     <div id="categorySalesEmpty" class="position-absolute top-50 start-50 translate-middle text-center text-muted" style="display: none;">
                         <i class="bi bi-tags fs-1 d-block mb-2 text-secondary"></i>
-                        <span>No category data recorded for this filter range.</span>
+                        <span>No category data available for this filter range.</span>
                     </div>
                     <div class="row align-items-center">
                         <div class="col-md-6 mb-3 mb-md-0">
@@ -361,6 +372,139 @@
             </div>
         </div>
     </div>
+
+    <!-- ADVANCED ANALYTICS & INSIGHTS GRID (WAVE 3) -->
+    <div class="row g-4 mb-4">
+        <!-- 5. PAYMENT COLLECTION & INVOICE PAYMENT STATUS -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-cash-stack text-success me-2"></i> Payment Collection & Status</h5>
+                    <p class="text-muted small mb-0">Overview of payments collected and invoice status distribution.</p>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <span class="text-muted small fw-semibold d-block">Customer Payments</span>
+                                <span class="fs-5 fw-bold text-success" id="paymentCustCollected">PKR 0.00</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <span class="text-muted small fw-semibold d-block">Company Payments</span>
+                                <span class="fs-5 fw-bold text-info" id="paymentCompMade">PKR 0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="position-relative" style="min-height: 250px;">
+                        <div id="paymentSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
+                            <div class="spinner-border text-success" role="status"></div>
+                        </div>
+                        <canvas id="chartPaymentStatus" style="max-height: 250px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. INVENTORY MOVEMENT BREAKDOWN -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-arrows-move text-primary me-2"></i> Inventory Movement Summary</h5>
+                    <p class="text-muted small mb-0">Quantities purchased, sold, returned, and adjusted.</p>
+                </div>
+                <div class="card-body position-relative" style="min-height: 320px;">
+                    <div id="movementSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                    <canvas id="chartInventoryMovement" style="max-height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. TOP COMPANIES (SUPPLIER PURCHASES) -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-building text-info me-2"></i> Top Companies by Purchase Volume</h5>
+                    <p class="text-muted small mb-0">Primary suppliers driving stock replenishment.</p>
+                </div>
+                <div class="card-body position-relative" style="min-height: 300px;">
+                    <div id="companiesSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
+                        <div class="spinner-border text-info" role="status"></div>
+                    </div>
+                    <canvas id="chartTopCompanies" style="max-height: 280px;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. PROMOTION & DISCOUNT PERFORMANCE -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-tags-fill text-warning me-2"></i> Discount & Promo Performance</h5>
+                    <p class="text-muted small mb-0">Breakdown of promo campaign discounts vs regular discounts.</p>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <span class="text-muted small fw-semibold d-block">Total Discount Given</span>
+                                <span class="fs-5 fw-bold text-warning" id="promoTotalDiscount">PKR 0.00</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <span class="text-muted small fw-semibold d-block">Discounted Invoices</span>
+                                <span class="fs-5 fw-bold text-dark" id="promoInvoicesCount">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="position-relative" style="min-height: 220px;">
+                        <div id="promoSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
+                            <div class="spinner-border text-warning" role="status"></div>
+                        </div>
+                        <canvas id="chartPromoPerformance" style="max-height: 220px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 9. STOCK RISK & REORDER ACTION TABLE -->
+        <div class="col-12">
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-shield-exclamation text-danger me-2"></i> Stock Risk & Reorder Action Table</h5>
+                        <p class="text-muted small mb-0">Products below minimum reorder levels requiring stock replenishment.</p>
+                    </div>
+                    <span class="badge bg-danger bg-opacity-10 text-danger px-3 py-2 fw-semibold" id="stockRiskCountBadge">0 High Risk Items</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="stockRiskTable">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-3">Product Name</th>
+                                    <th>Category</th>
+                                    <th class="text-end">Current Stock</th>
+                                    <th class="text-end">Reorder Level</th>
+                                    <th>Base Unit</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">Loading stock risk analysis...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {
@@ -370,10 +514,17 @@
         let currentPreset = 'ThisMonth';
         let currentInterval = 'Daily';
 
+        // Wave 2 Chart Instances
         let chartSalesTrendInstance = null;
         let chartTopProductsInstance = null;
         let chartTopCustomersInstance = null;
         let chartCategorySalesInstance = null;
+
+        // Wave 3 Chart Instances
+        let chartPaymentStatusInstance = null;
+        let chartInventoryMovementInstance = null;
+        let chartTopCompaniesInstance = null;
+        let chartPromoPerformanceInstance = null;
 
         $(document.body).ready(function () {
             loadAllWaveData();
@@ -411,6 +562,17 @@
             loadAllWaveData();
         });
 
+        $('#btnExportPdf').click(function () {
+            const filter = buildFilterPayload();
+            const query = $.param({
+                preset: filter.Preset,
+                warehouseId: filter.WarehouseID,
+                customerId: filter.CustomerID,
+                categoryId: filter.CategoryID
+            });
+            window.open('/Analytics/ExportPdf?' + query, '_blank');
+        });
+
         function buildFilterPayload() {
             return {
                 Preset: currentPreset,
@@ -423,13 +585,25 @@
         }
 
         function loadAllWaveData() {
+            // Wave 1
             loadKpiData();
+
+            // Wave 2
             loadSalesTrend();
             loadTopProducts();
             loadTopCustomers();
             loadCategorySales();
+
+            // Wave 3
+            loadBusinessInsights();
+            loadPaymentAnalytics();
+            loadInventoryMovement();
+            loadTopCompanies();
+            loadPromotionPerformance();
+            loadStockRiskItems();
         }
 
+        // ===== WAVE 1 LOADERS =====
         async function loadKpiData() {
             try {
                 const res = await fetch('/Analytics/GetKpiSummary', {
@@ -444,55 +618,54 @@
                 updateKpiCard('kpiTotalDiscounts', data.totalDiscounts);
                 updateKpiCard('kpiTotalReturns', data.totalReturns);
                 updateKpiCard('kpiNetSales', data.netSales);
-                $('#kpiCustomerReceivables').text(data.customerReceivables.formattedCurrentValue);
-                $('#kpiCompanyPayables').text(data.companyPayables.formattedCurrentValue);
+                if (data.customerReceivables) $('#kpiCustomerReceivables').text(data.customerReceivables.formattedCurrentValue);
+                if (data.companyPayables) $('#kpiCompanyPayables').text(data.companyPayables.formattedCurrentValue);
             } catch (err) {
-                console.error("Failed to load KPI analytics:", err);
+                console.error("Failed to load KPI summary:", err);
             }
         }
 
-        function updateKpiCard(prefix, metric) {
-            $(`#${prefix}`).text(metric.formattedCurrentValue);
-            $(`#${prefix}Change`).text(metric.comparisonText);
-            const $badge = $(`#${prefix}Badge`);
-            const $icon = $badge.find('i');
-
+        function updateKpiCard(idPrefix, metric) {
+            if (!metric) return;
+            $(`#${idPrefix}`).text(metric.formattedCurrentValue);
+            const badge = $(`#${idPrefix}Badge`);
+            const change = $(`#${idPrefix}Change`);
             if (metric.isIncrease) {
-                $badge.removeClass('bg-danger text-danger').addClass('bg-success text-success');
-                $icon.removeClass('bi-arrow-down').addClass('bi-arrow-up');
+                badge.removeClass('bg-danger text-danger').addClass('bg-success text-success');
+                badge.find('i').removeClass('bi-arrow-down').addClass('bi-arrow-up');
             } else {
-                $badge.removeClass('bg-success text-success').addClass('bg-danger text-danger');
-                $icon.removeClass('bi-arrow-up').addClass('bi-arrow-down');
+                badge.removeClass('bg-success text-success').addClass('bg-danger text-danger');
+                badge.find('i').removeClass('bi-arrow-up').addClass('bi-arrow-down');
             }
+            change.text(metric.comparisonText);
         }
 
-        // ===== 1. SALES TREND =====
+        // ===== WAVE 2 LOADERS =====
         async function loadSalesTrend() {
             $('#salesTrendSpinner').show();
             $('#salesTrendEmpty').hide();
-
             try {
                 const res = await fetch(`/Analytics/GetSalesTrend?interval=${currentInterval}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(buildFilterPayload())
                 });
-                const items = await res.json();
+                const data = await res.json();
                 $('#salesTrendSpinner').hide();
 
-                if (!items || items.length === 0) {
-                    if (chartSalesTrendInstance) chartSalesTrendInstance.destroy();
+                if (!data || data.length === 0) {
                     $('#salesTrendEmpty').show();
+                    if (chartSalesTrendInstance) chartSalesTrendInstance.destroy();
                     return;
                 }
 
-                const labels = items.map(x => x.label);
-                const salesData = items.map(x => x.salesAmount);
-                const invoiceData = items.map(x => x.invoiceCount);
+                const labels = data.map(d => d.label);
+                const sales = data.map(d => d.salesAmount);
+                const count = data.map(d => d.invoiceCount);
 
-                const ctx = document.getElementById('chartSalesTrend').getContext('2d');
                 if (chartSalesTrendInstance) chartSalesTrendInstance.destroy();
 
+                const ctx = document.getElementById('chartSalesTrend').getContext('2d');
                 chartSalesTrendInstance = new Chart(ctx, {
                     type: 'line',
                     data: {
@@ -500,7 +673,7 @@
                         datasets: [
                             {
                                 label: 'Sales Revenue (PKR)',
-                                data: salesData,
+                                data: sales,
                                 borderColor: '#0d6efd',
                                 backgroundColor: 'rgba(13, 110, 253, 0.08)',
                                 fill: true,
@@ -508,9 +681,9 @@
                                 yAxisID: 'y'
                             },
                             {
-                                label: 'Invoice Count',
-                                data: invoiceData,
-                                borderColor: '#0dcaf0',
+                                label: 'Invoices Count',
+                                data: count,
+                                borderColor: '#6c757d',
                                 borderDash: [4, 4],
                                 fill: false,
                                 tension: 0.3,
@@ -523,35 +696,20 @@
                         maintainAspectRatio: false,
                         interaction: { mode: 'index', intersect: false },
                         scales: {
-                            y: {
-                                type: 'linear',
-                                display: true,
-                                position: 'left',
-                                title: { display: true, text: 'Sales (PKR)' },
-                                ticks: { callback: v => 'PKR ' + v.toLocaleString() }
-                            },
-                            y1: {
-                                type: 'linear',
-                                display: true,
-                                position: 'right',
-                                grid: { drawOnChartArea: false },
-                                title: { display: true, text: 'Invoices' },
-                                ticks: { precision: 0 }
-                            }
+                            y: { type: 'linear', display: true, position: 'left', ticks: { callback: v => 'PKR ' + v.toLocaleString() } },
+                            y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { precision: 0 } }
                         }
                     }
                 });
             } catch (err) {
                 $('#salesTrendSpinner').hide();
-                console.error("Failed to load Sales Trend:", err);
+                console.error("Sales Trend Error:", err);
             }
         }
 
-        // ===== 2. TOP PRODUCTS =====
         async function loadTopProducts() {
             const sortBy = $('#topProductsSortBy').val();
-            const topCount = parseInt($('#topProductsCount').val()) || 10;
-
+            const topCount = $('#topProductsCount').val();
             $('#topProductsSpinner').show();
             $('#topProductsEmpty').hide();
 
@@ -561,29 +719,29 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(buildFilterPayload())
                 });
-                const items = await res.json();
+                const data = await res.json();
                 $('#topProductsSpinner').hide();
 
-                if (!items || items.length === 0) {
-                    if (chartTopProductsInstance) chartTopProductsInstance.destroy();
+                if (!data || data.length === 0) {
                     $('#topProductsEmpty').show();
+                    if (chartTopProductsInstance) chartTopProductsInstance.destroy();
                     return;
                 }
 
-                const labels = items.map(x => x.productName);
-                const dataValues = items.map(x => sortBy === 'Quantity' ? x.quantitySold : x.revenue);
+                const labels = data.map(d => d.productName);
+                const values = sortBy === 'Revenue' ? data.map(d => d.revenue) : data.map(d => d.quantitySold);
 
-                const ctx = document.getElementById('chartTopProducts').getContext('2d');
                 if (chartTopProductsInstance) chartTopProductsInstance.destroy();
 
+                const ctx = document.getElementById('chartTopProducts').getContext('2d');
                 chartTopProductsInstance = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: labels,
                         datasets: [{
-                            label: sortBy === 'Quantity' ? 'Quantity Sold' : 'Revenue (PKR)',
-                            data: dataValues,
-                            backgroundColor: 'rgba(255, 193, 7, 0.85)',
+                            label: sortBy === 'Revenue' ? 'Revenue (PKR)' : 'Quantity Sold',
+                            data: values,
+                            backgroundColor: 'rgba(255, 193, 7, 0.75)',
                             borderColor: '#ffc107',
                             borderWidth: 1,
                             borderRadius: 4
@@ -593,35 +751,18 @@
                         indexAxis: 'y',
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    label: ctx => sortBy === 'Quantity'
-                                        ? ` Qty Sold: ${ctx.raw.toLocaleString()}`
-                                        : ` Revenue: PKR ${ctx.raw.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                ticks: {
-                                    callback: v => sortBy === 'Quantity' ? v : 'PKR ' + v.toLocaleString()
-                                }
-                            }
-                        }
+                        plugins: { legend: { display: false } },
+                        scales: { x: { ticks: { callback: v => sortBy === 'Revenue' ? 'PKR ' + v.toLocaleString() : v } } }
                     }
                 });
             } catch (err) {
                 $('#topProductsSpinner').hide();
-                console.error("Failed to load Top Products:", err);
+                console.error("Top Products Error:", err);
             }
         }
 
-        // ===== 3. TOP CUSTOMERS =====
         async function loadTopCustomers() {
-            const topCount = parseInt($('#topCustomersCount').val()) || 10;
-
+            const topCount = $('#topCustomersCount').val();
             $('#topCustomersSpinner').show();
             $('#topCustomersEmpty').hide();
 
@@ -631,29 +772,29 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(buildFilterPayload())
                 });
-                const items = await res.json();
+                const data = await res.json();
                 $('#topCustomersSpinner').hide();
 
-                if (!items || items.length === 0) {
-                    if (chartTopCustomersInstance) chartTopCustomersInstance.destroy();
+                if (!data || data.length === 0) {
                     $('#topCustomersEmpty').show();
+                    if (chartTopCustomersInstance) chartTopCustomersInstance.destroy();
                     return;
                 }
 
-                const labels = items.map(x => x.customerName);
-                const revenueData = items.map(x => x.revenue);
+                const labels = data.map(d => d.customerName);
+                const revenues = data.map(d => d.revenue);
 
-                const ctx = document.getElementById('chartTopCustomers').getContext('2d');
                 if (chartTopCustomersInstance) chartTopCustomersInstance.destroy();
 
+                const ctx = document.getElementById('chartTopCustomers').getContext('2d');
                 chartTopCustomersInstance = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: labels,
                         datasets: [{
                             label: 'Revenue (PKR)',
-                            data: revenueData,
-                            backgroundColor: 'rgba(13, 202, 240, 0.85)',
+                            data: revenues,
+                            backgroundColor: 'rgba(13, 202, 240, 0.75)',
                             borderColor: '#0dcaf0',
                             borderWidth: 1,
                             borderRadius: 4
@@ -663,32 +804,19 @@
                         indexAxis: 'y',
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    label: ctx => ` Revenue: PKR ${ctx.raw.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                ticks: { callback: v => 'PKR ' + v.toLocaleString() }
-                            }
-                        }
+                        plugins: { legend: { display: false } },
+                        scales: { x: { ticks: { callback: v => 'PKR ' + v.toLocaleString() } } }
                     }
                 });
             } catch (err) {
                 $('#topCustomersSpinner').hide();
-                console.error("Failed to load Top Customers:", err);
+                console.error("Top Customers Error:", err);
             }
         }
 
-        // ===== 4. SALES BY CATEGORY =====
         async function loadCategorySales() {
             $('#categorySalesSpinner').show();
             $('#categorySalesEmpty').hide();
-            $('#categoryLegendContainer').empty();
 
             try {
                 const res = await fetch('/Analytics/GetCategorySales', {
@@ -696,66 +824,311 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(buildFilterPayload())
                 });
-                const items = await res.json();
+                const data = await res.json();
                 $('#categorySalesSpinner').hide();
 
-                if (!items || items.length === 0) {
-                    if (chartCategorySalesInstance) chartCategorySalesInstance.destroy();
+                if (!data || data.length === 0) {
                     $('#categorySalesEmpty').show();
+                    $('#categoryLegendContainer').html('');
+                    if (chartCategorySalesInstance) chartCategorySalesInstance.destroy();
                     return;
                 }
 
-                const labels = items.map(x => x.categoryName);
-                const salesData = items.map(x => x.salesAmount);
+                const labels = data.map(d => d.categoryName);
+                const amounts = data.map(d => d.salesAmount);
+                const colors = ['#0d6efd', '#198754', '#ffc107', '#0dcaf0', '#6f42c1', '#d63384', '#fd7e14', '#20c997'];
 
-                const colorPalette = [
-                    '#198754', '#0d6efd', '#ffc107', '#0dcaf0', '#6f42c1',
-                    '#fd7e14', '#20c997', '#d63384', '#6c757d', '#212529'
-                ];
-
-                const chartColors = items.map((_, idx) => colorPalette[idx % colorPalette.length]);
-
-                // Render Custom Legend Badges
                 let legendHtml = '';
-                items.forEach((cat, idx) => {
-                    const color = chartColors[idx];
+                data.forEach((d, i) => {
+                    const bg = colors[i % colors.length];
                     legendHtml += `
-                        <div class="d-flex justify-content-between align-items-center py-2 px-2 border-bottom">
-                            <span class="d-flex align-items-center">
-                                <span class="d-inline-block rounded-circle me-2" style="width: 12px; height: 12px; background-color: ${color};"></span>
-                                <strong class="text-dark small">${cat.categoryName}</strong>
-                            </span>
-                            <span class="badge bg-light text-dark border font-monospace">PKR ${cat.salesAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} (${cat.percentage}%)</span>
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <div>
+                                <span class="d-inline-block rounded-circle me-2" style="width: 10px; height: 10px; background-color: ${bg};"></span>
+                                <span class="fw-semibold text-dark">${d.categoryName}</span>
+                            </div>
+                            <div class="text-end">
+                                <span class="fw-bold text-dark d-block">PKR ${d.salesAmount.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary">${d.percentage}%</span>
+                            </div>
                         </div>
                     `;
                 });
                 $('#categoryLegendContainer').html(legendHtml);
 
-                const ctx = document.getElementById('chartCategorySales').getContext('2d');
                 if (chartCategorySalesInstance) chartCategorySalesInstance.destroy();
 
-                const isDonut = items.length <= 10;
+                const ctx = document.getElementById('chartCategorySales').getContext('2d');
                 chartCategorySalesInstance = new Chart(ctx, {
-                    type: isDonut ? 'doughnut' : 'bar',
+                    type: 'doughnut',
                     data: {
                         labels: labels,
                         datasets: [{
-                            label: 'Category Sales (PKR)',
-                            data: salesData,
-                            backgroundColor: chartColors
+                            data: amounts,
+                            backgroundColor: colors
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: !isDonut }
-                        }
+                        plugins: { legend: { display: false } }
                     }
                 });
             } catch (err) {
                 $('#categorySalesSpinner').hide();
-                console.error("Failed to load Category Sales:", err);
+                console.error("Category Sales Error:", err);
+            }
+        }
+
+        // ===== WAVE 3 LOADERS =====
+
+        async function loadBusinessInsights() {
+            try {
+                const res = await fetch('/Analytics/GetBusinessInsights', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(buildFilterPayload())
+                });
+                const data = await res.json();
+
+                let html = '';
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        let alertClass = 'alert-info';
+                        let iconClass = item.icon || 'bi-info-circle';
+                        if (item.type === 'DANGER') alertClass = 'alert-danger';
+                        else if (item.type === 'WARNING') alertClass = 'alert-warning';
+                        else if (item.type === 'SUCCESS') alertClass = 'alert-success';
+
+                        html += `
+                            <div class="col-md-6 col-xl-4">
+                                <div class="alert ${alertClass} border-0 shadow-sm rounded-3 d-flex align-items-center mb-0 p-3 h-100">
+                                    <i class="bi ${iconClass} fs-3 me-3"></i>
+                                    <div>
+                                        <h6 class="fw-bold mb-1">${item.title}</h6>
+                                        <p class="small mb-0 opacity-90">${item.message}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                $('#businessInsightsContainer').html(html);
+            } catch (err) {
+                console.error("Business Insights Error:", err);
+            }
+        }
+
+        async function loadPaymentAnalytics() {
+            $('#paymentSpinner').show();
+            try {
+                const res = await fetch('/Analytics/GetPaymentAnalytics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(buildFilterPayload())
+                });
+                const data = await res.json();
+                $('#paymentSpinner').hide();
+
+                if (data) {
+                    $('#paymentCustCollected').text('PKR ' + (data.customerPaymentsCollected || 0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}));
+                    $('#paymentCompMade').text('PKR ' + (data.companyPaymentsMade || 0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}));
+
+                    const statuses = data.invoiceStatuses || [];
+                    const labels = statuses.map(s => s.status);
+                    const values = statuses.map(s => s.totalAmount);
+                    const colors = ['#198754', '#ffc107', '#dc3545'];
+
+                    if (chartPaymentStatusInstance) chartPaymentStatusInstance.destroy();
+
+                    const ctx = document.getElementById('chartPaymentStatus').getContext('2d');
+                    chartPaymentStatusInstance = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: values,
+                                backgroundColor: colors
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { position: 'bottom' } }
+                        }
+                    });
+                }
+            } catch (err) {
+                $('#paymentSpinner').hide();
+                console.error("Payment Analytics Error:", err);
+            }
+        }
+
+        async function loadInventoryMovement() {
+            $('#movementSpinner').show();
+            try {
+                const res = await fetch('/Analytics/GetInventoryMovement', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(buildFilterPayload())
+                });
+                const data = await res.json();
+                $('#movementSpinner').hide();
+
+                if (data) {
+                    const labels = ['Purchases', 'Sales', 'Returns', 'Adjustments'];
+                    const values = [data.purchasedQuantity || 0, data.soldQuantity || 0, data.salesReturnQuantity || 0, data.adjustmentQuantity || 0];
+
+                    if (chartInventoryMovementInstance) chartInventoryMovementInstance.destroy();
+
+                    const ctx = document.getElementById('chartInventoryMovement').getContext('2d');
+                    chartInventoryMovementInstance = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Base Unit Movement',
+                                data: values,
+                                backgroundColor: ['#0d6efd', '#198754', '#dc3545', '#ffc107'],
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                }
+            } catch (err) {
+                $('#movementSpinner').hide();
+                console.error("Inventory Movement Error:", err);
+            }
+        }
+
+        async function loadTopCompanies() {
+            $('#companiesSpinner').show();
+            try {
+                const res = await fetch('/Analytics/GetTopCompanies?topCount=5', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(buildFilterPayload())
+                });
+                const data = await res.json();
+                $('#companiesSpinner').hide();
+
+                if (data && data.length > 0) {
+                    const labels = data.map(d => d.companyName);
+                    const values = data.map(d => d.totalPurchases);
+
+                    if (chartTopCompaniesInstance) chartTopCompaniesInstance.destroy();
+
+                    const ctx = document.getElementById('chartTopCompanies').getContext('2d');
+                    chartTopCompaniesInstance = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Purchase Volume (PKR)',
+                                data: values,
+                                backgroundColor: 'rgba(13, 110, 253, 0.75)',
+                                borderColor: '#0d6efd',
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: { x: { ticks: { callback: v => 'PKR ' + v.toLocaleString() } } }
+                        }
+                    });
+                }
+            } catch (err) {
+                $('#companiesSpinner').hide();
+                console.error("Top Companies Error:", err);
+            }
+        }
+
+        async function loadPromotionPerformance() {
+            $('#promoSpinner').show();
+            try {
+                const res = await fetch('/Analytics/GetPromotionPerformance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(buildFilterPayload())
+                });
+                const data = await res.json();
+                $('#promoSpinner').hide();
+
+                if (data) {
+                    $('#promoTotalDiscount').text('PKR ' + (data.totalDiscountAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}));
+                    $('#promoInvoicesCount').text(data.promoInvoicesCount || 0);
+
+                    const labels = ['Promo Discounts', 'Regular Discounts'];
+                    const values = [data.totalInvoicePromotionsAmount || 0, data.totalRegularDiscountsAmount || 0];
+
+                    if (chartPromoPerformanceInstance) chartPromoPerformanceInstance.destroy();
+
+                    const ctx = document.getElementById('chartPromoPerformance').getContext('2d');
+                    chartPromoPerformanceInstance = new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: values,
+                                backgroundColor: ['#ffc107', '#6c757d']
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { position: 'bottom' } }
+                        }
+                    });
+                }
+            } catch (err) {
+                $('#promoSpinner').hide();
+                console.error("Promotion Performance Error:", err);
+            }
+        }
+
+        async function loadStockRiskItems() {
+            try {
+                const res = await fetch('/Analytics/GetStockRiskItems', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(buildFilterPayload())
+                });
+                const data = await res.json();
+
+                let html = '';
+                if (data && data.length > 0) {
+                    $('#stockRiskCountBadge').text(`${data.length} Risk Items`);
+                    data.forEach(item => {
+                        const isOutOfStock = item.riskLevel === 'OUT_OF_STOCK';
+                        const badgeClass = isOutOfStock ? 'bg-danger text-danger' : 'bg-warning text-dark';
+                        const badgeText = isOutOfStock ? 'OUT OF STOCK' : 'LOW STOCK';
+
+                        html += `
+                            <tr>
+                                <td class="ps-3 fw-semibold text-dark">${item.productName}</td>
+                                <td><span class="badge bg-light text-dark border">${item.categoryName}</span></td>
+                                <td class="text-end fw-bold ${isOutOfStock ? 'text-danger' : 'text-warning'}">${item.currentStock.toLocaleString()}</td>
+                                <td class="text-end text-muted">${item.reorderLevel.toLocaleString()}</td>
+                                <td>${item.baseUnit}</td>
+                                <td><span class="badge ${badgeClass} bg-opacity-10 px-2 py-1">${badgeText}</span></td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    $('#stockRiskCountBadge').text('0 Risk Items').removeClass('bg-danger text-danger').addClass('bg-success text-success').text('Stock Healthy');
+                    html = `<tr><td colspan="6" class="text-center text-success py-4"><i class="bi bi-check-circle me-1"></i> All products are well above reorder thresholds!</td></tr>`;
+                }
+                $('#stockRiskTable tbody').html(html);
+            } catch (err) {
+                console.error("Stock Risk Table Error:", err);
             }
         }
     </script>

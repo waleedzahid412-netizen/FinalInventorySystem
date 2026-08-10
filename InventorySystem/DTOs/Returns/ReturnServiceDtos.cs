@@ -71,16 +71,25 @@ namespace InventorySystem.DTOs.Returns
         public int FreeProductId { get; set; }
         public string FreeProductName { get; set; } = string.Empty;
 
-        // 7 Distinct Quantity Concepts for Historical Accuracy
+        // Distinct Quantity Concepts for Physical & Financial Accuracy
         public decimal OriginalFreeQuantity { get; set; }
         public decimal PreviouslyReturnedFreeQuantity { get; set; }
+        public decimal PreviouslyChargedFreeQuantity { get; set; }
+        public decimal PreviouslyReturnedChargedFreeQuantity { get; set; }
+        public decimal UnreturnedChargedFreeQuantity { get; set; }
         public decimal PhysicallyRemainingFreeQuantity { get; set; }
         public decimal AtRiskFreeQuantity { get; set; }
         public decimal MaxReturnableFreeQuantity { get; set; }
         public decimal CurrentlySelectedFreeReturnQuantity { get; set; }
         public decimal RetainedFreeQuantityAfterCurrentReturn { get; set; }
+        public decimal ReturnedPreviouslyChargedQuantity { get; set; }
+        public decimal RemainingPreviouslyChargedQuantity { get; set; }
+        public decimal NewlyUnearnedFreeQuantity { get; set; }
 
-        // Financial Snapshots
+        // Financial Snapshots & Previously Charged Status
+        public bool IsPreviouslyCharged { get; set; }
+        public decimal NewPenaltyChargedQuantity { get; set; }
+        public decimal RefundIfReturned { get; set; }
         public decimal UnitValue { get; set; }
         public decimal RetainedValue { get; set; }
     }
