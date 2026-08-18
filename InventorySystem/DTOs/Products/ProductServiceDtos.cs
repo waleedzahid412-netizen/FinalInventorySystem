@@ -9,6 +9,7 @@ namespace InventorySystem.DTOs.Products
         public int ProductID { get; set; }
         public string ProductCode => $"PRD-{ProductID:D5}";
         public string ProductName { get; set; } = string.Empty;
+        public string? Description { get; set; }
         public string? SKU { get; set; }
         public string? Barcode { get; set; }
         public int CategoryID { get; set; }
@@ -39,6 +40,7 @@ namespace InventorySystem.DTOs.Products
     public class CreateProductDto
     {
         public string ProductName { get; set; } = string.Empty;
+        public string? Description { get; set; }
         public string? SKU { get; set; }
         public string? Barcode { get; set; }
         public int CategoryID { get; set; }
@@ -57,6 +59,7 @@ namespace InventorySystem.DTOs.Products
         public int ProductID { get; set; }
         public string ProductCode => $"PRD-{ProductID:D5}";
         public string ProductName { get; set; } = string.Empty;
+        public string? Description { get; set; }
         public string? SKU { get; set; }
         public string? Barcode { get; set; }
         public int CategoryID { get; set; }
@@ -75,6 +78,7 @@ namespace InventorySystem.DTOs.Products
         public int ProductID { get; set; }
         public string ProductCode => $"PRD-{ProductID:D5}";
         public string ProductName { get; set; } = string.Empty;
+        public string? Description { get; set; }
         public string? SKU { get; set; }
         public string? Barcode { get; set; }
         public int CategoryID { get; set; }

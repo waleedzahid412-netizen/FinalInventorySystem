@@ -55,7 +55,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold small text-muted">Sort By</label>
-                    <select name="SortBy" class="form-select">
+                    <select name="SortBy" class="form-select" data-no-select2>
                         <option value="CompanyName" selected="@(Model.Filter.SortBy == "CompanyName")">Company Name</option>
                         <option value="ContactPerson" selected="@(Model.Filter.SortBy == "ContactPerson")">Contact Person</option>
                         <option value="CreatedAt" selected="@(Model.Filter.SortBy == "CreatedAt")">Date Created</option>

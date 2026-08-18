@@ -12,6 +12,7 @@ namespace InventorySystem.DTOs.Purchases
         public int UnitID { get; set; }
         public string UnitName { get; set; } = string.Empty;
         public decimal ConversionToBaseUnit { get; set; }
+        public decimal? PurchasePrice { get; set; }
         public bool IsDefaultPurchaseUnit { get; set; }
         public bool IsBaseUnit => ConversionToBaseUnit == 1m;
     }

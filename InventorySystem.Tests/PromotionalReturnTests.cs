@@ -139,8 +139,8 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID, ProductUnitID = paidItem.ProductUnitID, Quantity = 2m },
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID ?? 0, ProductUnitID = paidItem.ProductUnitID ?? 0, Quantity = 2m },
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
 
@@ -190,8 +190,8 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID, ProductUnitID = paidItem.ProductUnitID, Quantity = 2m },
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID ?? 0, ProductUnitID = paidItem.ProductUnitID ?? 0, Quantity = 2m },
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
             var res1 = await service.ProcessSalesReturnAsync(req1, 1);
@@ -204,7 +204,7 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
 
@@ -256,8 +256,8 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID, ProductUnitID = paidItem.ProductUnitID, Quantity = 2m },
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID ?? 0, ProductUnitID = paidItem.ProductUnitID ?? 0, Quantity = 2m },
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
             await service.ProcessSalesReturnAsync(req1, 1);
@@ -269,7 +269,7 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
             var res2 = await service.PreviewSalesClawbackAsync(req2);
@@ -310,8 +310,8 @@ namespace InventorySystem.Tests
             {
                 SalesReturnID = salesReturn1.SalesReturnID,
                 InvoiceItemID = freeItem.InvoiceItemID,
-                ProductID = freeItem.ProductID,
-                ProductUnitID = freeItem.ProductUnitID,
+                ProductID = freeItem.ProductID ?? 0,
+                ProductUnitID = freeItem.ProductUnitID ?? 0,
                 Quantity = 0m,
                 ConvertedQuantity = 0m,
                 RefundUnitPrice = 1.20m,
@@ -331,7 +331,7 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 2m }
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 2m }
                 }
             };
 
@@ -375,8 +375,8 @@ namespace InventorySystem.Tests
             {
                 SalesReturnID = salesReturn1.SalesReturnID,
                 InvoiceItemID = freeItem.InvoiceItemID,
-                ProductID = freeItem.ProductID,
-                ProductUnitID = freeItem.ProductUnitID,
+                ProductID = freeItem.ProductID ?? 0,
+                ProductUnitID = freeItem.ProductUnitID ?? 0,
                 Quantity = 0m,
                 ConvertedQuantity = 0m,
                 RefundUnitPrice = 1.20m,
@@ -395,7 +395,7 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
 
@@ -437,8 +437,8 @@ namespace InventorySystem.Tests
             {
                 SalesReturnID = salesReturn1.SalesReturnID,
                 InvoiceItemID = freeItem.InvoiceItemID,
-                ProductID = freeItem.ProductID,
-                ProductUnitID = freeItem.ProductUnitID,
+                ProductID = freeItem.ProductID ?? 0,
+                ProductUnitID = freeItem.ProductUnitID ?? 0,
                 Quantity = 0m,
                 ConvertedQuantity = 0m,
                 RefundUnitPrice = 1.20m,
@@ -457,8 +457,8 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID, ProductUnitID = paidItem.ProductUnitID, Quantity = 2m },
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 3m }
+                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID ?? 0, ProductUnitID = paidItem.ProductUnitID ?? 0, Quantity = 2m },
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 3m }
                 }
             };
 
@@ -487,7 +487,7 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID, ProductUnitID = paidItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID ?? 0, ProductUnitID = paidItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
 
@@ -511,7 +511,7 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
 
@@ -541,7 +541,7 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID, ProductUnitID = paidItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = paidItem.InvoiceItemID, ProductID = paidItem.ProductID ?? 0, ProductUnitID = paidItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
 
@@ -565,7 +565,7 @@ namespace InventorySystem.Tests
                 IncludeSchemeCalculation = true,
                 Items = new List<ReturnItemInput>
                 {
-                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID, ProductUnitID = freeItem.ProductUnitID, Quantity = 1m }
+                    new ReturnItemInput { InvoiceItemID = freeItem.InvoiceItemID, ProductID = freeItem.ProductID ?? 0, ProductUnitID = freeItem.ProductUnitID ?? 0, Quantity = 1m }
                 }
             };
 

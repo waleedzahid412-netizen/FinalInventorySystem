@@ -12,6 +12,10 @@ namespace InventorySystem.Models.Entities
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int CategoryID { get; set; }
 
+        [ForeignKey("Company")]
+        public int CompanyID { get; set; }
+        public virtual Company Company { get; set; } = null!;
+
         [Required]
         [MaxLength(100)]
         public string Name { get; set; } = string.Empty;

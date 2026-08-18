@@ -11,6 +11,10 @@ namespace InventorySystem.ViewModels.Products
         [Display(Name = "Product Name")]
         public string ProductName { get; set; } = string.Empty;
 
+        [MaxLength(255, ErrorMessage = "Description cannot exceed 255 characters.")]
+        [Display(Name = "Description")]
+        public string? Description { get; set; }
+
         [MaxLength(50, ErrorMessage = "SKU cannot exceed 50 characters.")]
         [Display(Name = "SKU Code")]
         public string? SKU { get; set; }

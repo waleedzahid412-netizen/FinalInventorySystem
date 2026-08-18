@@ -1,43 +1,175 @@
 @model InventorySystem.DTOs.LoginRequestDTO
 
 @{
-    ViewData["Title"] = "WIMS Login";
+    ViewData["Title"] = "Sign In — Wholesale ERP";
+    Layout = "_Layout";
 }
 
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-5">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="card-title mb-0 text-center">WIMS Login</h3>
+<style>
+    .login-container {
+        min-height: 100vh;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+        position: relative;
+        overflow: hidden;
+        padding: 1.5rem;
+    }
+
+    /* Ambient background glow elements */
+    .login-bg-shape-1 {
+        position: absolute;
+        top: -10%;
+        left: -10%;
+        width: 500px;
+        height: 500px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(15, 23, 42, 0) 70%);
+        pointer-events: none;
+    }
+
+    .login-bg-shape-2 {
+        position: absolute;
+        bottom: -10%;
+        right: -10%;
+        width: 600px;
+        height: 600px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, rgba(15, 23, 42, 0) 70%);
+        pointer-events: none;
+    }
+
+    .login-card {
+        width: 100%;
+        max-width: 440px;
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 1.25rem;
+        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5);
+        z-index: 10;
+        overflow: hidden;
+        transition: transform 0.2s ease;
+    }
+
+    .login-header-icon {
+        width: 64px;
+        height: 64px;
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: #ffffff;
+        border-radius: 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        box-shadow: 0 8px 20px rgba(59, 130, 246, 0.35);
+    }
+
+    .form-control-lg-custom {
+        padding: 0.8rem 1rem 0.8rem 2.8rem;
+        font-size: 0.95rem;
+        border-radius: 0.65rem;
+        border: 1px solid #cbd5e1;
+        transition: all 0.2s ease;
+    }
+
+    .form-control-lg-custom:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+    }
+
+    .input-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 1.1rem;
+        z-index: 5;
+    }
+
+    .btn-login-submit {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        border: none;
+        padding: 0.85rem;
+        font-weight: 600;
+        font-size: 1rem;
+        border-radius: 0.65rem;
+        color: #ffffff;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+        transition: all 0.2s ease;
+    }
+
+    .btn-login-submit:hover {
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+    }
+</style>
+
+<div class="login-container">
+    <div class="login-bg-shape-1"></div>
+    <div class="login-bg-shape-2"></div>
+
+    <div class="login-card p-4 p-sm-5">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <div class="login-header-icon mb-3">
+                <i class="bi bi-box-seam-fill"></i>
+            </div>
+            <h3 class="fw-bold text-dark mb-1" style="letter-spacing: -0.5px;">WIMS ERP</h3>
+            <p class="text-muted small mb-0">Wholesale Inventory Management System</p>
+        </div>
+
+        <!-- Form -->
+        <form asp-action="Login" asp-controller="Auth" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-3 position-relative">
+                <label asp-for="Username" class="form-label small fw-semibold text-secondary mb-1">Username</label>
+                <div class="position-relative">
+                    <i class="bi bi-person input-icon"></i>
+                    <input asp-for="Username" class="form-control form-control-lg-custom w-100" placeholder="Enter your username" required autofocus />
                 </div>
-                <div class="card-body">
-                    <form asp-action="Login" asp-controller="Auth" method="post">
-                        <div class="form-group mb-3">
-                            <label asp-for="Username" class="form-label"></label>
-                            <input asp-for="Username" class="form-control" placeholder="Enter username" />
-                            <span asp-validation-for="Username" class="text-danger"></span>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label asp-for="Password" class="form-label"></label>
-                            <input asp-for="Password" type="password" class="form-control" placeholder="Enter password" />
-                            <span asp-validation-for="Password" class="text-danger"></span>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input asp-for="RememberMe" type="checkbox" class="form-check-input" />
-                            <label asp-for="RememberMe" class="form-check-label">Remember me</label>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100">Login</button>
-                    </form>
-                    
-                    @if (!ViewData.ModelState.IsValid)
-                    {
-                        <div class="alert alert-danger mt-3 mb-0">
-                            @Html.ValidationSummary(true, "", new { @class = "text-danger" })
-                        </div>
-                    }
+                <span asp-validation-for="Username" class="text-danger small ms-1"></span>
+            </div>
+
+            <div class="mb-3 position-relative">
+                <label asp-for="Password" class="form-label small fw-semibold text-secondary mb-1">Password</label>
+                <div class="position-relative">
+                    <i class="bi bi-lock input-icon"></i>
+                    <input asp-for="Password" type="password" id="inputPassword" class="form-control form-control-lg-custom w-100" placeholder="Enter your password" required />
+                </div>
+                <span asp-validation-for="Password" class="text-danger small ms-1"></span>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="form-check form-switch mb-0">
+                    <input asp-for="RememberMe" type="checkbox" class="form-check-input" id="RememberMeSwitch" />
+                    <label asp-for="RememberMe" class="form-check-label small text-secondary fw-semibold" for="RememberMeSwitch">Remember me</label>
                 </div>
             </div>
+
+            <button type="submit" class="btn btn-login-submit w-100 mb-3">
+                <i class="bi bi-box-arrow-in-right me-2"></i> Sign In to System
+            </button>
+        </form>
+
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="alert alert-danger border-0 shadow-sm d-flex align-items-center py-2 px-3 mb-0 rounded-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
+                <div class="small fw-semibold">
+                    @Html.ValidationSummary(true, "", new { @class = "mb-0" })
+                </div>
+            </div>
+        }
+
+        <div class="text-center mt-4 pt-2 border-top">
+            <span class="text-muted small">&copy; 2026 Wholesale ERP — All rights reserved.</span>
         </div>
     </div>
 </div>

@@ -31,6 +31,18 @@
                         </select>
                     </div>
                     <div class="col-md-4">
+                        <label asp-for="BrokerID" class="form-label fw-bold small">Broker <span class="text-danger">*</span></label>
+                        <select asp-for="BrokerID" asp-items="Model.Brokers" class="form-select" required>
+                            <option value="">-- Select Broker --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="SalespersonID" class="form-label fw-bold small">Salesperson <span class="text-danger">*</span></label>
+                        <select asp-for="SalespersonID" asp-items="Model.Salespersons" class="form-select" required>
+                            <option value="">-- Select Salesperson --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
                         <label asp-for="WarehouseID" class="form-label fw-bold small">Source Warehouse <span class="text-danger">*</span></label>
                         <select asp-for="WarehouseID" asp-items="Model.Warehouses" class="form-select" required>
                             <option value="">-- Select Warehouse --</option>

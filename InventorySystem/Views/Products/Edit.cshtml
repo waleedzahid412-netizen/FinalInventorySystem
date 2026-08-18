@@ -59,6 +59,11 @@
                         <input asp-for="ProductName" class="form-control" />
                         <span asp-validation-for="ProductName" class="text-danger small"></span>
                     </div>
+                    <div class="col-md-6">
+                        <label asp-for="Description" class="form-label fw-semibold"></label>
+                        <input asp-for="Description" class="form-control" maxlength="255" />
+                        <span asp-validation-for="Description" class="text-danger small"></span>
+                    </div>
                     <div class="col-md-3">
                         <label asp-for="SKU" class="form-label fw-semibold"></label>
                         <input asp-for="SKU" class="form-control" />
@@ -70,16 +75,18 @@
                         <span asp-validation-for="Barcode" class="text-danger small"></span>
                     </div>
                     <div class="col-md-4">
-                        <label asp-for="CategoryID" class="form-label fw-semibold"></label>
-                        <select asp-for="CategoryID" asp-items="Model.Categories" class="form-select"></select>
-                        <span asp-validation-for="CategoryID" class="text-danger small"></span>
-                    </div>
-                    <div class="col-md-4">
                         <label asp-for="CompanyID" class="form-label fw-semibold"></label>
-                        <select asp-for="CompanyID" asp-items="Model.Companies" class="form-select">
+                        <select asp-for="CompanyID" asp-items="Model.Companies" class="form-select" id="companySelect">
                             <option value="">-- Select Company (Supplier) --</option>
                         </select>
                         <span asp-validation-for="CompanyID" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="CategoryID" class="form-label fw-semibold"></label>
+                        <select asp-for="CategoryID" asp-items="Model.Categories" class="form-select" id="categorySelect">
+                            <option value="">-- Select Category --</option>
+                        </select>
+                        <span asp-validation-for="CategoryID" class="text-danger small"></span>
                     </div>
                     <div class="col-md-4">
                         <label asp-for="BaseUnitID" class="form-label fw-semibold"></label>
@@ -281,6 +288,40 @@
             }
 
             Array.from(container.children).forEach(bindRowEvents);
+
+            // Company → Category dependent dropdown
+            const companySelect = document.getElementById('companySelect');
+            const categorySelect = document.getElementById('categorySelect');
+            const selectedCategoryId = '@Model.CategoryID';
+
+            function loadCategoriesForCompany(companyId, selectedId) {
+                categorySelect.innerHTML = '<option value="">-- Select Category --</option>';
+                if (!companyId) return;
+
+                fetch(`/Products/GetCategories?companyId=${companyId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        (data || []).forEach(item => {
+                            const opt = document.createElement('option');
+                            opt.value = item.id;
+                            opt.textContent = item.name;
+                            if (selectedId && String(item.id) === String(selectedId)) {
+                                opt.selected = true;
+                            }
+                            categorySelect.appendChild(opt);
+                        });
+                    });
+            }
+
+            if (companySelect) {
+                companySelect.addEventListener('change', function () {
+                    loadCategoriesForCompany(this.value, null);
+                });
+
+                if (companySelect.value) {
+                    loadCategoriesForCompany(companySelect.value, selectedCategoryId);
+                }
+            }
         });
     </script>
 }

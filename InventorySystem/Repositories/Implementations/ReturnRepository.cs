@@ -137,10 +137,10 @@ namespace InventorySystem.Repositories.Implementations
                 {
                     SalesReturnItemID = i.SalesReturnItemID,
                     InvoiceItemID = i.InvoiceItemID,
-                    ProductID = i.ProductID,
+                    ProductID = i.ProductID ?? 0,
                     ProductName = i.Product != null ? i.Product.ProductName : "Unknown Product",
                     SKU = i.Product != null ? i.Product.SKU : null,
-                    ProductUnitID = i.ProductUnitID,
+                    ProductUnitID = i.ProductUnitID ?? 0,
                     UnitName = i.ProductUnit != null && i.ProductUnit.Unit != null ? i.ProductUnit.Unit.UnitName : "Unit",
                     Quantity = i.Quantity,
                     ConvertedQuantity = i.ConvertedQuantity,
@@ -159,6 +159,7 @@ namespace InventorySystem.Repositories.Implementations
                 .Include(i => i.Warehouse)
                 .Include(i => i.Items)
                     .ThenInclude(item => item.Product)
+                        .ThenInclude(p => p.BaseUnit)
                 .Include(i => i.Items)
                     .ThenInclude(item => item.ProductUnit)
                         .ThenInclude(pu => pu.Unit)

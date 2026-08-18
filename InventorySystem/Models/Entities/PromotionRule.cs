@@ -27,9 +27,17 @@ namespace InventorySystem.Models.Entities
 
         public int BuyQuantity { get; set; }
 
+        /// <summary>Real product reward. Null when IsCustomFreeItem is true.</summary>
         [ForeignKey("FreeProduct")]
-        public int FreeProductID { get; set; }
-        public virtual Product FreeProduct { get; set; } = null!;
+        public int? FreeProductID { get; set; }
+        public virtual Product? FreeProduct { get; set; }
+
+        /// <summary>True when free reward is a non-inventory "Other" custom item.</summary>
+        public bool IsCustomFreeItem { get; set; }
+
+        /// <summary>Display name for custom free item (e.g. Free Mug). Max 200.</summary>
+        [MaxLength(200)]
+        public string? CustomFreeItemName { get; set; }
 
         public int FreeQuantity { get; set; }
     }

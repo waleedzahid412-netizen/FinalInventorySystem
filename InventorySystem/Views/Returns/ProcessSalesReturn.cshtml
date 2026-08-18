@@ -2,6 +2,29 @@
 @{
     ViewData["Title"] = "Process Sales Return";
     var eligibility = Model.Eligibility;
+
+    string FormatDualQty(decimal packagingQty, decimal baseQty, string unitName, string baseUnitName, decimal conversion)
+    {
+        string u = string.IsNullOrWhiteSpace(unitName) ? "Unit" : unitName;
+        string b = string.IsNullOrWhiteSpace(baseUnitName) ? "Base" : baseUnitName;
+        if (conversion <= 1.0001m || string.Equals(u, b, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{baseQty:G29} {b}";
+        }
+
+        bool packagingIsWhole = packagingQty == Math.Truncate(packagingQty);
+        if (packagingQty <= 0m)
+        {
+            return $"0 {u} (0 {b})";
+        }
+
+        if (packagingIsWhole)
+        {
+            return $"{packagingQty:G29} {u} ({baseQty:G29} {b})";
+        }
+
+        return $"{baseQty:G29} {b}";
+    }
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -57,7 +80,7 @@
                                 <th>Product</th>
                                 <th class="text-center">Sold Qty</th>
                                 <th class="text-center">Already Returned</th>
-                                <th class="text-center">Return Qty</th>
+                                <th class="text-center" style="min-width: 220px;">Return Qty</th>
                                 <th>Reason</th>
                                 <th>Condition</th>
                             </tr>
@@ -67,19 +90,41 @@
                             {
                                 foreach (var item in eligibility.Items)
                                 {
-                                    bool isFullyReturned = item.RemainingReturnableQuantity <= 0;
-                                    <tr data-item-id="@item.InvoiceItemID" data-product-id="@item.ProductID" data-product-unit-id="@item.ProductUnitID" data-unit-price="@item.UnitPriceOrCost" data-item-type="@item.ItemType" class="@(isFullyReturned ? "table-secondary text-muted" : "")">
+                                    bool isFullyReturned = item.RemainingReturnableConvertedQuantity <= 0;
+                                    bool hasDualUnits = item.ConversionToBaseUnit > 1.0001m
+                                        && !string.Equals(item.UnitName, item.BaseUnitName, StringComparison.OrdinalIgnoreCase);
+                                    string packagingLabel = string.IsNullOrWhiteSpace(item.UnitName) ? "Packaging" : item.UnitName;
+                                    string baseLabel = string.IsNullOrWhiteSpace(item.BaseUnitName) ? "Piece" : item.BaseUnitName;
+                                    decimal packagingMaxWhole = Math.Floor(item.RemainingReturnableQuantity + 0.0000001m);
+                                    decimal baseMaxWhole = Math.Floor(item.RemainingReturnableConvertedQuantity + 0.0000001m);
+
+                                    <tr data-item-id="@item.InvoiceItemID"
+                                        data-product-id="@item.ProductID"
+                                        data-product-unit-id="@item.ProductUnitID"
+                                        data-unit-price="@item.UnitPriceOrCost"
+                                        data-item-type="@item.ItemType"
+                                        data-conversion="@item.ConversionToBaseUnit"
+                                        data-remaining-packaging="@item.RemainingReturnableQuantity"
+                                        data-remaining-base="@item.RemainingReturnableConvertedQuantity"
+                                        data-unit-name="@packagingLabel"
+                                        data-base-unit-name="@baseLabel"
+                                        data-has-dual-units="@(hasDualUnits ? "true" : "false")"
+                                        class="@(isFullyReturned ? "table-secondary text-muted" : "")">
                                         <td>
                                             <div class="fw-bold">@item.ProductName</div>
-                                            <span class="small text-muted">@item.SKU | Unit: @item.UnitName</span>
+                                            <span class="small text-muted">@item.SKU | Unit: @packagingLabel</span>
                                             @if (string.Equals(item.ItemType, "FREE", StringComparison.OrdinalIgnoreCase))
                                             {
                                                 <span class="badge bg-success ms-1">FREE PROMO</span>
                                             }
                                         </td>
-                                        <td class="text-center fw-semibold">@item.OriginalQuantity.ToString("N2")</td>
-                                        <td class="text-center text-muted">@item.AlreadyReturnedQuantity.ToString("N2")</td>
-                                        <td class="text-center" style="width: 150px;">
+                                        <td class="text-center fw-semibold small">
+                                            @FormatDualQty(item.OriginalQuantity, item.OriginalConvertedQuantity, packagingLabel, baseLabel, item.ConversionToBaseUnit)
+                                        </td>
+                                        <td class="text-center text-muted small">
+                                            @FormatDualQty(item.AlreadyReturnedQuantity, item.AlreadyReturnedConvertedQuantity, packagingLabel, baseLabel, item.ConversionToBaseUnit)
+                                        </td>
+                                        <td class="text-center">
                                             @if (isFullyReturned)
                                             {
                                                 <span class="badge bg-secondary">Fully Returned</span>
@@ -87,8 +132,30 @@
                                             }
                                             else
                                             {
-                                                <input type="number" class="form-control form-control-sm return-qty text-center" min="0" max="@item.RemainingReturnableQuantity" step="0.01" value="0" placeholder="0" />
-                                                <span class="form-text small d-block">Max: @item.RemainingReturnableQuantity.ToString("N2")</span>
+                                                @if (hasDualUnits)
+                                                {
+                                                    <div class="btn-group btn-group-sm w-100 mb-1 return-unit-mode-group" role="group">
+                                                        <input type="radio" class="btn-check return-unit-mode" name="returnMode_@item.InvoiceItemID" id="modePack_@item.InvoiceItemID" value="Packaging" autocomplete="off" checked>
+                                                        <label class="btn btn-outline-secondary" for="modePack_@item.InvoiceItemID">@packagingLabel</label>
+                                                        <input type="radio" class="btn-check return-unit-mode" name="returnMode_@item.InvoiceItemID" id="modeBase_@item.InvoiceItemID" value="Base" autocomplete="off">
+                                                        <label class="btn btn-outline-secondary" for="modeBase_@item.InvoiceItemID">@baseLabel</label>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <input type="hidden" class="return-unit-mode" value="Packaging" />
+                                                }
+                                                <input type="number"
+                                                       class="form-control form-control-sm return-qty text-center"
+                                                       min="0"
+                                                       max="@packagingMaxWhole"
+                                                       step="1"
+                                                       value="0"
+                                                       placeholder="0"
+                                                       inputmode="numeric" />
+                                                <span class="form-text small d-block return-max-label">
+                                                    Max: @FormatDualQty(item.RemainingReturnableQuantity, item.RemainingReturnableConvertedQuantity, packagingLabel, baseLabel, item.ConversionToBaseUnit)
+                                                </span>
                                             }
                                         </td>
                                         <td style="width: 160px;">
@@ -101,7 +168,7 @@
                                             </select>
                                         </td>
                                         <td style="width: 130px;">
-                                            <select class="form-select form-select-sm item-condition" @(isFullyReturned ? "disabled" : "")>
+                                            <select class="form-select form-select-sm item-condition" data-no-select2 @(isFullyReturned ? "disabled" : "")>
                                                 <option value="Sellable" selected>Sellable</option>
                                                 <option value="Damaged">Damaged</option>
                                             </select>
@@ -195,18 +262,27 @@
                 </div>
 
                 <div class="d-flex justify-content-between mb-2 text-danger">
-                    <span class="text-muted">Discount Clawback:</span>
+                    <span class="text-muted">Item Discount Released:</span>
+                    <span class="fw-bold" id="lblItemDiscountReleased">-$0.00</span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2 text-danger">
+                    <span class="text-muted">Threshold Discount Adjustment:</span>
                     <span class="fw-bold" id="lblClawbackPenalty">-$0.00</span>
                 </div>
 
-                <div class="d-flex justify-content-between mb-3 text-danger">
+                <div class="d-flex justify-content-between mb-2 text-danger">
                     <span class="text-muted">Promo Free Item Penalty:</span>
                     <span class="fw-bold" id="lblPromoPenalty">-$0.00</span>
                 </div>
 
+                <div class="small text-muted mb-2" id="lblRemainingState">
+                    Remaining after return: —
+                </div>
+
                 <div class="p-3 bg-light rounded border mb-4">
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="fw-bold fs-6">NET REFUND AMOUNT:</span>
+                        <span class="fw-bold fs-6" id="lblNetRefundLabel">NET REFUND AMOUNT:</span>
                         <span class="fw-bold fs-4 text-success" id="lblNetRefund">$0.00</span>
                     </div>
                 </div>
@@ -226,54 +302,99 @@
         $(document).ready(function () {
             const invoiceId = @eligibility.InvoiceID;
 
+            function getRowMode($row) {
+                const $checked = $row.find('.return-unit-mode:checked');
+                if ($checked.length) {
+                    return $checked.val() || 'Packaging';
+                }
+                const $hidden = $row.find('input.return-unit-mode[type="hidden"]');
+                return $hidden.val() || 'Packaging';
+            }
+
+            function getModeMax($row, mode) {
+                const remPack = parseFloat($row.data('remaining-packaging')) || 0;
+                const remBase = parseFloat($row.data('remaining-base')) || 0;
+                if (mode === 'Base') {
+                    return Math.floor(remBase + 1e-9);
+                }
+                return Math.floor(remPack + 1e-9);
+            }
+
+            function formatMaxLabel($row) {
+                const remPack = parseFloat($row.data('remaining-packaging')) || 0;
+                const remBase = parseFloat($row.data('remaining-base')) || 0;
+                const unitName = $row.data('unit-name') || 'Unit';
+                const baseName = $row.data('base-unit-name') || 'Piece';
+                const conversion = parseFloat($row.data('conversion')) || 1;
+                const hasDual = String($row.data('has-dual-units')) === 'true';
+
+                if (!hasDual || conversion <= 1.0001) {
+                    return 'Max: ' + remBase + ' ' + baseName;
+                }
+                return 'Max: ' + remPack + ' ' + unitName + ' (' + remBase + ' ' + baseName + ')';
+            }
+
+            function applyRowModeLimits($row) {
+                const $input = $row.find('.return-qty');
+                if ($input.length === 0 || $input.prop('disabled')) {
+                    return;
+                }
+
+                const mode = getRowMode($row);
+                const max = getModeMax($row, mode);
+                $input.attr({ min: 0, max: max, step: 1 });
+
+                let val = parseFloat($input.val());
+                if (isNaN(val) || val < 0) {
+                    val = 0;
+                }
+                if (val !== Math.floor(val)) {
+                    val = Math.floor(val);
+                }
+                if (val > max) {
+                    val = max;
+                }
+                $input.val(val);
+
+                $row.find('.return-max-label').text(formatMaxLabel($row));
+            }
+
+            $('#returnItemsTable tbody tr').each(function () {
+                applyRowModeLimits($(this));
+            });
+
             function buildReturnItemsList() {
                 const items = [];
-                const itemMap = new Map();
 
-                // 1. Line items from main table (both paid and free)
+                // Main table is authoritative (includes FREE lines with dual-unit mode).
                 $('#returnItemsTable tbody tr').each(function () {
                     const $row = $(this);
-                    const qty = parseFloat($row.find('.return-qty').val()) || 0;
+                    const $qtyInput = $row.find('.return-qty');
+                    if ($qtyInput.length === 0) {
+                        return;
+                    }
+
+                    let qty = parseFloat($qtyInput.val());
+                    if (isNaN(qty) || qty < 0) {
+                        qty = 0;
+                    }
+                    qty = Math.floor(qty);
+
                     const itemId = parseInt($row.data('item-id'));
                     const prodId = parseInt($row.data('product-id'));
                     const unitId = parseInt($row.data('product-unit-id')) || 1;
 
                     if (itemId > 0) {
-                        itemMap.set(itemId, {
+                        items.push({
                             invoiceItemId: itemId,
                             productId: prodId,
                             productUnitId: unitId,
                             quantity: qty,
+                            returnUnitMode: getRowMode($row),
                             reason: $row.find('.item-reason').val() || 'Sales Return',
                             returnCondition: $row.find('.item-condition').val() || 'Sellable'
                         });
                     }
-                });
-
-                // 2. Override/update from promo container (.free-return-qty) if modified in promo section
-                $('.free-return-qty').each(function () {
-                    const $input = $(this);
-                    const itemId = parseInt($input.data('free-item-id'));
-                    const qty = parseFloat($input.val()) || 0;
-                    if (itemId > 0) {
-                        if (itemMap.has(itemId)) {
-                            itemMap.get(itemId).quantity = qty;
-                        } else {
-                            const prodId = parseInt($input.data('free-prod-id'));
-                            itemMap.set(itemId, {
-                                invoiceItemId: itemId,
-                                productId: prodId,
-                                productUnitId: 1,
-                                quantity: qty,
-                                reason: 'Promotional Free Item Return',
-                                returnCondition: 'Sellable'
-                            });
-                        }
-                    }
-                });
-
-                itemMap.forEach(function (val) {
-                    items.push(val);
                 });
 
                 return items;
@@ -286,9 +407,12 @@
                 const hasActiveReturn = items.some(i => i.quantity > 0);
                 if (!hasActiveReturn) {
                     $('#lblGrossReturn').text('$0.00');
+                    $('#lblItemDiscountReleased').text('-$0.00');
                     $('#lblClawbackPenalty').text('-$0.00');
                     $('#lblPromoPenalty').text('-$0.00');
-                    $('#lblNetRefund').text('$0.00');
+                    $('#lblNetRefund').text('$0.00').removeClass('text-danger').addClass('text-success');
+                    $('#lblNetRefundLabel').text('NET REFUND AMOUNT:');
+                    $('#lblRemainingState').text('Remaining after return: —');
                     $('#breakdownAlert').addClass('d-none');
                     if (isManualClick) {
                         alert('Please enter at least one return quantity before calculating the refund.');
@@ -313,9 +437,24 @@
                         if (res.success && res.data) {
                             const data = res.data;
                             $('#lblGrossReturn').text('$' + data.grossReturnedValue.toFixed(2));
-                            $('#lblClawbackPenalty').text('-' + '$' + data.discountClawback.toFixed(2));
-                            $('#lblPromoPenalty').text('-' + '$' + data.promoPenalty.toFixed(2));
-                            $('#lblNetRefund').text('$' + data.netRefundAmount.toFixed(2));
+                            $('#lblItemDiscountReleased').text('-$' + (data.itemDiscountReleased || 0).toFixed(2));
+                            $('#lblClawbackPenalty').text('-$' + data.discountClawback.toFixed(2));
+                            $('#lblPromoPenalty').text('-$' + data.promoPenalty.toFixed(2));
+                            $('#lblRemainingState').text(
+                                'Remaining after return: Subtotal $' + (data.nextRemainingSubtotal || 0).toFixed(2) +
+                                ' | Discount $' + (data.nextRemainingDiscount || 0).toFixed(2) +
+                                ' | Net $' + (data.nextRemainingNet || 0).toFixed(2)
+                            );
+
+                            if (data.netRefundAmount < 0) {
+                                $('#lblNetRefundLabel').text('ADDITIONAL AMOUNT DUE:');
+                                $('#lblNetRefund').text('$' + Math.abs(data.netRefundAmount).toFixed(2))
+                                    .removeClass('text-success').addClass('text-danger');
+                            } else {
+                                $('#lblNetRefundLabel').text('NET REFUND AMOUNT:');
+                                $('#lblNetRefund').text('$' + data.netRefundAmount.toFixed(2))
+                                    .removeClass('text-danger').addClass('text-success');
+                            }
 
                             if (data.freePromotions && data.freePromotions.length > 0) {
                                 let promoHtml = '';
@@ -337,12 +476,8 @@
                                             </div>
                                             <div class="row align-items-center g-2 bg-light p-2 rounded">
                                                 <div class="col-md-5">
-                                                    <label class="form-label small fw-bold mb-1">Return Free Quantity:</label>
-                                                    <input type="number" min="0" max="${fp.maxReturnableFreeQuantity}" step="1"
-                                                           class="form-control form-control-sm free-return-qty"
-                                                           data-free-item-id="${fp.freeInvoiceItemId}"
-                                                           data-free-prod-id="${fp.freeProductId}"
-                                                           value="${fp.currentlySelectedFreeReturnQuantity}" />
+                                                    <label class="form-label small fw-bold mb-1">Return Free Quantity (same as table row):</label>
+                                                    <div class="small text-muted">Edit quantity on the invoice line item above using packaging or base units.</div>
                                                 </div>
                                                 <div class="col-md-3">
                                                     <span class="small text-muted d-block">Retained Qty:</span>
@@ -388,24 +523,28 @@
                 });
             }
 
-            $(document).on('input change', '.return-qty', function () {
-                const $tr = $(this).closest('tr');
-                const itemId = parseInt($tr.data('item-id'));
-                const val = $(this).val();
-                const $promoInput = $(`.free-return-qty[data-free-item-id="${itemId}"]`);
-                if ($promoInput.length > 0 && $promoInput.val() !== val) {
-                    $promoInput.val(val);
-                }
+            $(document).on('change', '.return-unit-mode', function () {
+                const $row = $(this).closest('tr');
+                applyRowModeLimits($row);
                 previewClawback(false);
             });
 
-            $(document).on('input change', '.free-return-qty', function () {
-                const itemId = parseInt($(this).data('free-item-id'));
-                const val = $(this).val();
-                const $trInput = $(`#returnItemsTable tbody tr[data-item-id="${itemId}"]`).find('.return-qty');
-                if ($trInput.length > 0 && $trInput.val() !== val) {
-                    $trInput.val(val);
+            $(document).on('input change', '.return-qty', function () {
+                const $input = $(this);
+                let val = parseFloat($input.val());
+                if (isNaN(val) || val < 0) {
+                    val = 0;
                 }
+                if (val !== Math.floor(val)) {
+                    val = Math.floor(val);
+                    $input.val(val);
+                }
+
+                const max = parseFloat($input.attr('max'));
+                if (!isNaN(max) && val > max) {
+                    $input.val(max);
+                }
+
                 previewClawback(false);
             });
 

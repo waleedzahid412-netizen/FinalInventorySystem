@@ -33,6 +33,9 @@ namespace InventorySystem.Models.Entities
         [MaxLength(150)]
         public string ProductName { get; set; } = string.Empty;
 
+        [MaxLength(255)]
+        public string? Description { get; set; }
+
         /// <summary>Stock Keeping Unit code — unique across all products.</summary>
         [MaxLength(50)]
         public string? SKU { get; set; }

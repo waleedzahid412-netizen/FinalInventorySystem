@@ -73,6 +73,8 @@ builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICompanyRepository, CompanyRepository>();
 builder.Services.AddScoped<ICompanyService, CompanyService>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IPurchaseRepository, PurchaseRepository>();
@@ -86,6 +88,9 @@ builder.Services.AddScoped<IReturnService, ReturnService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
+builder.Services.AddScoped<IBrokerRepository, BrokerRepository>();
+builder.Services.AddScoped<IBrokerService, BrokerService>();
+builder.Services.AddScoped<ILoadSheetService, LoadSheetService>();
 
 // Configure QuestPDF License
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;

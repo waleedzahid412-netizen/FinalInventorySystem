@@ -35,6 +35,11 @@
         <input type="hidden" asp-for="CustomerID" />
         <input type="hidden" asp-for="WarehouseID" />
         <input type="hidden" asp-for="ItemsJson" id="ItemsJson" />
+        <input type="hidden" asp-for="AppliedDiscountRuleID" id="AppliedDiscountRuleID" />
+        <input type="hidden" asp-for="DiscountMode" id="DiscountMode" />
+        <input type="hidden" asp-for="ManualDiscountType" id="ManualDiscountType" />
+        <input type="hidden" asp-for="ManualDiscountValue" id="ManualDiscountValue" />
+        <input type="hidden" asp-for="ApplyPromotions" id="ApplyPromotions" />
 
         <!-- Header Card (Immutable Fields Read-Only) -->
         <div class="card border-0 shadow-sm rounded-3 mb-4">
@@ -68,6 +73,22 @@
                     </div>
 
                     <div class="col-md-4">
+                        <label asp-for="BrokerID" class="form-label fw-semibold"></label>
+                        <select asp-for="BrokerID" asp-items="Model.Brokers" class="form-select" id="brokerSelect" required>
+                            <option value="">-- Select Broker --</option>
+                        </select>
+                        <span asp-validation-for="BrokerID" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="SalespersonID" class="form-label fw-semibold"></label>
+                        <select asp-for="SalespersonID" asp-items="Model.Salespersons" class="form-select" id="salespersonSelect" required>
+                            <option value="">-- Select Salesperson --</option>
+                        </select>
+                        <span asp-validation-for="SalespersonID" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-4">
                         <label asp-for="DeliveryPersonID" class="form-label fw-semibold"></label>
                         <select asp-for="DeliveryPersonID" asp-items="Model.DeliveryPersons" class="form-select">
                             <option value="">-- None / Direct Pick --</option>
@@ -82,8 +103,6 @@
                 </div>
             </div>
         </div>
-
-        <input type="hidden" asp-for="AppliedDiscountRuleID" id="AppliedDiscountRuleID" />
 
         <!-- Line Items Table -->
         <div class="card border-0 shadow-sm rounded-3 mb-4">
@@ -102,9 +121,8 @@
                                 <th style="width: 15%;">Unit *</th>
                                 <th style="width: 12%;">Qty *</th>
                                 <th style="width: 12%;">Stock Avail.</th>
-                                <th style="width: 12%;">Unit Price</th>
-                                <th style="width: 10%;">Discount</th>
-                                <th style="width: 10%;">Total</th>
+                                <th style="width: 14%;">Unit Price</th>
+                                <th style="width: 14%;">Line Total</th>
                                 <th style="width: 4%;" class="text-center">Action</th>
                             </tr>
                         </thead>
@@ -118,11 +136,45 @@
 
         <!-- Real-Time Promotion & Discount Summary Panel -->
         <div class="card border-0 shadow-sm rounded-3 mb-4">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <h5 class="card-title mb-0 fw-bold text-success"><i class="bi bi-gift-fill me-2"></i> Promotional Schemes & Financial Summary</h5>
-                <span class="badge bg-primary fs-6" id="summaryHeaderGrandTotal">Total: PKR 0.00</span>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <span class="fw-semibold small text-muted mb-0">Discount Mode:</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Discount mode toggle">
+                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeNone" value="None" autocomplete="off" @(Model.DiscountMode == "None" ? "checked" : "")>
+                        <label class="btn btn-outline-secondary" for="discountModeNone">None</label>
+                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeAutomatic" value="Automatic" autocomplete="off" @(Model.DiscountMode != "Manual" && Model.DiscountMode != "None" ? "checked" : "")>
+                        <label class="btn btn-outline-primary" for="discountModeAutomatic">Automatic</label>
+                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeManual" value="Manual" autocomplete="off" @(Model.DiscountMode == "Manual" ? "checked" : "")>
+                        <label class="btn btn-outline-warning" for="discountModeManual">Manual</label>
+                    </div>
+                    <span class="fw-semibold small text-muted mb-0">Apply Promotion:</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Apply promotions toggle">
+                        <input type="radio" class="btn-check" name="applyPromotionsToggle" id="applyPromotionsYes" value="true" autocomplete="off" @(Model.ApplyPromotions ? "checked" : "")>
+                        <label class="btn btn-outline-success" for="applyPromotionsYes">Yes</label>
+                        <input type="radio" class="btn-check" name="applyPromotionsToggle" id="applyPromotionsNo" value="false" autocomplete="off" @(!Model.ApplyPromotions ? "checked" : "")>
+                        <label class="btn btn-outline-secondary" for="applyPromotionsNo">No</label>
+                    </div>
+                    <span class="badge bg-primary fs-6" id="summaryHeaderGrandTotal">Total: PKR 0.00</span>
+                </div>
             </div>
             <div class="card-body">
+                <div id="manualDiscountPanel" class="border rounded p-3 mb-3 bg-light @(Model.DiscountMode == "Manual" ? "" : "d-none")">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-sliders me-1"></i> Manual Discount (no threshold)</h6>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold mb-1">Type</label>
+                            <select id="manualDiscountTypeSelect" class="form-select form-select-sm">
+                                <option value="Percentage" selected>Percentage (%)</option>
+                                <option value="FixedAmount">Fixed Amount (PKR)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold mb-1">Value</label>
+                            <input type="number" id="manualDiscountValueInput" class="form-control form-control-sm" min="0" step="0.01" value="@(Model.ManualDiscountValue)" />
+                        </div>
+                    </div>
+                </div>
                 <div class="row">
                     <div class="col-md-7 mb-3 mb-md-0">
                         <label class="fw-semibold text-dark mb-2">Promotions & Discounts Active Status</label>
@@ -182,7 +234,42 @@
         const customerId = @Model.CustomerID;
         let productOptionsHtml = '<option value="">-- Select Product --</option>';
 
+        function isApplyPromotionsEnabled() {
+            return $('#applyPromotionsYes').is(':checked');
+        }
+
+        function setApplyPromotions(enabled) {
+            $('#applyPromotionsYes').prop('checked', enabled);
+            $('#applyPromotionsNo').prop('checked', !enabled);
+            $('#ApplyPromotions').val(enabled ? 'true' : 'false');
+        }
+
+        function clearFreePromoRows() {
+            $('#itemsTbody tr[data-item-type="FREE"]').remove();
+            recalculateInvoiceSummary();
+        }
+
         $(document.body).ready(async function () {
+            setApplyPromotions(@(Model.ApplyPromotions ? "true" : "false"));
+
+            $('#applyPromotionsYes').on('change', function () {
+                if (this.checked) {
+                    setApplyPromotions(true);
+                    recalculateInvoiceSummary();
+                }
+            });
+
+            $('#applyPromotionsNo').on('change', function () {
+                if (this.checked) {
+                    setApplyPromotions(false);
+                    clearFreePromoRows();
+                    $('#promotionsContainer').html(`
+                        <div class="alert alert-secondary py-2 mb-0 small">
+                            <i class="bi bi-slash-circle me-1"></i> Promotions will not be applied. Only paid (NORMAL) lines will be saved.
+                        </div>`);
+                }
+            });
+
             await loadProducts();
             if (existingItems && existingItems.length > 0) {
                 existingItems.forEach(item => addRow(item));
@@ -239,9 +326,6 @@
                             <input type="number" class="form-control item-price bg-light" value="0.00" readonly />
                         </td>
                         <td>
-                            <input type="number" class="form-control item-discount bg-light" value="0.00" readonly />
-                        </td>
-                        <td>
                             <input type="text" class="form-control bg-light item-total font-monospace text-success fw-bold" value="FREE" readonly />
                         </td>
                         <td class="text-center">
@@ -270,9 +354,6 @@
                         </td>
                         <td>
                             <input type="number" class="form-control item-price" step="0.01" min="0" value="${itemData ? itemData.UnitPrice : 0}" oninput="calculateRowTotal('${rowId}')" required />
-                        </td>
-                        <td>
-                            <input type="number" class="form-control item-discount" step="0.01" min="0" value="${itemData ? itemData.DiscountAmount : 0}" oninput="calculateRowTotal('${rowId}')" />
                         </td>
                         <td>
                             <input type="text" class="form-control bg-light item-total" readonly value="0.00" />
@@ -325,6 +406,9 @@
                     $unitSelect.val(defaultUid);
                     $row.find('.item-price').val(defaultPrice);
                 }
+                if (window.WimsSelect2) {
+                    window.WimsSelect2.sync($unitSelect[0]);
+                }
                 updateStockDisplay(rowId);
                 calculateRowTotal(rowId);
             } catch (err) {
@@ -357,12 +441,54 @@
             }
         }
 
+        function getDiscountMode() {
+            return $('input[name="discountModeToggle"]:checked').val() || 'Automatic';
+        }
+
+        function syncDiscountHiddenFields(subtotal) {
+            const mode = getDiscountMode();
+            $('#DiscountMode').val(mode);
+            if (mode === 'Manual') {
+                const type = $('#manualDiscountTypeSelect').val() || 'Percentage';
+                let value = parseFloat($('#manualDiscountValueInput').val()) || 0;
+                if (type === 'Percentage' && value > 100) value = 100;
+                if (value < 0) value = 0;
+                $('#ManualDiscountType').val(type);
+                $('#ManualDiscountValue').val(value);
+                $('#AppliedDiscountRuleID').val('');
+                let amount = 0;
+                if (subtotal > 0 && value > 0) {
+                    amount = type === 'FixedAmount' ? value : (subtotal * (value / 100));
+                    amount = Math.min(subtotal, Math.round(amount * 100) / 100);
+                }
+                return amount;
+            }
+            $('#ManualDiscountType').val('');
+            $('#ManualDiscountValue').val('0');
+            if (mode === 'None') {
+                $('#AppliedDiscountRuleID').val('');
+                return 0;
+            }
+            return null; // Automatic: caller uses evaluation
+        }
+
+        $('input[name="discountModeToggle"]').on('change', function () {
+            const mode = getDiscountMode();
+            $('#manualDiscountPanel').toggleClass('d-none', mode !== 'Manual');
+            if (mode !== 'Automatic') {
+                $('#AppliedDiscountRuleID').val('');
+            }
+            recalculateInvoiceSummary();
+        });
+        $('#manualDiscountTypeSelect, #manualDiscountValueInput').on('change input', function () {
+            recalculateInvoiceSummary();
+        });
+
         function calculateRowTotal(rowId) {
             const $row = $(`#row_${rowId}`);
             const qty = parseFloat($row.find('.item-qty').val()) || 0;
             const price = parseFloat($row.find('.item-price').val()) || 0;
-            const discount = parseFloat($row.find('.item-discount').val()) || 0;
-            const total = Math.max(0, (qty * price) - discount);
+            const total = Math.max(0, qty * price);
             $row.find('.item-total').val(total.toFixed(2));
             recalculateInvoiceSummary();
         }
@@ -389,16 +515,15 @@
                 const unitId = parseInt($(this).find('.item-unit').val());
                 const qty = parseFloat($(this).find('.item-qty').val()) || 0;
                 const price = parseFloat($(this).find('.item-price').val()) || 0;
-                const discount = parseFloat($(this).find('.item-discount').val()) || 0;
 
                 if (productId > 0 && unitId > 0 && qty > 0) {
-                    subtotal += (qty * price) - discount;
+                    subtotal += (qty * price);
                     cartItems.push({
                         ProductID: productId,
                         ProductUnitID: unitId,
                         Quantity: qty,
                         UnitPrice: price,
-                        DiscountAmount: discount,
+                        DiscountAmount: 0,
                         ItemType: "NORMAL"
                     });
                 }
@@ -406,10 +531,38 @@
 
             $('#summarySubtotal').text(`PKR ${subtotal.toFixed(2)}`);
 
+            const mode = getDiscountMode();
+            if (mode === 'Manual' || mode === 'None') {
+                const manualOrZero = syncDiscountHiddenFields(subtotal) || 0;
+                if (!isApplyPromotionsEnabled()) {
+                    syncFreeItemsWithPromotions([]);
+                    $('#promotionsContainer').html(`
+                        <div class="alert alert-secondary py-2 mb-0 small">
+                            <i class="bi bi-slash-circle me-1"></i> Promotions will not be applied. Only paid (NORMAL) lines will be saved.
+                        </div>`);
+                }
+                updateTotalsDisplay(subtotal, mode === 'Manual' ? manualOrZero : 0);
+                if (mode === 'Manual' && isApplyPromotionsEnabled() && cartItems.length > 0) {
+                    // still evaluate promos only
+                } else if (mode !== 'Automatic') {
+                    if (!isApplyPromotionsEnabled() || cartItems.length === 0) {
+                        return;
+                    }
+                }
+            }
+
+            if (!isApplyPromotionsEnabled() && mode !== 'Automatic') {
+                return;
+            }
+
+            if (!isApplyPromotionsEnabled() && mode === 'Automatic') {
+                syncFreeItemsWithPromotions([]);
+            }
+
             if (cartItems.length === 0) {
                 $('#promotionsContainer').html('<div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Add products to cart to evaluate promotional schemes.</div>');
                 syncFreeItemsWithPromotions([]);
-                updateTotalsDisplay(subtotal, 0);
+                updateTotalsDisplay(subtotal, mode === 'Manual' ? (syncDiscountHiddenFields(subtotal) || 0) : 0);
                 return;
             }
 
@@ -483,9 +636,6 @@
                                 <input type="number" class="form-control item-price bg-light" value="0.00" readonly />
                             </td>
                             <td>
-                                <input type="number" class="form-control item-discount bg-light" value="0.00" readonly />
-                            </td>
-                            <td>
                                 <input type="text" class="form-control bg-light item-total font-monospace text-success fw-bold" value="FREE" readonly />
                             </td>
                             <td class="text-center">
@@ -523,10 +673,11 @@
             }
 
             let calculatedDiscount = 0;
-            if (hasDiscounts) {
+            if (hasDiscounts && getDiscountMode() === 'Automatic') {
                 const discount = data.discounts[0];
                 calculatedDiscount = parseFloat(discount.calculatedDiscountAmount) || 0;
                 $('#AppliedDiscountRuleID').val(discount.discountRuleID);
+                $('#DiscountMode').val('Automatic');
 
                 html += `
                     <div class="alert alert-info border-info py-2 px-3 mb-0 mt-2 small">
@@ -534,6 +685,9 @@
                         <span>Save PKR ${calculatedDiscount.toFixed(2)} (${discount.message})</span>
                     </div>
                 `;
+            } else if (getDiscountMode() === 'Manual') {
+                calculatedDiscount = syncDiscountHiddenFields(subtotal) || 0;
+                html += `<div class="alert alert-warning py-2 small mb-0 mt-2"><i class="bi bi-info-circle me-1"></i> Manual discount mode — automatic rules are not applied.</div>`;
             } else {
                 $('#AppliedDiscountRuleID').val('');
             }
@@ -561,7 +715,6 @@
                 const unitId = parseInt($(this).find('.item-unit').val());
                 const qty = parseFloat($(this).find('.item-qty').val());
                 const price = parseFloat($(this).find('.item-price').val()) || 0;
-                const discount = parseFloat($(this).find('.item-discount').val()) || 0;
 
                 if (!productId || !unitId || !qty || qty <= 0) {
                     if (itemType !== "FREE") {
@@ -575,7 +728,7 @@
                     ProductUnitID: unitId,
                     Quantity: qty,
                     UnitPrice: price,
-                    DiscountAmount: discount,
+                    DiscountAmount: 0,
                     ItemType: itemType,
                     PromotionID: promoId
                 });
@@ -593,7 +746,13 @@
                 return;
             }
 
+            const paidSub = items.filter(i => i.ItemType !== 'FREE').reduce((s, i) => s + (i.Quantity * i.UnitPrice), 0);
+            syncDiscountHiddenFields(paidSub);
+            if (getDiscountMode() === 'Automatic' && !$('#AppliedDiscountRuleID').val()) {
+                // keep Automatic with no rule → server treats as None amount
+            }
             $('#ItemsJson').val(JSON.stringify(items));
+            setApplyPromotions(isApplyPromotionsEnabled());
             $('#salesEditForm').submit();
         });
     </script>

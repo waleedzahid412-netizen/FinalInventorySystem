@@ -28,6 +28,7 @@ namespace InventorySystem.Data
         public DbSet<Product> Products { get; set; }
         public DbSet<ProductUnit> ProductUnits { get; set; }
         public DbSet<DeliveryPerson> DeliveryPersons { get; set; }
+        public DbSet<Broker> Brokers { get; set; }
 
         // =========================================================
         // INVENTORY
@@ -249,7 +250,15 @@ namespace InventorySystem.Data
             // =============================================================
             modelBuilder.Entity<Category>(entity =>
             {
-                entity.HasIndex(c => c.Name).IsUnique();
+                // Unique category name per company among non-deleted rows
+                entity.HasIndex(c => new { c.CompanyID, c.Name })
+                    .IsUnique()
+                    .HasFilter("[IsDeleted] = 0");
+
+                entity.HasOne(c => c.Company)
+                    .WithMany(co => co.Categories)
+                    .HasForeignKey(c => c.CompanyID)
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(c => c.CreatedByUser)
                     .WithMany()
@@ -523,10 +532,31 @@ namespace InventorySystem.Data
             {
                 entity.HasIndex(si => si.InvoiceNumber).IsUnique();
 
+                entity.Property(si => si.DiscountMode).HasMaxLength(20);
+
                 entity.HasOne(si => si.Customer)
                     .WithMany(c => c.SalesInvoices)
                     .HasForeignKey(si => si.CustomerID)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(si => si.Company)
+                    .WithMany(c => c.SalesInvoices)
+                    .HasForeignKey(si => si.CompanyID)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(si => si.Broker)
+                    .WithMany(b => b.SalesInvoices)
+                    .HasForeignKey(si => si.BrokerID)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(si => si.SalespersonUser)
+                    .WithMany()
+                    .HasForeignKey(si => si.SalespersonID)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasIndex(si => si.CompanyID);
+                entity.HasIndex(si => si.BrokerID);
+                entity.HasIndex(si => si.SalespersonID);
 
                 entity.HasOne(si => si.Warehouse)
                     .WithMany(w => w.SalesInvoices)
@@ -557,6 +587,11 @@ namespace InventorySystem.Data
                     .WithMany(u => u.SalesInvoices)
                     .HasForeignKey(si => si.CreatedBy)
                     .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(si => si.UpdatedByUser)
+                    .WithMany()
+                    .HasForeignKey(si => si.UpdatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
             });
 
             // =============================================================
@@ -564,6 +599,8 @@ namespace InventorySystem.Data
             // =============================================================
             modelBuilder.Entity<SalesInvoiceItem>(entity =>
             {
+                entity.Property(sii => sii.DiscountRate).HasColumnType("decimal(18,4)");
+
                 entity.HasOne(sii => sii.SalesInvoice)
                     .WithMany(si => si.Items)
                     .HasForeignKey(sii => sii.InvoiceID)
@@ -572,11 +609,13 @@ namespace InventorySystem.Data
                 entity.HasOne(sii => sii.Product)
                     .WithMany(p => p.SalesInvoiceItems)
                     .HasForeignKey(sii => sii.ProductID)
+                    .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(sii => sii.ProductUnit)
                     .WithMany(pu => pu.SalesInvoiceItems)
                     .HasForeignKey(sii => sii.ProductUnitID)
+                    .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(sii => sii.PromotionCampaign)
@@ -625,7 +664,10 @@ namespace InventorySystem.Data
                 entity.HasOne(pr => pr.FreeProduct)
                     .WithMany(p => p.FreePromotionRules)
                     .HasForeignKey(pr => pr.FreeProductID)
+                    .IsRequired(false)
                     .OnDelete(DeleteBehavior.NoAction);
+
+                entity.Property(pr => pr.CustomFreeItemName).HasMaxLength(200);
             });
 
             // =============================================================
@@ -801,6 +843,8 @@ namespace InventorySystem.Data
             // =============================================================
             modelBuilder.Entity<SalesReturnItem>(entity =>
             {
+                entity.Property(sri => sri.DiscountAmount).HasColumnType("decimal(18,2)");
+
                 entity.HasOne(sri => sri.SalesReturn)
                     .WithMany(sr => sr.Items)
                     .HasForeignKey(sri => sri.SalesReturnID)
@@ -814,11 +858,13 @@ namespace InventorySystem.Data
                 entity.HasOne(sri => sri.Product)
                     .WithMany(p => p.SalesReturnItems)
                     .HasForeignKey(sri => sri.ProductID)
+                    .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(sri => sri.ProductUnit)
                     .WithMany(pu => pu.SalesReturnItems)
                     .HasForeignKey(sri => sri.ProductUnitID)
+                    .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
@@ -854,10 +900,16 @@ namespace InventorySystem.Data
                     .HasForeignKey(id => id.InvoiceID)
                     .OnDelete(DeleteBehavior.Restrict);
 
+                // Nullable: Manual discounts have no DiscountRuleID.
                 entity.HasOne(id => id.DiscountRule)
                     .WithMany(dr => dr.InvoiceDiscounts)
                     .HasForeignKey(id => id.DiscountRuleID)
+                    .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                entity.Property(id => id.DiscountSource).HasMaxLength(20);
+                entity.Property(id => id.MinimumOrderAmount).HasColumnType("decimal(18,2)");
+                entity.Property(id => id.MaximumOrderAmount).HasColumnType("decimal(18,2)");
 
                 entity.HasOne(id => id.AppliedByUser)
                     .WithMany()

@@ -74,17 +74,47 @@ namespace InventorySystem.Services.Implementations
                             int multiplier = (int)Math.Floor(totalBuyBaseQty / rule.BuyQuantity);
                             int freeQty = multiplier * rule.FreeQuantity;
 
+                            if (rule.IsCustomFreeItem)
+                            {
+                                string customName = string.IsNullOrWhiteSpace(rule.CustomFreeItemName) ? "Custom Item" : rule.CustomFreeItemName.Trim();
+                                result.Promotions.Add(new PromotionSuggestionDto
+                                {
+                                    PromotionID = campaign.PromotionID,
+                                    RuleID = rule.RuleID,
+                                    Title = campaign.Name,
+                                    BuyProductID = rule.BuyProductID,
+                                    BuyProductName = rule.BuyProduct.ProductName,
+                                    RuleBuyQuantity = rule.BuyQuantity,
+                                    FreeProductID = null,
+                                    FreeProductName = $"Other: {customName}",
+                                    IsCustomFreeItem = true,
+                                    CustomFreeItemName = customName,
+                                    RuleFreeQuantity = rule.FreeQuantity,
+                                    RewardQuantity = freeQty,
+                                    FreeUnitID = 0,
+                                    FreeUnitName = "Item",
+                                    Message = $"{campaign.Name} (Buy {rule.BuyQuantity} Get {rule.FreeQuantity} Free) — Current Cart Qualifies for {freeQty} FREE Other: {customName}!"
+                                });
+                                continue;
+                            }
+
+                            if (!rule.FreeProductID.HasValue || rule.FreeProductID.Value <= 0)
+                            {
+                                continue;
+                            }
+
                             // Fetch free product's default unit
                             var freeUnit = await _context.ProductUnits
                                 .AsNoTracking()
                                 .Include(pu => pu.Unit)
-                                .Where(pu => pu.ProductID == rule.FreeProductID && !pu.IsDeleted && pu.IsActive)
+                                .Where(pu => pu.ProductID == rule.FreeProductID.Value && !pu.IsDeleted && pu.IsActive)
                                 .OrderByDescending(pu => pu.IsDefaultSalesUnit)
                                 .ThenBy(pu => pu.ProductUnitID)
                                 .FirstOrDefaultAsync(cancellationToken);
 
                             int freeUnitId = freeUnit?.ProductUnitID ?? 0;
                             string freeUnitName = freeUnit?.Unit?.UnitName ?? "Unit";
+                            string freeProductName = rule.FreeProduct?.ProductName ?? "Free Product";
 
                             result.Promotions.Add(new PromotionSuggestionDto
                             {
@@ -95,12 +125,14 @@ namespace InventorySystem.Services.Implementations
                                 BuyProductName = rule.BuyProduct.ProductName,
                                 RuleBuyQuantity = rule.BuyQuantity,
                                 FreeProductID = rule.FreeProductID,
-                                FreeProductName = rule.FreeProduct.ProductName,
+                                FreeProductName = freeProductName,
+                                IsCustomFreeItem = false,
+                                CustomFreeItemName = null,
                                 RuleFreeQuantity = rule.FreeQuantity,
                                 RewardQuantity = freeQty,
                                 FreeUnitID = freeUnitId,
                                 FreeUnitName = freeUnitName,
-                                Message = $"{campaign.Name} (Buy {rule.BuyQuantity} Get {rule.FreeQuantity} Free) — Current Cart Qualifies for {freeQty} FREE {freeUnitName} ({rule.FreeProduct.ProductName})!"
+                                Message = $"{campaign.Name} (Buy {rule.BuyQuantity} Get {rule.FreeQuantity} Free) — Current Cart Qualifies for {freeQty} FREE {freeUnitName} ({freeProductName})!"
                             });
                         }
                     }

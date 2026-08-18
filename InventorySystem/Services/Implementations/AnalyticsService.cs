@@ -32,7 +32,7 @@ namespace InventorySystem.Services.Implementations
             var returnsQuery = _context.SalesReturns.AsNoTracking().Where(r => !r.IsDeleted);
             var salesItemsQuery = _context.SalesInvoiceItems.AsNoTracking()
                 .Include(i => i.Product)
-                .Where(i => !i.IsDeleted && !i.SalesInvoice.IsDeleted);
+                .Where(i => !i.IsDeleted && !i.SalesInvoice.IsDeleted && i.ProductID != null);
 
             // Optional filters
             if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
@@ -203,8 +203,8 @@ namespace InventorySystem.Services.Implementations
         {
             var (startDate, endDate, _, _) = ResolveDates(filter);
             var query = _context.SalesInvoiceItems.AsNoTracking()
-                .Include(i => i.Product).ThenInclude(p => p.Category)
-                .Where(i => !i.IsDeleted && !i.SalesInvoice.IsDeleted && i.SalesInvoice.InvoiceDate >= startDate && i.SalesInvoice.InvoiceDate <= endDate);
+                .Include(i => i.Product).ThenInclude(p => p!.Category)
+                .Where(i => !i.IsDeleted && !i.SalesInvoice.IsDeleted && i.ProductID != null && i.SalesInvoice.InvoiceDate >= startDate && i.SalesInvoice.InvoiceDate <= endDate);
 
             if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
                 query = query.Where(i => i.SalesInvoice.WarehouseID == filter.WarehouseID.Value);
@@ -235,7 +235,7 @@ namespace InventorySystem.Services.Implementations
 
             return sorted.Take(topCount).Select(p => new TopProductDto
             {
-                ProductID = p.ProductID,
+                ProductID = p.ProductID ?? 0,
                 ProductName = p.ProductName,
                 CategoryName = p.CategoryName,
                 QuantitySold = p.QuantitySold,
@@ -290,8 +290,8 @@ namespace InventorySystem.Services.Implementations
         {
             var (startDate, endDate, _, _) = ResolveDates(filter);
             var query = _context.SalesInvoiceItems.AsNoTracking()
-                .Include(i => i.Product).ThenInclude(p => p.Category)
-                .Where(i => !i.IsDeleted && !i.SalesInvoice.IsDeleted && i.SalesInvoice.InvoiceDate >= startDate && i.SalesInvoice.InvoiceDate <= endDate);
+                .Include(i => i.Product).ThenInclude(p => p!.Category)
+                .Where(i => !i.IsDeleted && !i.SalesInvoice.IsDeleted && i.ProductID != null && i.SalesInvoice.InvoiceDate >= startDate && i.SalesInvoice.InvoiceDate <= endDate);
 
             if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
                 query = query.Where(i => i.SalesInvoice.WarehouseID == filter.WarehouseID.Value);
@@ -565,10 +565,12 @@ namespace InventorySystem.Services.Implementations
                 })
                 .ToListAsync(cancellationToken);
 
-            decimal purchased = grouped.Where(g => g.Type.Contains("PURCHASE", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
-            decimal sold = grouped.Where(g => g.Type.Contains("SALE", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
-            decimal returned = grouped.Where(g => g.Type.Contains("RETURN", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
-            decimal adjusted = grouped.Where(g => g.Type.Contains("ADJUSTMENT", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
+            // Exact type matches: avoid RETURN_DAMAGED / PURCHASE_RETURN being counted as sellable sales returns,
+            // and avoid PURCHASE_RETURN being counted as purchases.
+            decimal purchased = grouped.Where(g => string.Equals(g.Type, "PURCHASE", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
+            decimal sold = grouped.Where(g => string.Equals(g.Type, "SALE", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
+            decimal returned = grouped.Where(g => string.Equals(g.Type, "RETURN", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
+            decimal adjusted = grouped.Where(g => string.Equals(g.Type, "ADJUSTMENT", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
 
             return new InventoryMovementDto
             {

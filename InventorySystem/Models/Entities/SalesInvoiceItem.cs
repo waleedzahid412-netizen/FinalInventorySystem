@@ -21,13 +21,19 @@ namespace InventorySystem.Models.Entities
         public int InvoiceID { get; set; }
         public virtual SalesInvoice SalesInvoice { get; set; } = null!;
 
+        /// <summary>Null for non-inventory custom FREE promotional items.</summary>
         [ForeignKey("Product")]
-        public int ProductID { get; set; }
-        public virtual Product Product { get; set; } = null!;
+        public int? ProductID { get; set; }
+        public virtual Product? Product { get; set; }
 
+        /// <summary>Null for non-inventory custom FREE promotional items.</summary>
         [ForeignKey("ProductUnit")]
-        public int ProductUnitID { get; set; }
-        public virtual ProductUnit ProductUnit { get; set; } = null!;
+        public int? ProductUnitID { get; set; }
+        public virtual ProductUnit? ProductUnit { get; set; }
+
+        /// <summary>Snapshot name for custom FREE items (e.g. Free Mug). Shown as "Other: {name}".</summary>
+        [MaxLength(200)]
+        public string? CustomItemName { get; set; }
 
         /// <summary>Quantity sold in the packaging unit (e.g. Cartons).</summary>
         [Column(TypeName = "decimal(18,3)")]
@@ -37,11 +43,24 @@ namespace InventorySystem.Models.Entities
         [Column(TypeName = "decimal(18,3)")]
         public decimal ConvertedQuantity { get; set; }
 
-        /// <summary>Selling price per unit at time of sale — historical snapshot, never changes.</summary>
+        /// <summary>
+        /// Selling price per packaging unit at time of sale — historical snapshot, never changes.
+        /// NORMAL sales returns MUST use this value; never ProductUnit.SellingPrice or Product.BaseSellingPrice.
+        /// </summary>
         [Column(TypeName = "decimal(18,2)")]
         public decimal UnitPrice { get; set; }
 
-        /// <summary>Line discount amount — historical snapshot.</summary>
+        /// <summary>
+        /// Discount percentage rate allocated to this line at sale (0 when FixedAmount or no discount).
+        /// Historical snapshot for returns — never re-read from live DiscountRules.
+        /// </summary>
+        [Column(TypeName = "decimal(18,4)")]
+        public decimal DiscountRate { get; set; } = 0;
+
+        /// <summary>
+        /// Monetary discount allocated to this line at sale (server-allocated from invoice-level Automatic/Manual discount).
+        /// Historical snapshot used when releasing discount on returns.
+        /// </summary>
         [Column(TypeName = "decimal(18,2)")]
         public decimal DiscountAmount { get; set; } = 0;
 

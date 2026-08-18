@@ -8,9 +8,20 @@ namespace InventorySystem.DTOs.Returns
     public class ReturnItemInput
     {
         public int InvoiceItemID { get; set; }
-        public int ProductID { get; set; }
-        public int ProductUnitID { get; set; }
+        public int? ProductID { get; set; }
+        public int? ProductUnitID { get; set; }
+
+        /// <summary>
+        /// Entered return quantity in the selected unit mode (whole numbers only when &gt; 0).
+        /// Packaging mode: sold ProductUnit (e.g. Carton). Base mode: product BaseUnit (e.g. Piece).
+        /// </summary>
         public decimal Quantity { get; set; }
+
+        /// <summary>
+        /// "Packaging" (default) = Quantity is in sold unit; "Base" = Quantity is in base units.
+        /// </summary>
+        public string ReturnUnitMode { get; set; } = "Packaging";
+
         public string? Reason { get; set; }
         public string ReturnCondition { get; set; } = "Sellable"; // Sellable | Damaged
     }
@@ -97,13 +108,27 @@ namespace InventorySystem.DTOs.Returns
     public class ClawbackPreviewDto
     {
         public decimal GrossReturnedValue { get; set; }
+        /// <summary>Discount released with the returned quantities (item share).</summary>
+        public decimal ItemDiscountReleased { get; set; }
+        /// <summary>Additional unearned discount removed when Automatic threshold is lost.</summary>
         public decimal DiscountClawback { get; set; }
         public decimal ClawbackPenalty => DiscountClawback;
         public decimal PromoPenalty { get; set; }
         public decimal RetainedFreeItemValue => PromoPenalty;
+        /// <summary>Positive = customer credit; negative = additional amount due.</summary>
         public decimal NetRefundAmount { get; set; }
+        public bool IsAdditionalAmountDue => NetRefundAmount < 0m;
+        public decimal AdditionalAmountDue => NetRefundAmount < 0m ? Math.Abs(NetRefundAmount) : 0m;
+        public decimal PreviousRemainingSubtotal { get; set; }
+        public decimal PreviousRemainingDiscount { get; set; }
+        public decimal PreviousRemainingNet { get; set; }
+        public decimal NextRemainingSubtotal { get; set; }
+        public decimal NextRemainingDiscount { get; set; }
+        public decimal NextRemainingNet { get; set; }
         public List<string> Breakdown { get; set; } = new List<string>();
         public List<FreePromotionClawbackDto> FreePromotions { get; set; } = new List<FreePromotionClawbackDto>();
+        /// <summary>Per invoice-item discount released in this return (for persistence).</summary>
+        public Dictionary<int, decimal> ItemDiscountReleasedByInvoiceItemId { get; set; } = new Dictionary<int, decimal>();
     }
 
     public class ReturnEligibleItemDto
@@ -114,12 +139,14 @@ namespace InventorySystem.DTOs.Returns
         public string? SKU { get; set; }
         public int ProductUnitID { get; set; }
         public string UnitName { get; set; } = string.Empty;
+        public string BaseUnitName { get; set; } = string.Empty;
         public decimal ConversionToBaseUnit { get; set; } = 1;
         public decimal OriginalQuantity { get; set; }
         public decimal OriginalConvertedQuantity { get; set; }
         public decimal AlreadyReturnedQuantity { get; set; }
         public decimal AlreadyReturnedConvertedQuantity { get; set; }
         public decimal RemainingReturnableQuantity { get; set; }
+        public decimal RemainingReturnableConvertedQuantity { get; set; }
         public decimal UnitPriceOrCost { get; set; }
         public string ItemType { get; set; } = "NORMAL";
         public int? PromotionID { get; set; }

@@ -29,8 +29,10 @@ namespace InventorySystem.DTOs.Sales
         public int BuyProductID { get; set; }
         public string BuyProductName { get; set; } = string.Empty;
         public int RuleBuyQuantity { get; set; }
-        public int FreeProductID { get; set; }
+        public int? FreeProductID { get; set; }
         public string FreeProductName { get; set; } = string.Empty;
+        public bool IsCustomFreeItem { get; set; }
+        public string? CustomFreeItemName { get; set; }
         public int RuleFreeQuantity { get; set; }
         public int RewardQuantity { get; set; }
         public int FreeUnitID { get; set; }

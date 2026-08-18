@@ -66,17 +66,21 @@ namespace InventorySystem.Services.Implementations
                     return new ReturnEligibleItemDto
                     {
                         InvoiceItemID = item.InvoiceItemID,
-                        ProductID = item.ProductID,
-                        ProductName = item.Product?.ProductName ?? string.Empty,
+                        ProductID = item.ProductID ?? 0,
+                        ProductName = !string.IsNullOrWhiteSpace(item.CustomItemName)
+                            ? $"Other: {item.CustomItemName}"
+                            : (item.Product?.ProductName ?? string.Empty),
                         SKU = item.Product?.SKU,
-                        ProductUnitID = item.ProductUnitID,
-                        UnitName = item.ProductUnit?.Unit?.UnitName ?? string.Empty,
+                        ProductUnitID = item.ProductUnitID ?? 0,
+                        UnitName = item.ProductUnit?.Unit?.UnitName ?? (!string.IsNullOrWhiteSpace(item.CustomItemName) ? "Item" : string.Empty),
+                        BaseUnitName = item.Product?.BaseUnit?.UnitName ?? (!string.IsNullOrWhiteSpace(item.CustomItemName) ? "Item" : string.Empty),
                         ConversionToBaseUnit = conversionFactor,
                         OriginalQuantity = item.Quantity,
                         OriginalConvertedQuantity = item.ConvertedQuantity,
                         AlreadyReturnedQuantity = priorInPackagingUnit,
                         AlreadyReturnedConvertedQuantity = priorConverted,
                         RemainingReturnableQuantity = remainingInPackagingUnit,
+                        RemainingReturnableConvertedQuantity = remainingConverted,
                         UnitPriceOrCost = item.UnitPrice,
                         ItemType = item.ItemType,
                         PromotionID = item.PromotionID
@@ -133,6 +137,7 @@ namespace InventorySystem.Services.Implementations
                 .ToDictionary(g => g.Key, g => g.Sum(x => x.PromoPenaltyQuantity));
 
             decimal grossReturnedValue = 0m;
+            decimal normalGrossReturnedValue = 0m;
             decimal clawbackPenalty = 0m;
             decimal promoPenalty = 0m;
             var breakdown = new List<string>();
@@ -153,7 +158,10 @@ namespace InventorySystem.Services.Implementations
                 bool isFree = string.Equals(invoiceItem.ItemType, "FREE", StringComparison.OrdinalIgnoreCase);
 
                 decimal conversionFactor = invoiceItem.ProductUnit?.ConversionToBaseUnit > 0 ? invoiceItem.ProductUnit.ConversionToBaseUnit : 1m;
-                decimal requestedConverted = UnitConversionHelper.ToBaseUnits(itemInput.Quantity, conversionFactor);
+                if (!ReturnQuantityHelper.TryNormalize(itemInput.Quantity, itemInput.ReturnUnitMode, conversionFactor, out decimal packagingQty, out decimal requestedConverted, out string? normalizeError))
+                {
+                    return OperationResult<ClawbackPreviewDto>.Fail($"Product '{invoiceItem.Product?.ProductName ?? "Unknown"}': {normalizeError}");
+                }
 
                 decimal priorConverted = priorGrouped.TryGetValue(invoiceItem.InvoiceItemID, out var pQty) ? pQty : 0m;
                 decimal remainingConverted = Math.Max(0m, invoiceItem.ConvertedQuantity - priorConverted);
@@ -164,29 +172,30 @@ namespace InventorySystem.Services.Implementations
                     {
                         return OperationResult<ClawbackPreviewDto>.Fail($"Return quantity for product '{invoiceItem.Product?.ProductName ?? "Unknown"}' exceeds remaining returnable quantity.");
                     }
-                    decimal lineGross = Math.Round(itemInput.Quantity * invoiceItem.UnitPrice, 2);
+                    decimal lineGross = Math.Round(packagingQty * invoiceItem.UnitPrice, 2);
                     grossReturnedValue += lineGross;
+                    normalGrossReturnedValue += lineGross;
                 }
             }
 
+            // Remaining-state discount (historical invoice snapshots only — never live DiscountRules / product prices).
+            var previousState = ComputeRemainingDiscountState(invoice, priorReturnItems ?? new List<SalesReturnItem>(), null);
+            var nextState = ComputeRemainingDiscountState(invoice, priorReturnItems ?? new List<SalesReturnItem>(), itemsInput);
+
             if (includeSchemeCalculation)
             {
-                // 2. Discount Clawback
-                if (invoice.InvoiceDiscounts != null && invoice.InvoiceDiscounts.Any())
+                // Discount reduction = previous remaining discount − next remaining discount
+                // Item share released with returned qty; clawback = unearned remainder when Automatic threshold is lost.
+                clawbackPenalty = Math.Max(0m,
+                    Math.Round(previousState.RemainingDiscount - nextState.RemainingDiscount - nextState.ItemDiscountReleasedThisReturn, 2, MidpointRounding.AwayFromZero));
+
+                if (nextState.ItemDiscountReleasedThisReturn > 0)
                 {
-                    decimal postReturnSubtotal = Math.Max(0m, invoice.SubTotal - grossReturnedValue);
-                    foreach (var discountSnapshot in invoice.InvoiceDiscounts)
-                    {
-                        if (discountSnapshot.DiscountRuleID > 0)
-                        {
-                            var rule = await _context.DiscountRules.AsNoTracking().FirstOrDefaultAsync(r => r.DiscountRuleID == discountSnapshot.DiscountRuleID, cancellationToken);
-                            if (rule != null && postReturnSubtotal < rule.MinimumOrderAmount)
-                            {
-                                clawbackPenalty += discountSnapshot.DiscountAmount;
-                                breakdown.Add($"Discount '{rule.RuleName}' threshold violated (Order Subtotal after return: {postReturnSubtotal:C} < Required: {rule.MinimumOrderAmount:C}). Clawback penalty: {discountSnapshot.DiscountAmount:C}");
-                            }
-                        }
-                    }
+                    breakdown.Add($"Discount released with returned items: {nextState.ItemDiscountReleasedThisReturn:C}");
+                }
+                if (clawbackPenalty > 0)
+                {
+                    breakdown.Add($"Automatic threshold no longer met after return (remaining subtotal {nextState.RemainingSubtotal:C}). Unearned remaining discount clawback: {clawbackPenalty:C}");
                 }
 
                 // 3. Promotion Free Item Calculation (Unit-Based & Cumulative History)
@@ -219,14 +228,27 @@ namespace InventorySystem.Services.Implementations
 
                         foreach (var rule in campaign.PromotionRules)
                         {
+                            // Custom "Other" free gifts have no retail value — skip clawback for this rule
+                            if (rule.IsCustomFreeItem || !rule.FreeProductID.HasValue)
+                            {
+                                continue;
+                            }
+
                             var buyItem = invoiceItems.FirstOrDefault(i => i.ProductID == rule.BuyProductID && !string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase));
                             var freeItem = invoiceItems.FirstOrDefault(i => i.ProductID == rule.FreeProductID && string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase));
 
                             if (freeItem == null) continue;
 
                             decimal buyConversion = buyItem?.ProductUnit?.ConversionToBaseUnit > 0 ? buyItem.ProductUnit.ConversionToBaseUnit : 1m;
-                            decimal buyReturnedInputQty = buyItem != null ? (itemsInput.FirstOrDefault(i => i.InvoiceItemID == buyItem.InvoiceItemID)?.Quantity ?? 0m) : 0m;
-                            decimal buyCurrentReturnedBaseQty = buyItem != null ? UnitConversionHelper.ToBaseUnits(buyReturnedInputQty, buyConversion) : 0m;
+                            var buyInput = buyItem != null ? itemsInput.FirstOrDefault(i => i.InvoiceItemID == buyItem.InvoiceItemID) : null;
+                            decimal buyCurrentReturnedBaseQty = 0m;
+                            if (buyInput != null && buyInput.Quantity > 0)
+                            {
+                                if (!ReturnQuantityHelper.TryNormalize(buyInput.Quantity, buyInput.ReturnUnitMode, buyConversion, out _, out buyCurrentReturnedBaseQty, out string? buyNormError))
+                                {
+                                    return OperationResult<ClawbackPreviewDto>.Fail($"Product '{buyItem?.Product?.ProductName ?? "Unknown"}': {buyNormError}");
+                                }
+                            }
 
                             decimal buyOriginalConverted = buyItem?.ConvertedQuantity ?? 0m;
                             decimal buyPriorReturnedConverted = buyItem != null && priorGrouped.TryGetValue(buyItem.InvoiceItemID, out var bpQty) ? bpQty : 0m;
@@ -269,7 +291,15 @@ namespace InventorySystem.Services.Implementations
                             // Max returnable free quantity is proportional to returned paid items plus previously charged unreturned free units
                             decimal maxReturnableFreeQty = Math.Min(physicallyRemainingFreeQty, freeAtRiskDisplayQty + previouslyChargedFreeQty);
 
-                            decimal selectedFreeReturnQty = itemsInput.FirstOrDefault(i => i.InvoiceItemID == freeItem.InvoiceItemID)?.Quantity ?? 0m;
+                            decimal selectedFreeReturnQty = 0m;
+                            var freeInput = itemsInput.FirstOrDefault(i => i.InvoiceItemID == freeItem.InvoiceItemID);
+                            if (freeInput != null && freeInput.Quantity > 0)
+                            {
+                                if (!ReturnQuantityHelper.TryNormalize(freeInput.Quantity, freeInput.ReturnUnitMode, freeConversion, out selectedFreeReturnQty, out _, out string? freeNormError))
+                                {
+                                    return OperationResult<ClawbackPreviewDto>.Fail($"Free promotional item '{freeItem.Product?.ProductName ?? "Free Item"}': {freeNormError}");
+                                }
+                            }
 
                             // Strict server validation (No silent clamping)
                             if (selectedFreeReturnQty > maxReturnableFreeQty + 0.0001m)
@@ -345,7 +375,7 @@ namespace InventorySystem.Services.Implementations
                                 QualifyingInvoiceItemId = buyItem?.InvoiceItemID ?? 0,
                                 QualifyingProductName = buyItem?.Product?.ProductName ?? "Qualifying Product",
                                 FreeInvoiceItemId = freeItem.InvoiceItemID,
-                                FreeProductId = freeItem.ProductID,
+                                FreeProductId = freeItem.ProductID ?? 0,
                                 FreeProductName = freeItem.Product?.ProductName ?? "Free Item",
                                 OriginalFreeQuantity = freeItem.Quantity,
                                 PreviouslyReturnedFreeQuantity = freePriorReturnedDisplayQty,
@@ -371,19 +401,229 @@ namespace InventorySystem.Services.Implementations
                 }
             }
 
-            decimal netRefund = Math.Max(0m, grossReturnedValue - clawbackPenalty - promoPenalty);
+            // Net financial effect for NORMAL remaining-state + FREE refunds − promo penalty.
+            // Positive → customer credit; negative → additional amount due (do NOT floor at 0).
+            decimal itemDiscountReleased = includeSchemeCalculation ? nextState.ItemDiscountReleasedThisReturn : 0m;
+            if (!includeSchemeCalculation)
+            {
+                clawbackPenalty = 0m;
+            }
+
+            decimal freeRefundPortion = Math.Max(0m, grossReturnedValue - normalGrossReturnedValue);
+            decimal netRefund;
+            if (!includeSchemeCalculation)
+            {
+                // Override: refund full historical UnitPrice gross only (no discount/promo adjustments).
+                netRefund = grossReturnedValue;
+                itemDiscountReleased = 0m;
+            }
+            else
+            {
+                netRefund = Math.Round(
+                    previousState.RemainingNet - nextState.RemainingNet + freeRefundPortion - promoPenalty,
+                    2,
+                    MidpointRounding.AwayFromZero);
+            }
 
             var preview = new ClawbackPreviewDto
             {
                 GrossReturnedValue = grossReturnedValue,
+                ItemDiscountReleased = itemDiscountReleased,
                 DiscountClawback = clawbackPenalty,
                 PromoPenalty = promoPenalty,
                 NetRefundAmount = netRefund,
+                PreviousRemainingSubtotal = previousState.RemainingSubtotal,
+                PreviousRemainingDiscount = previousState.RemainingDiscount,
+                PreviousRemainingNet = previousState.RemainingNet,
+                NextRemainingSubtotal = nextState.RemainingSubtotal,
+                NextRemainingDiscount = nextState.RemainingDiscount,
+                NextRemainingNet = nextState.RemainingNet,
                 Breakdown = breakdown,
-                FreePromotions = freePromotions
+                FreePromotions = freePromotions,
+                ItemDiscountReleasedByInvoiceItemId = nextState.ItemDiscountReleasedByInvoiceItemId
             };
 
             return OperationResult<ClawbackPreviewDto>.Ok(preview);
+        }
+
+        private sealed class RemainingDiscountState
+        {
+            public decimal RemainingSubtotal { get; init; }
+            public decimal RemainingDiscount { get; init; }
+            public decimal RemainingNet => Math.Max(0m, RemainingSubtotal - RemainingDiscount);
+            public decimal ItemDiscountReleasedThisReturn { get; init; }
+            public Dictionary<int, decimal> ItemDiscountReleasedByInvoiceItemId { get; init; } = new Dictionary<int, decimal>();
+        }
+
+        /// <summary>
+        /// Computes remaining NORMAL-item subtotal/discount/net from historical invoice snapshots
+        /// and cumulative returns. Uses SalesInvoiceItem.UnitPrice only — never live product prices.
+        /// Uses InvoiceDiscounts snapshot for Automatic threshold — never live DiscountRules.
+        /// </summary>
+        private static RemainingDiscountState ComputeRemainingDiscountState(
+            SalesInvoice invoice,
+            List<SalesReturnItem> priorReturnItems,
+            List<ReturnItemInput>? additionalReturnItems)
+        {
+            var invoiceItems = (invoice.Items ?? new List<SalesInvoiceItem>())
+                .Where(i => !i.IsDeleted)
+                .ToList();
+
+            var priorByItem = priorReturnItems
+                .Where(i => i.InvoiceItemID.HasValue)
+                .GroupBy(i => i.InvoiceItemID!.Value)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (
+                        Qty: g.Sum(x => x.Quantity),
+                        DiscountReleased: g.Sum(x => x.DiscountAmount)
+                    ));
+
+            var additionalQtyByItem = new Dictionary<int, decimal>();
+            if (additionalReturnItems != null)
+            {
+                foreach (var input in additionalReturnItems.Where(i => i.Quantity > 0))
+                {
+                    var invoiceItem = invoiceItems.FirstOrDefault(i => i.InvoiceItemID == input.InvoiceItemID);
+                    if (invoiceItem == null || string.Equals(invoiceItem.ItemType, "FREE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    decimal conversionFactor = invoiceItem.ProductUnit?.ConversionToBaseUnit > 0 ? invoiceItem.ProductUnit.ConversionToBaseUnit : 1m;
+                    if (!ReturnQuantityHelper.TryNormalize(input.Quantity, input.ReturnUnitMode, conversionFactor, out decimal packagingQty, out _, out _))
+                    {
+                        continue;
+                    }
+
+                    if (!additionalQtyByItem.ContainsKey(invoiceItem.InvoiceItemID))
+                    {
+                        additionalQtyByItem[invoiceItem.InvoiceItemID] = 0m;
+                    }
+                    additionalQtyByItem[invoiceItem.InvoiceItemID] += packagingQty;
+                }
+            }
+
+            decimal remainingSubtotal = 0m;
+            decimal remainingLineDiscountSum = 0m;
+            decimal itemDiscountReleasedThisReturn = 0m;
+            var releasedByItem = new Dictionary<int, decimal>();
+
+            var snapshot = invoice.InvoiceDiscounts?.OrderBy(d => d.InvoiceDiscountID).FirstOrDefault();
+            bool isPercentage = snapshot != null
+                && string.Equals(snapshot.DiscountType, "Percentage", StringComparison.OrdinalIgnoreCase);
+            decimal snapshotRate = snapshot?.DiscountValue ?? 0m;
+            string discountMode = invoice.DiscountMode ?? "None";
+            if (string.IsNullOrWhiteSpace(discountMode) || string.Equals(discountMode, "None", StringComparison.OrdinalIgnoreCase))
+            {
+                if (snapshot != null && snapshot.DiscountAmount > 0)
+                {
+                    discountMode = string.Equals(snapshot.DiscountSource, "Manual", StringComparison.OrdinalIgnoreCase)
+                        ? "Manual"
+                        : "Automatic";
+                }
+            }
+
+            foreach (var item in invoiceItems)
+            {
+                if (string.Equals(item.ItemType, "FREE", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // Historical selling price snapshot — NEVER ProductUnit.SellingPrice / BaseSellingPrice
+                decimal unitPrice = item.UnitPrice;
+                decimal originalQty = item.Quantity;
+                decimal priorQty = priorByItem.TryGetValue(item.InvoiceItemID, out var prior) ? prior.Qty : 0m;
+                decimal priorDiscReleased = priorByItem.TryGetValue(item.InvoiceItemID, out var priorD) ? priorD.DiscountReleased : 0m;
+                decimal addQty = additionalQtyByItem.TryGetValue(item.InvoiceItemID, out var aq) ? aq : 0m;
+
+                decimal remainingQty = Math.Max(0m, originalQty - priorQty - addQty);
+                remainingSubtotal += Math.Round(remainingQty * unitPrice, 2, MidpointRounding.AwayFromZero);
+
+                decimal originalLineDiscount = item.DiscountAmount;
+                // Legacy fallback: if item discount was never allocated but snapshot is %, use rate × line gross
+                if (originalLineDiscount <= 0m && isPercentage && snapshotRate > 0m)
+                {
+                    originalLineDiscount = Math.Round(originalQty * unitPrice * (snapshotRate / 100m), 2, MidpointRounding.AwayFromZero);
+                }
+
+                decimal remainingLineDiscountBeforeAdd = Math.Max(0m, originalLineDiscount - priorDiscReleased);
+                decimal releasedNow = 0m;
+                if (addQty > 0m && originalQty > 0m)
+                {
+                    decimal remainingQtyBeforeAdd = Math.Max(0m, originalQty - priorQty);
+                    if (addQty + 0.0001m >= remainingQtyBeforeAdd)
+                    {
+                        releasedNow = remainingLineDiscountBeforeAdd;
+                    }
+                    else if (originalLineDiscount > 0m)
+                    {
+                        releasedNow = Math.Round(originalLineDiscount * (addQty / originalQty), 2, MidpointRounding.AwayFromZero);
+                        releasedNow = Math.Min(releasedNow, remainingLineDiscountBeforeAdd);
+                    }
+                }
+
+                releasedByItem[item.InvoiceItemID] = releasedNow;
+                itemDiscountReleasedThisReturn += releasedNow;
+                remainingLineDiscountSum += Math.Max(0m, remainingLineDiscountBeforeAdd - releasedNow);
+            }
+
+            itemDiscountReleasedThisReturn = Math.Round(itemDiscountReleasedThisReturn, 2, MidpointRounding.AwayFromZero);
+            remainingSubtotal = Math.Round(remainingSubtotal, 2, MidpointRounding.AwayFromZero);
+            remainingLineDiscountSum = Math.Round(remainingLineDiscountSum, 2, MidpointRounding.AwayFromZero);
+
+            decimal remainingDiscount = 0m;
+            if (string.Equals(discountMode, "Automatic", StringComparison.OrdinalIgnoreCase) && snapshot != null)
+            {
+                decimal? minAmount = snapshot.MinimumOrderAmount;
+                decimal? maxAmount = snapshot.MaximumOrderAmount;
+                bool eligible = remainingSubtotal > 0m;
+                if (minAmount.HasValue)
+                {
+                    eligible = eligible && remainingSubtotal >= minAmount.Value;
+                }
+                if (maxAmount.HasValue)
+                {
+                    eligible = eligible && remainingSubtotal <= maxAmount.Value;
+                }
+
+                if (eligible)
+                {
+                    if (isPercentage && snapshotRate > 0m)
+                    {
+                        remainingDiscount = Math.Round(remainingSubtotal * (snapshotRate / 100m), 2, MidpointRounding.AwayFromZero);
+                    }
+                    else
+                    {
+                        // Fixed automatic: keep remaining allocated line shares
+                        remainingDiscount = remainingLineDiscountSum;
+                    }
+                }
+                else
+                {
+                    remainingDiscount = 0m;
+                }
+            }
+            else if (string.Equals(discountMode, "Manual", StringComparison.OrdinalIgnoreCase))
+            {
+                // No threshold — remaining discount is what remains allocated to remaining quantities
+                remainingDiscount = remainingLineDiscountSum;
+            }
+            else
+            {
+                remainingDiscount = remainingLineDiscountSum;
+            }
+
+            remainingDiscount = Math.Min(remainingDiscount, remainingSubtotal);
+
+            return new RemainingDiscountState
+            {
+                RemainingSubtotal = remainingSubtotal,
+                RemainingDiscount = remainingDiscount,
+                ItemDiscountReleasedThisReturn = itemDiscountReleasedThisReturn,
+                ItemDiscountReleasedByInvoiceItemId = releasedByItem
+            };
         }
 
         public async Task<OperationResult<int>> ProcessSalesReturnAsync(ProcessSalesReturnRequest request, int userId, CancellationToken cancellationToken = default)
@@ -423,7 +663,7 @@ namespace InventorySystem.Services.Implementations
             var now = DateTime.UtcNow;
             string returnNumber = await _returnRepository.GenerateSalesReturnNumberAsync(cancellationToken);
 
-            var validItemsToProcess = new List<(ReturnItemInput Input, SalesInvoiceItem InvoiceItem, decimal ConvertedQty, decimal RefundUnitPrice, decimal LineRefund, decimal PromoPenaltyQty, decimal PromoPenaltyAmt)>();
+            var validItemsToProcess = new List<(ReturnItemInput Input, SalesInvoiceItem InvoiceItem, decimal ConvertedQty, decimal RefundUnitPrice, decimal LineRefund, decimal PromoPenaltyQty, decimal PromoPenaltyAmt, decimal DiscountReleased)>();
 
             foreach (var itemInput in request.Items.Where(i => i.Quantity > 0))
             {
@@ -435,21 +675,39 @@ namespace InventorySystem.Services.Implementations
 
                 bool isFree = string.Equals(invoiceItem.ItemType, "FREE", StringComparison.OrdinalIgnoreCase);
                 decimal conversionFactor = invoiceItem.ProductUnit?.ConversionToBaseUnit > 0 ? invoiceItem.ProductUnit.ConversionToBaseUnit : 1m;
-                decimal requestedConverted = UnitConversionHelper.ToBaseUnits(itemInput.Quantity, conversionFactor);
+                if (!ReturnQuantityHelper.TryNormalize(itemInput.Quantity, itemInput.ReturnUnitMode, conversionFactor, out decimal packagingQty, out decimal requestedConverted, out string? normalizeError))
+                {
+                    return OperationResult<int>.Fail($"Product '{invoiceItem.Product?.ProductName ?? "Unknown"}': {normalizeError}");
+                }
 
+                // Persist normalized packaging quantity for refund/storage convention
+                itemInput.Quantity = packagingQty;
+
+                bool isCustomFree = isFree && !string.IsNullOrWhiteSpace(invoiceItem.CustomItemName);
                 var freeDto = preview.FreePromotions?.FirstOrDefault(f => f.FreeInvoiceItemId == invoiceItem.InvoiceItemID);
-                decimal freeItemPrice = invoiceItem.UnitPrice > 0 ? invoiceItem.UnitPrice : (invoiceItem.Product != null && invoiceItem.Product.BaseSellingPrice > 0 ? invoiceItem.Product.BaseSellingPrice : 0m);
+                decimal freeItemPrice = isCustomFree
+                    ? 0m
+                    : (invoiceItem.UnitPrice > 0 ? invoiceItem.UnitPrice : (invoiceItem.Product != null && invoiceItem.Product.BaseSellingPrice > 0 ? invoiceItem.Product.BaseSellingPrice : 0m));
 
                 decimal unreturnedChargedFreeQty = freeDto?.UnreturnedChargedFreeQuantity ?? 0m;
-                decimal chargedReturnedQty = isFree ? Math.Min(itemInput.Quantity, unreturnedChargedFreeQty) : 0m;
+                decimal chargedReturnedQty = isFree ? Math.Min(packagingQty, unreturnedChargedFreeQty) : 0m;
 
                 decimal refundUnitPrice = isFree ? freeItemPrice : invoiceItem.UnitPrice;
-                decimal lineRefund = isFree ? Math.Round(chargedReturnedQty * freeItemPrice, 2) : Math.Round(itemInput.Quantity * refundUnitPrice, 2);
+                // NORMAL: historical SalesInvoiceItem.UnitPrice only — never live master price.
+                decimal lineRefund = isCustomFree
+                    ? 0m
+                    : (isFree ? Math.Round(chargedReturnedQty * freeItemPrice, 2) : Math.Round(packagingQty * refundUnitPrice, 2));
 
-                decimal promoPenaltyQty = freeDto?.NewPenaltyChargedQuantity ?? 0m;
-                decimal promoPenaltyAmt = freeDto?.RetainedValue ?? 0m;
+                decimal promoPenaltyQty = isCustomFree ? 0m : (freeDto?.NewPenaltyChargedQuantity ?? 0m);
+                decimal promoPenaltyAmt = isCustomFree ? 0m : (freeDto?.RetainedValue ?? 0m);
+                decimal discountReleased = 0m;
+                if (!isFree && preview.ItemDiscountReleasedByInvoiceItemId != null
+                    && preview.ItemDiscountReleasedByInvoiceItemId.TryGetValue(invoiceItem.InvoiceItemID, out var released))
+                {
+                    discountReleased = released;
+                }
 
-                validItemsToProcess.Add((itemInput, invoiceItem, requestedConverted, refundUnitPrice, lineRefund, promoPenaltyQty, promoPenaltyAmt));
+                validItemsToProcess.Add((itemInput, invoiceItem, requestedConverted, refundUnitPrice, lineRefund, promoPenaltyQty, promoPenaltyAmt, discountReleased));
             }
 
             string settlementMethod = string.Equals(request.SettlementMethod, "CASH", StringComparison.OrdinalIgnoreCase) ? "CASH" : "ACCOUNT_ADJUSTMENT";
@@ -494,6 +752,7 @@ namespace InventorySystem.Services.Implementations
                         ConvertedQuantity = tuple.ConvertedQty,
                         RefundUnitPrice = tuple.RefundUnitPrice,
                         RefundAmount = tuple.LineRefund,
+                        DiscountAmount = tuple.DiscountReleased,
                         PromoPenaltyQuantity = tuple.PromoPenaltyQty,
                         PromoPenaltyAmount = tuple.PromoPenaltyAmt,
                         Reason = tuple.Input.Reason,
@@ -502,31 +761,43 @@ namespace InventorySystem.Services.Implementations
                     await _context.SalesReturnItems.AddAsync(returnItem, cancellationToken);
                     await _context.SaveChangesAsync(cancellationToken); // Generates SalesReturnItemID
 
-                    // Stock Restocking for returned item (paid or free)
-                    var stock = await _returnRepository.GetInventoryStockTrackedAsync(tuple.InvoiceItem.ProductID, invoice.WarehouseID, cancellationToken);
+                    // Custom FREE gifts are non-inventory — no stock restock / transaction
+                    if (!tuple.InvoiceItem.ProductID.HasValue)
+                    {
+                        continue;
+                    }
+
+                    // Stock Restocking for returned item (paid or free product).
+                    // Sellable -> Quantity; Damaged -> DamagedQuantity (never sellable).
+                    bool isDamaged = IsDamagedReturnCondition(returnItem.ReturnCondition);
+                    var stock = await _returnRepository.GetInventoryStockTrackedAsync(tuple.InvoiceItem.ProductID.Value, invoice.WarehouseID, cancellationToken);
                     if (stock == null)
                     {
                         stock = new InventoryStock
                         {
-                            ProductID = tuple.InvoiceItem.ProductID,
+                            ProductID = tuple.InvoiceItem.ProductID.Value,
                             WarehouseID = invoice.WarehouseID,
-                            Quantity = tuple.ConvertedQty,
+                            Quantity = isDamaged ? 0m : tuple.ConvertedQty,
+                            DamagedQuantity = isDamaged ? tuple.ConvertedQty : 0m,
                             UpdatedAt = now
                         };
                         await _returnRepository.AddInventoryStockAsync(stock, cancellationToken);
                     }
                     else
                     {
-                        stock.Quantity += tuple.ConvertedQty;
+                        if (isDamaged)
+                            stock.DamagedQuantity += tuple.ConvertedQty;
+                        else
+                            stock.Quantity += tuple.ConvertedQty;
                         stock.UpdatedAt = now;
                     }
 
                     // InventoryTransaction Log
                     var invTx = new InventoryTransaction
                     {
-                        ProductID = tuple.InvoiceItem.ProductID,
+                        ProductID = tuple.InvoiceItem.ProductID.Value,
                         WarehouseID = invoice.WarehouseID,
-                        TransactionType = "RETURN",
+                        TransactionType = isDamaged ? "RETURN_DAMAGED" : "RETURN",
                         Quantity = tuple.ConvertedQty,
                         ReferenceNumber = returnNumber,
                         SalesReturnItemID = returnItem.SalesReturnItemID,
@@ -571,7 +842,8 @@ namespace InventorySystem.Services.Implementations
                     await _context.SaveChangesAsync(cancellationToken);
                 }
 
-                // 3. Customer Ledger Entry (Created for all returns with NetRefundAmount > 0 regardless of SettlementMethod)
+                // 3. Customer Ledger — CREDIT for refund; DEBIT/ADJUSTMENT when additional amount due.
+                // Do not mutate SalesInvoice SubTotal / DiscountTotal / GrandTotal.
                 if (preview.NetRefundAmount > 0)
                 {
                     var customerLedger = new CustomerLedger
@@ -584,6 +856,24 @@ namespace InventorySystem.Services.Implementations
                         SalesInvoiceID = invoice.InvoiceID,
                         SalesReturnID = salesReturn.SalesReturnID,
                         Description = $"Sales Return #{returnNumber} against Sales Invoice #{invoice.InvoiceNumber}",
+                        CreatedBy = userId,
+                        CreatedAt = now
+                    };
+                    await _returnRepository.AddCustomerLedgerAsync(customerLedger, cancellationToken);
+                }
+                else if (preview.NetRefundAmount < 0)
+                {
+                    decimal additionalDue = Math.Abs(preview.NetRefundAmount);
+                    var customerLedger = new CustomerLedger
+                    {
+                        CustomerID = invoice.CustomerID,
+                        TransactionDate = request.ReturnDate,
+                        TransactionType = "ADJUSTMENT",
+                        DebitAmount = additionalDue,
+                        CreditAmount = 0,
+                        SalesInvoiceID = invoice.InvoiceID,
+                        SalesReturnID = salesReturn.SalesReturnID,
+                        Description = $"Sales Return #{returnNumber} discount adjustment (additional amount due) against Sales Invoice #{invoice.InvoiceNumber}",
                         CreatedBy = userId,
                         CreatedAt = now
                     };
@@ -727,7 +1017,8 @@ namespace InventorySystem.Services.Implementations
                     await _context.SalesReturnItems.AddAsync(returnItem, cancellationToken);
                     await _context.SaveChangesAsync(cancellationToken);
 
-                    // Stock Restocking
+                    // Stock Restocking: Sellable -> Quantity; Damaged -> DamagedQuantity (never sellable).
+                    bool isDamaged = IsDamagedReturnCondition(returnItem.ReturnCondition);
                     var stock = await _returnRepository.GetInventoryStockTrackedAsync(tuple.Product.ProductID, request.WarehouseID, cancellationToken);
                     if (stock == null)
                     {
@@ -735,14 +1026,18 @@ namespace InventorySystem.Services.Implementations
                         {
                             ProductID = tuple.Product.ProductID,
                             WarehouseID = request.WarehouseID,
-                            Quantity = tuple.ConvertedQty,
+                            Quantity = isDamaged ? 0m : tuple.ConvertedQty,
+                            DamagedQuantity = isDamaged ? tuple.ConvertedQty : 0m,
                             UpdatedAt = now
                         };
                         await _returnRepository.AddInventoryStockAsync(stock, cancellationToken);
                     }
                     else
                     {
-                        stock.Quantity += tuple.ConvertedQty;
+                        if (isDamaged)
+                            stock.DamagedQuantity += tuple.ConvertedQty;
+                        else
+                            stock.Quantity += tuple.ConvertedQty;
                         stock.UpdatedAt = now;
                     }
 
@@ -751,7 +1046,7 @@ namespace InventorySystem.Services.Implementations
                     {
                         ProductID = tuple.Product.ProductID,
                         WarehouseID = request.WarehouseID,
-                        TransactionType = "RETURN",
+                        TransactionType = isDamaged ? "RETURN_DAMAGED" : "RETURN",
                         Quantity = tuple.ConvertedQty,
                         ReferenceNumber = returnNumber,
                         SalesReturnItemID = returnItem.SalesReturnItemID,
@@ -1036,6 +1331,15 @@ namespace InventorySystem.Services.Implementations
         public async Task<PurchaseReturnDetailsDto?> GetPurchaseReturnDetailsAsync(int purchaseReturnId, CancellationToken cancellationToken = default)
         {
             return await _returnRepository.GetPurchaseReturnDetailsAsync(purchaseReturnId, cancellationToken);
+        }
+
+        /// <summary>
+        /// Damaged returns restock DamagedQuantity only. Null/blank/unknown conditions default to Sellable.
+        /// </summary>
+        private static bool IsDamagedReturnCondition(string? returnCondition)
+        {
+            return !string.IsNullOrWhiteSpace(returnCondition)
+                && string.Equals(returnCondition.Trim(), "Damaged", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

@@ -1,0 +1,113 @@
+@model InventorySystem.ViewModels.Discounts.DiscountDetailsViewModel
+
+@{
+    ViewData["Title"] = "Discount Rule Details";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">Discount Rule Details</h1>
+            <p class="text-muted small mb-0">View rule configuration and eligibility criteria.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Edit" asp-route-id="@Model.DiscountRuleID" class="btn btn-primary shadow-sm">
+                <i class="bi bi-pencil me-1"></i> Edit Discount Rule
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-7">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-percent me-2"></i> Discount Rule Information</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-secondary">Rule ID:</dt>
+                        <dd class="col-sm-8 fw-bold">#@Model.DiscountRuleID</dd>
+
+                        <dt class="col-sm-4 text-secondary">Rule Name:</dt>
+                        <dd class="col-sm-8 text-dark fw-semibold">@Model.RuleName</dd>
+
+                        <dt class="col-sm-4 text-secondary">Priority:</dt>
+                        <dd class="col-sm-8"><span class="badge bg-secondary rounded-pill">#@Model.Priority</span></dd>
+
+                        <dt class="col-sm-4 text-secondary">Minimum Order:</dt>
+                        <dd class="col-sm-8 text-primary fw-bold">PKR @Model.MinimumOrderAmount.ToString("N2")</dd>
+
+                        <dt class="col-sm-4 text-secondary">Maximum Order:</dt>
+                        <dd class="col-sm-8">@(Model.MaximumOrderAmount.HasValue ? $"PKR {Model.MaximumOrderAmount.Value:N2}" : "No Maximum Limit")</dd>
+
+                        <dt class="col-sm-4 text-secondary">Discount Type:</dt>
+                        <dd class="col-sm-8">@Model.DiscountType</dd>
+
+                        <dt class="col-sm-4 text-secondary">Discount Value:</dt>
+                        <dd class="col-sm-8">
+                            @if (string.Equals(Model.DiscountType, "Percentage", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <span class="badge bg-info text-dark font-monospace fs-6">@Model.DiscountValue% Off</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success font-monospace fs-6">PKR @Model.DiscountValue.ToString("N2") Off</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-4 text-secondary">Start Date:</dt>
+                        <dd class="col-sm-8">@(Model.StartDate.HasValue ? Model.StartDate.Value.ToString("dd MMMM yyyy") : "Any Start Date")</dd>
+
+                        <dt class="col-sm-4 text-secondary">End Date:</dt>
+                        <dd class="col-sm-8">@(Model.EndDate.HasValue ? Model.EndDate.Value.ToString("dd MMMM yyyy") : "No Expiry Date")</dd>
+
+                        <dt class="col-sm-4 text-secondary">Status:</dt>
+                        <dd class="col-sm-8">
+                            @if (Model.IsActive)
+                            {
+                                var now = DateTime.UtcNow;
+                                bool isValid = (!Model.StartDate.HasValue || Model.StartDate <= now) && (!Model.EndDate.HasValue || Model.EndDate >= now);
+                                if (isValid)
+                                {
+                                    <span class="badge bg-success shadow-sm"><i class="bi bi-check-circle me-1"></i> Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i> Scheduled / Expired</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary"><i class="bi bi-pause-circle me-1"></i> Disabled</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-4 text-secondary">Created By:</dt>
+                        <dd class="col-sm-8">@Model.CreatedByName</dd>
+
+                        <dt class="col-sm-4 text-secondary">Created At:</dt>
+                        <dd class="col-sm-8">@Model.CreatedAt.ToString("dd MMMM yyyy HH:mm")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-info-circle me-2"></i> Application Behavior</h5>
+                </div>
+                <div class="card-body p-4 text-muted">
+                    <h6><i class="bi bi-lightbulb text-warning me-2"></i> Seller Control & Suggestions</h6>
+                    <p class="small">Discount rules are evaluated against cart subtotals during Sales Invoice creation. Eligible discounts are suggested to the salesperson, who explicitly decides whether to apply them to the order (BR-030).</p>
+
+                    <h6 class="mt-4"><i class="bi bi-shield-lock text-success me-2"></i> Historical Protection</h6>
+                    <p class="small">Applied discounts save an immutable snapshot into <code>InvoiceDiscounts</code>. Future changes to rule percentages or deletion of discount rules will never modify previously finalized invoices (BR-031).</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

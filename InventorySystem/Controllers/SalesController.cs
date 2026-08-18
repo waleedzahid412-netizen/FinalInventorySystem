@@ -73,9 +73,11 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> CreateQuick(CancellationToken cancellationToken)
         {
+            int userId = GetCurrentUserId();
             var viewModel = new CreateSalesViewModel
             {
-                InvoiceDate = DateTime.Today
+                InvoiceDate = DateTime.Today,
+                SalespersonID = userId
             };
 
             await PopulateDropdownsAsync(viewModel, cancellationToken);
@@ -86,9 +88,11 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
+            int userId = GetCurrentUserId();
             var viewModel = new CreateSalesViewModel
             {
-                InvoiceDate = DateTime.Today
+                InvoiceDate = DateTime.Today,
+                SalespersonID = userId
             };
 
             await PopulateDropdownsAsync(viewModel, cancellationToken);
@@ -198,13 +202,6 @@ namespace InventorySystem.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetProductsByCompany(int companyId, CancellationToken cancellationToken)
-        {
-            var products = await _lookupService.GetProductsByCompanyAsync(companyId, cancellationToken);
-            return Json(products);
-        }
-
-        [HttpGet]
         public async Task<IActionResult> GetProductsByWarehouse(int warehouseId, CancellationToken cancellationToken)
         {
             var products = await _context.Products
@@ -309,16 +306,17 @@ namespace InventorySystem.Controllers
                 return NotFound();
             }
 
-            var deliveryPersons = await _lookupService.GetDeliveryPersonsAsync(cancellationToken);
             var initialItems = details.Items.Select(i => new CreateSalesItemDto
             {
-                ProductID = i.ProductID,
-                ProductUnitID = i.ProductUnitID,
+                ProductID = i.ProductID ?? 0,
+                ProductUnitID = i.ProductUnitID ?? 0,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,
                 DiscountAmount = i.DiscountAmount,
                 ItemType = i.ItemType,
-                PromotionID = i.PromotionID
+                PromotionID = i.PromotionID,
+                IsCustomFreeItem = !string.IsNullOrWhiteSpace(i.CustomItemName),
+                CustomFreeItemName = i.CustomItemName
             }).ToList();
 
             var vm = new EditSalesViewModel
@@ -327,15 +325,19 @@ namespace InventorySystem.Controllers
                 InvoiceNumber = details.Header.InvoiceNumber,
                 CustomerID = details.Header.CustomerID,
                 CustomerName = details.Header.CustomerName,
+                BrokerID = details.Header.BrokerID ?? 0,
+                SalespersonID = details.Header.SalespersonID ?? 0,
                 WarehouseID = details.Header.WarehouseID,
                 WarehouseName = details.Header.WarehouseName,
                 DeliveryPersonID = details.Header.DeliveryPersonID,
                 InvoiceDate = details.Header.InvoiceDate,
                 AppliedDiscountRuleID = details.Header.AppliedDiscountRuleID,
-                ItemsJson = JsonSerializer.Serialize(initialItems),
-                DeliveryPersons = new SelectList(deliveryPersons, "Id", "Name", details.Header.DeliveryPersonID)
+                DiscountMode = string.IsNullOrWhiteSpace(details.Header.DiscountMode) ? "None" : details.Header.DiscountMode,
+                ApplyPromotions = initialItems.Any(i => string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase)),
+                ItemsJson = JsonSerializer.Serialize(initialItems)
             };
 
+            await PopulateEditDropdownsAsync(vm, cancellationToken);
             return View(vm);
         }
 
@@ -365,18 +367,23 @@ namespace InventorySystem.Controllers
 
             if (!ModelState.IsValid)
             {
-                var deliveryPersons = await _lookupService.GetDeliveryPersonsAsync(cancellationToken);
-                model.DeliveryPersons = new SelectList(deliveryPersons, "Id", "Name", model.DeliveryPersonID);
+                await PopulateEditDropdownsAsync(model, cancellationToken);
                 return View(model);
             }
 
             var updateDto = new UpdateSalesInvoiceDto
             {
                 InvoiceID = model.InvoiceID,
+                BrokerID = model.BrokerID,
+                SalespersonID = model.SalespersonID,
                 InvoiceDate = model.InvoiceDate,
                 DeliveryPersonID = model.DeliveryPersonID,
                 Remarks = model.Remarks,
                 AppliedDiscountRuleID = model.AppliedDiscountRuleID,
+                DiscountMode = model.DiscountMode,
+                ManualDiscountType = model.ManualDiscountType,
+                ManualDiscountValue = model.ManualDiscountValue,
+                ApplyPromotions = model.ApplyPromotions,
                 EditReason = model.EditReason,
                 Items = items
             };
@@ -387,8 +394,7 @@ namespace InventorySystem.Controllers
             if (!result.Success)
             {
                 ModelState.AddModelError(string.Empty, result.Message);
-                var deliveryPersons = await _lookupService.GetDeliveryPersonsAsync(cancellationToken);
-                model.DeliveryPersons = new SelectList(deliveryPersons, "Id", "Name", model.DeliveryPersonID);
+                await PopulateEditDropdownsAsync(model, cancellationToken);
                 return View(model);
             }
 
@@ -399,9 +405,13 @@ namespace InventorySystem.Controllers
         private async Task PopulateDropdownsAsync(CreateSalesViewModel model, CancellationToken cancellationToken)
         {
             var customers = await _lookupService.GetCustomersAsync(cancellationToken);
+            var brokers = await _lookupService.GetBrokersAsync(cancellationToken);
+            var salespersons = await _lookupService.GetSalespersonsAsync(cancellationToken);
             var warehouses = await _lookupService.GetWarehousesAsync(cancellationToken);
             var deliveryPersons = await _lookupService.GetDeliveryPersonsAsync(cancellationToken);
-            var products = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(_context.Products
+
+            // A single invoice may sell products from any number of suppliers, so the picker is never supplier-scoped.
+            var products = await _context.Products
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted && p.IsActive)
                 .OrderBy(p => p.ProductName)
@@ -409,12 +419,26 @@ namespace InventorySystem.Controllers
                 {
                     Value = p.ProductID.ToString(),
                     Text = string.IsNullOrWhiteSpace(p.SKU) ? p.ProductName : $"{p.ProductName} ({p.SKU})"
-                }), cancellationToken);
+                })
+                .ToListAsync(cancellationToken);
 
             model.Customers = new SelectList(customers, "Id", "Name", model.CustomerID);
+            model.Brokers = new SelectList(brokers, "Id", "Name", model.BrokerID);
+            model.Salespersons = new SelectList(salespersons, "Id", "Name", model.SalespersonID);
             model.Warehouses = new SelectList(warehouses, "Id", "Name", model.WarehouseID);
             model.DeliveryPersons = new SelectList(deliveryPersons, "Id", "Name", model.DeliveryPersonID);
             model.Products = products;
+        }
+
+        private async Task PopulateEditDropdownsAsync(EditSalesViewModel model, CancellationToken cancellationToken)
+        {
+            var brokers = await _lookupService.GetBrokersAsync(cancellationToken);
+            var salespersons = await _lookupService.GetSalespersonsAsync(cancellationToken);
+            var deliveryPersons = await _lookupService.GetDeliveryPersonsAsync(cancellationToken);
+
+            model.Brokers = new SelectList(brokers, "Id", "Name", model.BrokerID);
+            model.Salespersons = new SelectList(salespersons, "Id", "Name", model.SalespersonID);
+            model.DeliveryPersons = new SelectList(deliveryPersons, "Id", "Name", model.DeliveryPersonID);
         }
 
         private int GetCurrentUserId()

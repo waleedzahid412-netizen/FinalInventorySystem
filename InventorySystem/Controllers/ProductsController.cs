@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -37,7 +38,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> Index([FromQuery] ProductFilterDto filter, CancellationToken cancellationToken)
         {
             var pagedProducts = await _productService.GetPagedProductsAsync(filter, cancellationToken);
-            var categories = await _lookupService.GetCategoriesAsync(cancellationToken);
+            var categories = filter.CompanyID.HasValue && filter.CompanyID.Value > 0
+                ? await _lookupService.GetCategoriesAsync(filter.CompanyID, cancellationToken)
+                : await _lookupService.GetCategoriesAsync(null, cancellationToken);
             var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
 
             var viewModel = new ProductListViewModel
@@ -55,7 +58,7 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
-            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(cancellationToken);
+            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(null, cancellationToken);
 
             var viewModel = new CreateProductViewModel
             {
@@ -112,7 +115,7 @@ namespace InventorySystem.Controllers
                 return NotFound();
             }
 
-            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(cancellationToken);
+            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(editDto.CompanyID, cancellationToken);
             var viewModel = editDto.ToViewModel(dropdowns.Categories, dropdowns.Companies, dropdowns.Units);
 
             return View(viewModel);
@@ -208,6 +211,19 @@ namespace InventorySystem.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        // GET: Products/GetCategories
+        [HttpGet]
+        public async Task<IActionResult> GetCategories(int? companyId, CancellationToken cancellationToken)
+        {
+            if (!companyId.HasValue || companyId.Value <= 0)
+            {
+                return Json(new List<object>());
+            }
+
+            var categories = await _lookupService.GetCategoriesAsync(companyId, cancellationToken);
+            return Json(categories);
+        }
+
         // GET: Products/CheckSku
         [HttpGet]
         public async Task<IActionResult> CheckSku([FromQuery] string sku, [FromQuery] int? excludeProductId, CancellationToken cancellationToken)
@@ -226,7 +242,7 @@ namespace InventorySystem.Controllers
 
         private async Task PopulateFormDropdownsAsync(CreateProductViewModel model, CancellationToken cancellationToken)
         {
-            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(cancellationToken);
+            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(model.CompanyID > 0 ? model.CompanyID : null, cancellationToken);
             model.Categories = dropdowns.Categories.ToSelectList(model.CategoryID);
             model.Companies = dropdowns.Companies.ToSelectList(model.CompanyID);
             model.AvailableUnits = dropdowns.Units.ToSelectList(model.BaseUnitID);
@@ -234,7 +250,7 @@ namespace InventorySystem.Controllers
 
         private async Task PopulateFormDropdownsAsync(EditProductViewModel model, CancellationToken cancellationToken)
         {
-            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(cancellationToken);
+            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(model.CompanyID > 0 ? model.CompanyID : null, cancellationToken);
             model.Categories = dropdowns.Categories.ToSelectList(model.CategoryID);
             model.Companies = dropdowns.Companies.ToSelectList(model.CompanyID);
             model.AvailableUnits = dropdowns.Units.ToSelectList(model.BaseUnitID);

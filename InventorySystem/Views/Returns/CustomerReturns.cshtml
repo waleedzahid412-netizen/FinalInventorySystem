@@ -43,7 +43,7 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label small fw-bold">Return Type</label>
-                <select asp-for="Filter.ReturnType" class="form-select form-select-sm">
+                <select asp-for="Filter.ReturnType" class="form-select form-select-sm" data-no-select2>
                     <option value="">-- All Types --</option>
                     <option value="INVOICE">Invoice Return</option>
                     <option value="MANUAL">Manual Return</option>
@@ -51,7 +51,7 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label small fw-bold">Settlement</label>
-                <select asp-for="Filter.SettlementMethod" class="form-select form-select-sm">
+                <select asp-for="Filter.SettlementMethod" class="form-select form-select-sm" data-no-select2>
                     <option value="">-- All Settlements --</option>
                     <option value="ACCOUNT_ADJUSTMENT">Account Credit</option>
                     <option value="CASH">Cash Refund</option>

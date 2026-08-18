@@ -1,0 +1,128 @@
+@model InventorySystem.ViewModels.Discounts.CreateDiscountViewModel
+
+@{
+    ViewData["Title"] = "Create Order Discount Rule";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">Create Order Discount Rule</h1>
+            <p class="text-muted small mb-0">Define an order-level discount rule based on invoice value thresholds.</p>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <form asp-action="Create" method="post">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="All" class="alert alert-danger shadow-sm mb-4" role="alert"></div>
+
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-percent me-2"></i> Discount Rule Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label asp-for="RuleName" class="form-label fw-semibold text-secondary">Rule Name <span class="text-danger">*</span></label>
+                        <input asp-for="RuleName" class="form-control" placeholder="e.g. 5K Order Tier Discount (5% Off)" required />
+                        <span asp-validation-for="RuleName" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="Priority" class="form-label fw-semibold text-secondary">Evaluation Priority <span class="text-danger">*</span></label>
+                        <input asp-for="Priority" type="number" min="1" class="form-control" required />
+                        <span asp-validation-for="Priority" class="text-danger small"></span>
+                        <div class="form-text">Lower number = evaluated first.</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="MinimumOrderAmount" class="form-label fw-semibold text-secondary">Minimum Order Amount (PKR) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">PKR</span>
+                            <input asp-for="MinimumOrderAmount" type="number" step="0.01" min="0" class="form-control" required />
+                        </div>
+                        <span asp-validation-for="MinimumOrderAmount" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="MaximumOrderAmount" class="form-label fw-semibold text-secondary">Maximum Order Amount (PKR) <span class="text-muted">(Optional)</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">PKR</span>
+                            <input asp-for="MaximumOrderAmount" type="number" step="0.01" min="0" class="form-control" placeholder="Leave empty for no limit" />
+                        </div>
+                        <span asp-validation-for="MaximumOrderAmount" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="DiscountType" class="form-label fw-semibold text-secondary">Discount Calculation Type <span class="text-danger">*</span></label>
+                        <select asp-for="DiscountType" class="form-select" required id="selectDiscountType" data-no-select2>
+                            <option value="Percentage">Percentage (% Off Order SubTotal)</option>
+                            <option value="FixedAmount">Fixed Amount (PKR Off Order SubTotal)</option>
+                        </select>
+                        <span asp-validation-for="DiscountType" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="DiscountValue" class="form-label fw-semibold text-secondary">Discount Value <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text" id="discountValueSymbol">%</span>
+                            <input asp-for="DiscountValue" type="number" step="0.01" min="0.01" class="form-control" required />
+                        </div>
+                        <span asp-validation-for="DiscountValue" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="StartDate" class="form-label fw-semibold text-secondary">Effective Start Date <span class="text-muted">(Optional)</span></label>
+                        <input asp-for="StartDate" type="date" class="form-control" />
+                        <span asp-validation-for="StartDate" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="EndDate" class="form-label fw-semibold text-secondary">Effective End Date <span class="text-muted">(Optional)</span></label>
+                        <input asp-for="EndDate" type="date" class="form-control" />
+                        <span asp-validation-for="EndDate" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-12 mt-3">
+                        <div class="form-check form-switch">
+                            <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" id="IsActiveDiscountSwitch" checked />
+                            <label class="form-check-label fw-semibold text-dark" for="IsActiveDiscountSwitch">
+                                Enable Discount Rule Immediately
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+            <a asp-action="Index" class="btn btn-light border px-4">Cancel</a>
+            <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                <i class="bi bi-check-circle me-1"></i> Save Discount Rule
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            function updateSymbol() {
+                let type = $('#selectDiscountType').val();
+                if (type === 'Percentage') {
+                    $('#discountValueSymbol').text('%');
+                } else {
+                    $('#discountValueSymbol').text('PKR');
+                }
+            }
+            $('#selectDiscountType').on('change', updateSymbol);
+            updateSymbol();
+        });
+    </script>
+}

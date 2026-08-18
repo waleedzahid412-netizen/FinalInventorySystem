@@ -22,6 +22,21 @@ namespace InventorySystem.Models.Entities
         public int CustomerID { get; set; }
         public virtual Customer Customer { get; set; } = null!;
 
+        /// <summary>Invoice-level supplier (manufacturer/company).</summary>
+        [ForeignKey("Company")]
+        public int? CompanyID { get; set; }
+        public virtual Company? Company { get; set; }
+
+        /// <summary>External person who brought/placed the order.</summary>
+        [ForeignKey("Broker")]
+        public int? BrokerID { get; set; }
+        public virtual Broker? Broker { get; set; }
+
+        /// <summary>Internal salesperson responsible for the order.</summary>
+        [ForeignKey("SalespersonUser")]
+        public int? SalespersonID { get; set; }
+        public virtual User? SalespersonUser { get; set; }
+
         [ForeignKey("Warehouse")]
         public int WarehouseID { get; set; }
         public virtual Warehouse Warehouse { get; set; } = null!;
@@ -59,6 +74,15 @@ namespace InventorySystem.Models.Entities
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal DiscountTotal { get; set; } = 0;
+
+        /// <summary>
+        /// None = no invoice discount applied.
+        /// Automatic = threshold DiscountRule applied at sale (snapshot in InvoiceDiscounts).
+        /// Manual = seller-entered percentage or fixed amount (no threshold).
+        /// </summary>
+        [Required]
+        [MaxLength(20)]
+        public string DiscountMode { get; set; } = "None";
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal TaxTotal { get; set; } = 0;

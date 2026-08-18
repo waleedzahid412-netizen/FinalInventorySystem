@@ -1,0 +1,121 @@
+@model IEnumerable<InventorySystem.ViewModels.Promotions.PromotionListViewModel>
+
+@{
+    ViewData["Title"] = "Promotion Campaigns";
+}
+
+<div class="container-fluid py-4">
+    <!-- Header & Action Toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">Promotion Campaigns</h1>
+            <p class="text-muted small mb-0">Manage "Buy X Get Y Free" promotional schemes for wholesale products.</p>
+        </div>
+        <div>
+            <a asp-action="Create" class="btn btn-primary shadow-sm">
+                <i class="bi bi-plus-lg me-1"></i> Create Promotion
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Table Card -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-secondary small text-uppercase fw-semibold">
+                        <tr>
+                            <th class="ps-4">ID</th>
+                            <th>Campaign Name</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th class="text-center">Rules</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-end pe-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-tags fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                                    No promotional campaigns defined yet.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in Model)
+                            {
+                                bool isCurrentlyValid = item.IsActive && item.StartDate <= DateTime.UtcNow && item.EndDate >= DateTime.UtcNow;
+                                <tr>
+                                    <td class="ps-4 fw-bold text-muted">#@item.PromotionID</td>
+                                    <td>
+                                        <div class="fw-semibold text-dark">@item.Name</div>
+                                    </td>
+                                    <td>@item.StartDate.ToString("dd MMM yyyy")</td>
+                                    <td>@item.EndDate.ToString("dd MMM yyyy")</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary rounded-pill">@item.RuleCount Rules</span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (item.IsActive)
+                                        {
+                                            if (isCurrentlyValid)
+                                            {
+                                                <span class="badge bg-success shadow-sm"><i class="bi bi-check-circle me-1"></i> Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i> Scheduled / Expired</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary"><i class="bi bi-pause-circle me-1"></i> Disabled</span>
+                                        }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="d-inline-flex gap-2">
+                                            <a asp-action="Details" asp-route-id="@item.PromotionID" class="btn btn-sm btn-outline-info" title="View Details">
+                                                <i class="bi bi-eye"></i> Details
+                                            </a>
+                                            <a asp-action="Edit" asp-route-id="@item.PromotionID" class="btn btn-sm btn-outline-primary" title="Edit Campaign">
+                                                <i class="bi bi-pencil"></i> Edit
+                                            </a>
+                                            <form asp-action="ToggleStatus" asp-route-id="@item.PromotionID" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                @if (item.IsActive)
+                                                {
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Disable Promotion">
+                                                        <i class="bi bi-slash-circle"></i> Disable
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Enable Promotion">
+                                                        <i class="bi bi-check-circle"></i> Enable
+                                                    </button>
+                                                }
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

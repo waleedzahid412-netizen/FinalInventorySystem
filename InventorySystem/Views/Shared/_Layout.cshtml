@@ -1,3 +1,6 @@
+@{
+    bool isAuthenticated = User.Identity != null && User.Identity.IsAuthenticated;
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,218 +9,259 @@
     <title>@ViewData["Title"] - Wholesale ERP (WIMS)</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/InventorySystem.styles.css" asp-append-version="true" />
 </head>
-<body>
+<body class="@(!isAuthenticated ? "bg-light" : "")">
     <div id="app-wrapper">
-        <!-- SIDEBAR NAVIGATION -->
-        <aside id="sidebar">
-            <a class="sidebar-brand" asp-controller="Home" asp-action="Index">
-                <i class="bi bi-box-seam-fill me-2"></i> WIMS ERP
-            </a>
+        @if (isAuthenticated)
+        {
+            <!-- SIDEBAR NAVIGATION -->
+            <aside id="sidebar">
+                <a class="sidebar-brand" asp-controller="Home" asp-action="Index">
+                    <i class="bi bi-box-seam-fill me-2"></i> WIMS ERP
+                </a>
 
-            <div class="sidebar-menu">
-                <div class="sidebar-heading">Core</div>
-                <ul class="sidebar-nav-item">
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Home" asp-action="Index">
-                            <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                </ul>
+                <div class="sidebar-menu">
+                    <div class="sidebar-heading">Core</div>
+                    <ul class="sidebar-nav-item">
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Home" asp-action="Index">
+                                <i class="bi bi-speedometer2"></i> Dashboard
+                            </a>
+                        </li>
+                    </ul>
 
-                <div class="sidebar-heading">Commercial</div>
-                <ul class="sidebar-nav-item">
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Sales" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Sales" asp-action="Index">
-                            <i class="bi bi-receipt"></i> Sales Invoices
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Sales" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : "")" asp-controller="Sales" asp-action="Create">
-                            <i class="bi bi-plus-circle"></i> Create Sale
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Customers" ? "active" : "")" asp-controller="Customers" asp-action="Index">
-                            <i class="bi bi-people"></i> Customers
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "CustomerPayments" ? "active" : "")" asp-controller="Payments" asp-action="CustomerPayments">
-                            <i class="bi bi-wallet2"></i> Customer Payments
-                        </a>
-                    </li>
-                </ul>
+                    <div class="sidebar-heading">Commercial</div>
+                    <ul class="sidebar-nav-item">
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Sales" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Sales" asp-action="Index">
+                                <i class="bi bi-receipt"></i> Sales Invoices
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Sales" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : "")" asp-controller="Sales" asp-action="Create">
+                                <i class="bi bi-plus-circle"></i> Create Sale
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "LoadSheets" ? "active" : "")" asp-controller="LoadSheets" asp-action="Index">
+                                <i class="bi bi-truck"></i> Load Sheet
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Customers" ? "active" : "")" asp-controller="Customers" asp-action="Index">
+                                <i class="bi bi-people"></i> Customers
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "CustomerPayments" ? "active" : "")" asp-controller="Payments" asp-action="CustomerPayments">
+                                <i class="bi bi-wallet2"></i> Customer Payments
+                            </a>
+                        </li>
+                    </ul>
 
-                <div class="sidebar-heading">Purchasing</div>
-                <ul class="sidebar-nav-item">
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Purchases" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Purchases" asp-action="Index">
-                            <i class="bi bi-cart-check"></i> Purchase Invoices
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Purchases" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : "")" asp-controller="Purchases" asp-action="Create">
-                            <i class="bi bi-cart-plus"></i> Create Purchase
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Companies" ? "active" : "")" asp-controller="Companies" asp-action="Index">
-                            <i class="bi bi-building"></i> Companies
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "CompanyPayments" ? "active" : "")" asp-controller="Payments" asp-action="CompanyPayments">
-                            <i class="bi bi-credit-card"></i> Company Payments
-                        </a>
-                    </li>
-                </ul>
+                    <div class="sidebar-heading">Promotions & Discounts</div>
+                    <ul class="sidebar-nav-item">
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Promotions" ? "active" : "")" asp-controller="Promotions" asp-action="Index">
+                                <i class="bi bi-tags"></i> Promotions
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Discounts" ? "active" : "")" asp-controller="Discounts" asp-action="Index">
+                                <i class="bi bi-percent"></i> Discount Rules
+                            </a>
+                        </li>
+                    </ul>
 
-                <div class="sidebar-heading">Inventory</div>
-                <ul class="sidebar-nav-item">
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Products" ? "active" : "")" asp-controller="Products" asp-action="Index">
-                            <i class="bi bi-box"></i> Products Catalog
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link" asp-controller="Products" asp-action="Index">
-                            <i class="bi bi-arrow-left-right"></i> Stock Movements
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link" asp-controller="Products" asp-action="Index">
-                            <i class="bi bi-houses"></i> Warehouses
-                        </a>
-                    </li>
-                </ul>
+                    <div class="sidebar-heading">Purchasing</div>
+                    <ul class="sidebar-nav-item">
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Purchases" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Purchases" asp-action="Index">
+                                <i class="bi bi-cart-check"></i> Purchase Invoices
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Purchases" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : "")" asp-controller="Purchases" asp-action="Create">
+                                <i class="bi bi-cart-plus"></i> Create Purchase
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Companies" ? "active" : "")" asp-controller="Companies" asp-action="Index">
+                                <i class="bi bi-building"></i> Companies
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Brokers" ? "active" : "")" asp-controller="Brokers" asp-action="Index">
+                                <i class="bi bi-person-badge"></i> Brokers
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "CompanyPayments" ? "active" : "")" asp-controller="Payments" asp-action="CompanyPayments">
+                                <i class="bi bi-credit-card"></i> Company Payments
+                            </a>
+                        </li>
+                    </ul>
 
-                <div class="sidebar-heading">Returns Engine</div>
-                <ul class="sidebar-nav-item">
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CustomerReturns" ? "active" : "")" asp-controller="Returns" asp-action="CustomerReturns">
-                            <i class="bi bi-arrow-return-left"></i> Sales Returns
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CreateReturn" ? "active" : "")" asp-controller="Returns" asp-action="CreateReturn">
-                            <i class="bi bi-pencil-square"></i> Create Return
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CompanyReturns" ? "active" : "")" asp-controller="Returns" asp-action="CompanyReturns">
-                            <i class="bi bi-box-arrow-left"></i> Purchase Returns
-                        </a>
-                    </li>
-                </ul>
+                    <div class="sidebar-heading">Inventory</div>
+                    <ul class="sidebar-nav-item">
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Products" ? "active" : "")" asp-controller="Products" asp-action="Index">
+                                <i class="bi bi-box"></i> Products Catalog
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Categories" ? "active" : "")" asp-controller="Categories" asp-action="Index">
+                                <i class="bi bi-tags"></i> Categories
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link" asp-controller="Products" asp-action="Index">
+                                <i class="bi bi-arrow-left-right"></i> Stock Movements
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link" asp-controller="Products" asp-action="Index">
+                                <i class="bi bi-houses"></i> Warehouses
+                            </a>
+                        </li>
+                    </ul>
 
-                <div class="sidebar-heading">Accounting & Finance</div>
-                <ul class="sidebar-nav-item">
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Customers" ? "active" : "")" asp-controller="Customers" asp-action="Index">
-                            <i class="bi bi-journal-bookmark"></i> Customer Ledger
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Companies" ? "active" : "")" asp-controller="Companies" asp-action="Index">
-                            <i class="bi bi-journal-text"></i> Supplier Ledger
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "Cheques" ? "active" : "")" asp-controller="Payments" asp-action="Cheques">
-                            <i class="bi bi-card-heading"></i> Cheque Management
-                        </a>
-                    </li>
-                </ul>
+                    <div class="sidebar-heading">Returns Engine</div>
+                    <ul class="sidebar-nav-item">
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CustomerReturns" ? "active" : "")" asp-controller="Returns" asp-action="CustomerReturns">
+                                <i class="bi bi-arrow-return-left"></i> Sales Returns
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CreateReturn" ? "active" : "")" asp-controller="Returns" asp-action="CreateReturn">
+                                <i class="bi bi-pencil-square"></i> Create Return
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CompanyReturns" ? "active" : "")" asp-controller="Returns" asp-action="CompanyReturns">
+                                <i class="bi bi-box-arrow-left"></i> Purchase Returns
+                            </a>
+                        </li>
+                    </ul>
 
-                <div class="sidebar-heading">Analytics & System</div>
-                <ul class="sidebar-nav-item">
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Analytics" ? "active" : "")" asp-controller="Analytics" asp-action="Index">
-                            <i class="bi bi-graph-up-arrow"></i> Analytics & Insights
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Privacy" ? "active" : "")" asp-controller="Home" asp-action="Privacy">
-                            <i class="bi bi-graph-up"></i> Reports
-                        </a>
-                    </li>
-                    <li>
-                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Privacy" ? "active" : "")" asp-controller="Home" asp-action="Privacy">
-                            <i class="bi bi-gear"></i> Settings
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </aside>
+                    <div class="sidebar-heading">Accounting & Finance</div>
+                    <ul class="sidebar-nav-item">
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Customers" ? "active" : "")" asp-controller="Customers" asp-action="Index">
+                                <i class="bi bi-journal-bookmark"></i> Customer Ledger
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Companies" ? "active" : "")" asp-controller="Companies" asp-action="Index">
+                                <i class="bi bi-journal-text"></i> Supplier Ledger
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "Cheques" ? "active" : "")" asp-controller="Payments" asp-action="Cheques">
+                                <i class="bi bi-card-heading"></i> Cheque Management
+                            </a>
+                        </li>
+                    </ul>
+
+                    <div class="sidebar-heading">Analytics & System</div>
+                    <ul class="sidebar-nav-item">
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Analytics" ? "active" : "")" asp-controller="Analytics" asp-action="Index">
+                                <i class="bi bi-graph-up-arrow"></i> Analytics & Insights
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Privacy" ? "active" : "")" asp-controller="Home" asp-action="Privacy">
+                                <i class="bi bi-graph-up"></i> Reports
+                            </a>
+                        </li>
+                        <li>
+                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Privacy" ? "active" : "")" asp-controller="Home" asp-action="Privacy">
+                                <i class="bi bi-gear"></i> Settings
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </aside>
+        }
 
         <!-- MAIN WORKSPACE CONTENT AREA -->
         <div id="main-content">
-            <!-- TOP BAR HEADER -->
-            <header id="topbar">
-                <div class="d-flex align-items-center gap-3">
-                    <button type="button" id="sidebarToggle" class="btn btn-sm btn-light border d-md-none">
-                        <i class="bi bi-list fs-5"></i>
-                    </button>
-                    <div class="topbar-search position-relative">
-                        <i class="bi bi-search topbar-search-icon"></i>
-                        <input type="text" class="form-control form-control-sm" placeholder="Global ERP Search (Invoice #, Customer, Product)..." />
-                    </div>
-                </div>
-
-                <div class="d-flex align-items-center gap-3">
-                    <!-- QUICK ACTIONS DROPDOWN -->
-                    <div class="dropdown">
-                        <button class="btn btn-sm quick-action-btn dropdown-toggle" type="button" id="quickActionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-plus-lg me-1"></i> Quick Actions
+            @if (isAuthenticated)
+            {
+                <!-- TOP BAR HEADER -->
+                <header id="topbar">
+                    <div class="d-flex align-items-center gap-3">
+                        <button type="button" id="sidebarToggle" class="btn btn-sm btn-light border d-md-none">
+                            <i class="bi bi-list fs-5"></i>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="quickActionsDropdown">
-                            <li><h6 class="dropdown-header text-uppercase small fw-bold">New Operation</h6></li>
-                            <li><a class="dropdown-item py-2" asp-controller="Sales" asp-action="CreateQuick"><i class="bi bi-receipt text-primary me-2"></i> Create Quick Sale</a></li>
-                            <li><a class="dropdown-item py-2" asp-controller="Purchases" asp-action="Create"><i class="bi bi-cart-plus text-success me-2"></i> Create Purchase</a></li>
-                            <li><a class="dropdown-item py-2" asp-controller="Returns" asp-action="CreateReturn"><i class="bi bi-pencil-square text-warning me-2"></i> Create Return</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header text-uppercase small fw-bold">Accounting & Master Data</h6></li>
-                            <li><a class="dropdown-item py-2" asp-controller="Payments" asp-action="CustomerPaymentQuick"><i class="bi bi-wallet2 text-info me-2"></i> Receive Customer Payment</a></li>
-                            <li><a class="dropdown-item py-2" asp-controller="Payments" asp-action="CompanyPaymentQuick"><i class="bi bi-credit-card text-success me-2"></i> Pay Company</a></li>
-                            <li><a class="dropdown-item py-2" asp-controller="Customers" asp-action="Create"><i class="bi bi-person-plus text-secondary me-2"></i> Add Customer</a></li>
-                            <li><a class="dropdown-item py-2" asp-controller="Products" asp-action="Create"><i class="bi bi-box-seam text-dark me-2"></i> Add Product</a></li>
-                        </ul>
+                        <div class="topbar-search position-relative">
+                            <i class="bi bi-search topbar-search-icon"></i>
+                            <input type="text" class="form-control form-control-sm" placeholder="Global ERP Search (Invoice #, Customer, Product)..." />
+                        </div>
                     </div>
 
-                    <!-- USER PROFILE -->
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-light border dropdown-toggle fw-semibold" type="button" id="userMenuDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-person-circle text-primary me-1"></i> Administrator
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="userMenuDropdown">
-                            <li><a class="dropdown-item" asp-controller="Home" asp-action="Privacy"><i class="bi bi-shield-check me-2"></i> System Privacy</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" asp-controller="Auth" asp-action="Login"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
-                        </ul>
+                    <div class="d-flex align-items-center gap-3">
+                        <!-- QUICK ACTIONS DROPDOWN -->
+                        <div class="dropdown">
+                            <button class="btn btn-sm quick-action-btn dropdown-toggle" type="button" id="quickActionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-plus-lg me-1"></i> Quick Actions
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="quickActionsDropdown">
+                                <li><h6 class="dropdown-header text-uppercase small fw-bold">New Operation</h6></li>
+                                <li><a class="dropdown-item py-2" asp-controller="Sales" asp-action="CreateQuick"><i class="bi bi-receipt text-primary me-2"></i> Create Quick Sale</a></li>
+                                <li><a class="dropdown-item py-2" asp-controller="Purchases" asp-action="Create"><i class="bi bi-cart-plus text-success me-2"></i> Create Purchase</a></li>
+                                <li><a class="dropdown-item py-2" asp-controller="Returns" asp-action="CreateReturn"><i class="bi bi-pencil-square text-warning me-2"></i> Create Return</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header text-uppercase small fw-bold">Accounting & Master Data</h6></li>
+                                <li><a class="dropdown-item py-2" asp-controller="Payments" asp-action="CustomerPaymentQuick"><i class="bi bi-wallet2 text-info me-2"></i> Receive Customer Payment</a></li>
+                                <li><a class="dropdown-item py-2" asp-controller="Payments" asp-action="CompanyPaymentQuick"><i class="bi bi-credit-card text-success me-2"></i> Pay Company</a></li>
+                                <li><a class="dropdown-item py-2" asp-controller="Customers" asp-action="Create"><i class="bi bi-person-plus text-secondary me-2"></i> Add Customer</a></li>
+                                <li><a class="dropdown-item py-2" asp-controller="Products" asp-action="Create"><i class="bi bi-box-seam text-dark me-2"></i> Add Product</a></li>
+                            </ul>
+                        </div>
+
+                        <!-- USER PROFILE -->
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-light border dropdown-toggle fw-semibold" type="button" id="userMenuDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person-circle text-primary me-1"></i> Administrator
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="userMenuDropdown">
+                                <li><a class="dropdown-item" asp-controller="Home" asp-action="Privacy"><i class="bi bi-shield-check me-2"></i> System Privacy</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" asp-controller="Auth" asp-action="Logout"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
+                            </ul>
+                        </div>
                     </div>
-                </div>
-            </header>
+                </header>
+            }
 
             <!-- FLUID MAIN WORKSPACE -->
-            <main role="main" class="flex-grow-1 p-3 p-md-4">
-                <div class="container-fluid p-0">
+            <main role="main" class="flex-grow-1 @(isAuthenticated ? "p-3 p-md-4" : "p-0")">
+                <div class="@(isAuthenticated ? "container-fluid p-0" : "w-100")">
                     @RenderBody()
                 </div>
             </main>
 
-            <!-- FOOTER -->
-            <footer class="bg-white border-top py-2 px-4 text-muted small d-flex justify-content-between align-items-center">
-                <div>&copy; 2026 Wholesale Inventory Management System (WIMS)</div>
-                <div><a asp-controller="Home" asp-action="Privacy" class="text-decoration-none text-muted">Privacy Policy</a></div>
-            </footer>
+            @if (isAuthenticated)
+            {
+                <!-- FOOTER -->
+                <footer class="bg-white border-top py-2 px-4 text-muted small d-flex justify-content-between align-items-center">
+                    <div>&copy; 2026 Wholesale Inventory Management System (WIMS)</div>
+                    <div><a asp-controller="Home" asp-action="Privacy" class="text-decoration-none text-muted">Privacy Policy</a></div>
+                </footer>
+            }
         </div>
     </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script>
         $(document).ready(function () {

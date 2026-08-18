@@ -20,12 +20,21 @@ namespace InventorySystem.Models.Entities
         public virtual Warehouse Warehouse { get; set; } = null!;
 
         /// <summary>
-        /// Current physical stock balance in BASE UNITS only.
-        /// Never goes negative (BR-009).
-        /// Updated immediately upon Purchase finalization (BR-006) and Sales finalization (BR-007).
+        /// Sellable on-hand quantity in BASE UNITS only.
+        /// Never goes negative (BR-009). Used by sales availability and deductions.
+        /// Updated immediately upon Purchase finalization (BR-006), Sales finalization (BR-007),
+        /// and Sellable sales returns. Damaged returns must NOT increase this field.
+        /// NOTE: Historical damaged returns before DamagedQuantity may have been added here; no backfill.
         /// </summary>
         [Column(TypeName = "decimal(18,3)")]
         public decimal Quantity { get; set; } = 0;
+
+        /// <summary>
+        /// Damaged / non-sellable on-hand quantity in base units.
+        /// This quantity must never be available for sale.
+        /// </summary>
+        [Column(TypeName = "decimal(18,3)")]
+        public decimal DamagedQuantity { get; set; } = 0;
 
         public bool IsActive { get; set; } = true;
 

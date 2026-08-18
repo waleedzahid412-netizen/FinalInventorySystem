@@ -14,6 +14,7 @@ namespace InventorySystem.Mappings
             return new CreateProductDto
             {
                 ProductName = model.ProductName,
+                Description = model.Description,
                 SKU = model.SKU,
                 Barcode = model.Barcode,
                 CategoryID = model.CategoryID,
@@ -33,6 +34,7 @@ namespace InventorySystem.Mappings
             {
                 ProductID = model.ProductID,
                 ProductName = model.ProductName,
+                Description = model.Description,
                 SKU = model.SKU,
                 Barcode = model.Barcode,
                 CategoryID = model.CategoryID,
@@ -68,6 +70,7 @@ namespace InventorySystem.Mappings
             {
                 ProductID = dto.ProductID,
                 ProductName = dto.ProductName,
+                Description = dto.Description,
                 SKU = dto.SKU,
                 Barcode = dto.Barcode,
                 CategoryID = dto.CategoryID,

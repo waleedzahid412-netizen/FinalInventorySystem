@@ -93,6 +93,16 @@ namespace InventorySystem.ViewModels.Sales
         [Display(Name = "Customer")]
         public int CustomerID { get; set; }
 
+        [Required(ErrorMessage = "Broker is required.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Please select a valid Broker.")]
+        [Display(Name = "Broker")]
+        public int BrokerID { get; set; }
+
+        [Required(ErrorMessage = "Salesperson is required.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Please select a valid Salesperson.")]
+        [Display(Name = "Salesperson")]
+        public int SalespersonID { get; set; }
+
         [Required(ErrorMessage = "Warehouse is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "Please select a destination Warehouse.")]
         [Display(Name = "Warehouse")]
@@ -116,12 +126,33 @@ namespace InventorySystem.ViewModels.Sales
 
         public int? AppliedDiscountRuleID { get; set; }
 
+        /// <summary>None | Automatic | Manual</summary>
+        [Display(Name = "Discount Mode")]
+        [MaxLength(20)]
+        public string DiscountMode { get; set; } = "None";
+
+        /// <summary>Percentage | FixedAmount — used when DiscountMode = Manual.</summary>
+        [Display(Name = "Manual Discount Type")]
+        [MaxLength(20)]
+        public string? ManualDiscountType { get; set; } = "Percentage";
+
+        /// <summary>Percent or fixed amount — used when DiscountMode = Manual.</summary>
+        [Display(Name = "Manual Discount Value")]
+        [Range(0, 100000000, ErrorMessage = "Manual discount cannot be negative.")]
+        public decimal ManualDiscountValue { get; set; }
+
+        /// <summary>Seller choice: apply eligible promotions (FREE items) on finalize.</summary>
+        [Display(Name = "Apply Promotions")]
+        public bool ApplyPromotions { get; set; } = true;
+
         /// <summary>Serialized JSON array from dynamic client grid</summary>
         [Required(ErrorMessage = "At least one item is required.")]
         public string ItemsJson { get; set; } = "[]";
 
         // UI Dropdowns
         public IEnumerable<SelectListItem> Customers { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Brokers { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Salespersons { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Warehouses { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> DeliveryPersons { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Products { get; set; } = new List<SelectListItem>();
@@ -139,6 +170,8 @@ namespace InventorySystem.ViewModels.Sales
         public string InvoiceNumber { get; set; } = string.Empty;
         public int CustomerID { get; set; }
         public string CustomerName { get; set; } = string.Empty;
+        public int BrokerID { get; set; }
+        public int SalespersonID { get; set; }
         public int WarehouseID { get; set; }
         public string WarehouseName { get; set; } = string.Empty;
         public int? DeliveryPersonID { get; set; }
@@ -150,6 +183,25 @@ namespace InventorySystem.ViewModels.Sales
         public string? Remarks { get; set; }
         public int? AppliedDiscountRuleID { get; set; }
 
+        /// <summary>None | Automatic | Manual</summary>
+        [Display(Name = "Discount Mode")]
+        [MaxLength(20)]
+        public string DiscountMode { get; set; } = "None";
+
+        /// <summary>Percentage | FixedAmount — used when DiscountMode = Manual.</summary>
+        [Display(Name = "Manual Discount Type")]
+        [MaxLength(20)]
+        public string? ManualDiscountType { get; set; } = "Percentage";
+
+        /// <summary>Percent or fixed amount — used when DiscountMode = Manual.</summary>
+        [Display(Name = "Manual Discount Value")]
+        [Range(0, 100000000, ErrorMessage = "Manual discount cannot be negative.")]
+        public decimal ManualDiscountValue { get; set; }
+
+        /// <summary>Seller choice: apply eligible promotions (FREE items) on save.</summary>
+        [Display(Name = "Apply Promotions")]
+        public bool ApplyPromotions { get; set; } = true;
+
         [Required(ErrorMessage = "An edit reason is required.")]
         [MaxLength(500, ErrorMessage = "Edit reason cannot exceed 500 characters.")]
         public string EditReason { get; set; } = string.Empty;
@@ -157,5 +209,7 @@ namespace InventorySystem.ViewModels.Sales
         public string ItemsJson { get; set; } = "[]";
 
         public IEnumerable<SelectListItem> DeliveryPersons { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Brokers { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Salespersons { get; set; } = new List<SelectListItem>();
     }
 }

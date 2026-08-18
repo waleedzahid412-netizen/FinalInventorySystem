@@ -19,11 +19,22 @@ namespace InventorySystem.Services.Implementations
             _context = context;
         }
 
-        public async Task<List<LookupItemDto>> GetCategoriesAsync(CancellationToken cancellationToken = default)
+        public async Task<List<LookupItemDto>> GetCategoriesAsync(int? companyId = null, CancellationToken cancellationToken = default)
         {
-            return await _context.Categories
+            var query = _context.Categories
                 .AsNoTracking()
-                .Where(c => c.IsActive)
+                .Where(c => c.IsActive);
+
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                query = query.Where(c => c.CompanyID == companyId.Value);
+            }
+            else if (companyId.HasValue && companyId.Value <= 0)
+            {
+                return new List<LookupItemDto>();
+            }
+
+            return await query
                 .OrderBy(c => c.Name)
                 .Select(c => new LookupItemDto
                 {
@@ -110,9 +121,11 @@ namespace InventorySystem.Services.Implementations
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<ProductFormDropdownsDto> GetProductFormDropdownsAsync(CancellationToken cancellationToken = default)
+        public async Task<ProductFormDropdownsDto> GetProductFormDropdownsAsync(int? companyId = null, CancellationToken cancellationToken = default)
         {
-            var categories = await GetCategoriesAsync(cancellationToken);
+            var categories = companyId.HasValue && companyId.Value > 0
+                ? await GetCategoriesAsync(companyId, cancellationToken)
+                : new List<LookupItemDto>();
             var companies = await GetCompaniesAsync(cancellationToken);
             var units = await GetUnitsAsync(cancellationToken);
 
@@ -165,6 +178,7 @@ namespace InventorySystem.Services.Implementations
                     UnitID = pu.UnitID,
                     UnitName = pu.Unit.UnitName,
                     ConversionToBaseUnit = pu.ConversionToBaseUnit,
+                    PurchasePrice = pu.PurchasePrice,
                     IsDefaultPurchaseUnit = pu.IsDefaultPurchaseUnit
                 })
                 .ToListAsync(cancellationToken);
@@ -196,6 +210,34 @@ namespace InventorySystem.Services.Implementations
                 {
                     Id = dp.DeliveryPersonID,
                     Name = dp.Name
+                })
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<LookupItemDto>> GetBrokersAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Brokers
+                .AsNoTracking()
+                .Where(b => !b.IsDeleted && b.IsActive)
+                .OrderBy(b => b.Name)
+                .Select(b => new LookupItemDto
+                {
+                    Id = b.BrokerID,
+                    Name = b.Name
+                })
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<LookupItemDto>> GetSalespersonsAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && u.IsActive)
+                .OrderBy(u => u.FullName)
+                .Select(u => new LookupItemDto
+                {
+                    Id = u.UserID,
+                    Name = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName
                 })
                 .ToListAsync(cancellationToken);
         }

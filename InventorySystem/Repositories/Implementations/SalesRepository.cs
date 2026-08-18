@@ -126,6 +126,12 @@ namespace InventorySystem.Repositories.Implementations
                     CustomerID = si.CustomerID,
                     CustomerName = string.IsNullOrWhiteSpace(si.Customer.OwnerName) ? si.Customer.ShopName : $"{si.Customer.ShopName} ({si.Customer.OwnerName})",
                     ShopName = si.Customer.ShopName,
+                    CompanyID = si.CompanyID,
+                    CompanyName = si.Company != null ? si.Company.CompanyName : null,
+                    BrokerID = si.BrokerID,
+                    BrokerName = si.Broker != null ? si.Broker.Name : null,
+                    SalespersonID = si.SalespersonID,
+                    SalespersonName = si.SalespersonUser != null ? (si.SalespersonUser.FullName ?? si.SalespersonUser.Username) : null,
                     WarehouseID = si.WarehouseID,
                     WarehouseName = si.Warehouse.Name,
                     DeliveryPersonID = si.DeliveryPersonID,
@@ -142,6 +148,7 @@ namespace InventorySystem.Repositories.Implementations
                     ReturnedAmount = si.SalesReturns.Where(r => !r.IsDeleted).Sum(r => (decimal?)r.NetRefundAmount) ?? 0m,
                     PaymentStatus = si.PaymentStatus,
                     AppliedDiscountRuleID = si.InvoiceDiscounts.Select(id => (int?)id.DiscountRuleID).FirstOrDefault(),
+                    DiscountMode = si.DiscountMode,
                     IsLocked = si.IsLocked,
                     CreatedByUserName = si.CreatedByUser.FullName ?? si.CreatedByUser.Username,
                     CreatedAt = si.CreatedAt
@@ -171,17 +178,25 @@ namespace InventorySystem.Repositories.Implementations
                     InvoiceItemID = sii.InvoiceItemID,
                     InvoiceID = sii.InvoiceID,
                     ProductID = sii.ProductID,
-                    ProductName = sii.Product.ProductName,
-                    SKU = sii.Product.SKU,
+                    ProductName = !string.IsNullOrEmpty(sii.CustomItemName)
+                        ? ("Other: " + sii.CustomItemName)
+                        : (sii.Product != null ? sii.Product.ProductName : string.Empty),
+                    SKU = sii.Product != null ? sii.Product.SKU : null,
                     ProductUnitID = sii.ProductUnitID,
-                    UnitName = sii.ProductUnit.Unit.UnitName,
+                    UnitName = sii.ProductUnit != null && sii.ProductUnit.Unit != null
+                        ? sii.ProductUnit.Unit.UnitName
+                        : (!string.IsNullOrEmpty(sii.CustomItemName) ? "Item" : string.Empty),
                     Quantity = sii.Quantity,
                     ConvertedQuantity = sii.ConvertedQuantity,
-                    BaseUnitName = sii.Product.BaseUnit.UnitName,
+                    BaseUnitName = sii.Product != null && sii.Product.BaseUnit != null
+                        ? sii.Product.BaseUnit.UnitName
+                        : (!string.IsNullOrEmpty(sii.CustomItemName) ? "Item" : string.Empty),
                     UnitPrice = sii.UnitPrice,
+                    DiscountRate = sii.DiscountRate,
                     DiscountAmount = sii.DiscountAmount,
                     ItemType = sii.ItemType,
-                    PromotionID = sii.PromotionID
+                    PromotionID = sii.PromotionID,
+                    CustomItemName = sii.CustomItemName
                 })
                 .ToListAsync(cancellationToken);
 
@@ -241,6 +256,30 @@ namespace InventorySystem.Repositories.Implementations
         public async Task<bool> DeliveryPersonExistsAsync(int deliveryPersonId, CancellationToken cancellationToken = default)
         {
             return await _context.DeliveryPersons.AsNoTracking().AnyAsync(dp => dp.DeliveryPersonID == deliveryPersonId && !dp.IsDeleted && dp.IsActive, cancellationToken);
+        }
+
+        public async Task<bool> CompanyExistsAsync(int companyId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Companies.AsNoTracking().AnyAsync(c => c.CompanyID == companyId && !c.IsDeleted, cancellationToken);
+        }
+
+        public async Task<bool> BrokerExistsAsync(int brokerId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Brokers.AsNoTracking().AnyAsync(b => b.BrokerID == brokerId && !b.IsDeleted && b.IsActive, cancellationToken);
+        }
+
+        public async Task<bool> SalespersonExistsAsync(int userId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Users.AsNoTracking().AnyAsync(u => u.UserID == userId && !u.IsDeleted && u.IsActive, cancellationToken);
+        }
+
+        public async Task<int?> GetProductCompanyIdAsync(int productId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Products
+                .AsNoTracking()
+                .Where(p => p.ProductID == productId && !p.IsDeleted && p.IsActive)
+                .Select(p => (int?)p.CompanyID)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         public async Task<bool> ProductExistsAsync(int productId, CancellationToken cancellationToken = default)

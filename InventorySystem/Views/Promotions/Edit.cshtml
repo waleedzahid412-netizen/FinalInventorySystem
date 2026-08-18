@@ -1,0 +1,218 @@
+@model InventorySystem.ViewModels.Promotions.EditPromotionViewModel
+@using InventorySystem.ViewModels.Promotions
+
+@{
+    ViewData["Title"] = "Edit Promotion Campaign";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">Edit Promotion Campaign</h1>
+            <p class="text-muted small mb-0">Update promotional offer details and rules.</p>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <form asp-action="Edit" asp-route-id="@Model.PromotionID" method="post" id="promotionForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="PromotionID" />
+        <div asp-validation-summary="All" class="alert alert-danger shadow-sm mb-4" role="alert"></div>
+
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-info-circle me-2"></i> Campaign Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="Name" class="form-label fw-semibold text-secondary">Campaign Name <span class="text-danger">*</span></label>
+                        <input asp-for="Name" class="form-control" required />
+                        <span asp-validation-for="Name" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="StartDate" class="form-label fw-semibold text-secondary">Start Date <span class="text-danger">*</span></label>
+                        <input asp-for="StartDate" type="date" class="form-control" required />
+                        <span asp-validation-for="StartDate" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="EndDate" class="form-label fw-semibold text-secondary">End Date <span class="text-danger">*</span></label>
+                        <input asp-for="EndDate" type="date" class="form-control" required />
+                        <span asp-validation-for="EndDate" class="text-danger small"></span>
+                    </div>
+                    <div class="col-12 mt-3">
+                        <div class="form-check form-switch">
+                            <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" id="IsActiveSwitch" />
+                            <label class="form-check-label fw-semibold text-dark" for="IsActiveSwitch">Enable Promotion Campaign</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-gift me-2"></i> Promotion Rules ("Buy X Get Y Free")</h5>
+                <button type="button" class="btn btn-sm btn-success" id="btnAddRule">
+                    <i class="bi bi-plus-circle me-1"></i> Add Another Rule
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle mb-0" id="rulesTable">
+                        <thead class="bg-light text-secondary small text-uppercase fw-semibold">
+                            <tr>
+                                <th style="width: 30%;">Trigger (Buy) Product <span class="text-danger">*</span></th>
+                                <th style="width: 12%;">Buy Base Qty <span class="text-danger">*</span></th>
+                                <th style="width: 38%;">Reward (Free) Item <span class="text-danger">*</span></th>
+                                <th style="width: 12%;">Free Qty <span class="text-danger">*</span></th>
+                                <th style="width: 50px;" class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rulesTableBody">
+                            @for (int i = 0; i < Model.Rules.Count; i++)
+                            {
+                                var isOther = string.Equals(Model.Rules[i].FreeRewardSelection, PromotionRuleInputViewModel.OtherRewardValue, StringComparison.OrdinalIgnoreCase)
+                                              || Model.Rules[i].IsCustomFreeItem;
+                                <tr class="rule-row">
+                                    <td>
+                                        <input type="hidden" asp-for="Rules[i].RuleID" />
+                                        <input type="hidden" asp-for="Rules[i].IsDeleted" class="is-deleted-flag" value="false" />
+                                        <select asp-for="Rules[i].BuyProductID" asp-items="Model.ProductSelectList" class="form-select select-buy-product" required>
+                                            <option value="">-- Select Trigger Product --</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input asp-for="Rules[i].BuyQuantity" type="number" min="1" class="form-control" required />
+                                    </td>
+                                    <td>
+                                        <select asp-for="Rules[i].FreeRewardSelection" class="form-select select-free-reward" required>
+                                            <option value="">-- Select Reward --</option>
+                                            @if (Model.ProductSelectList != null)
+                                            {
+                                                foreach (var p in Model.ProductSelectList)
+                                                {
+                                                    <option value="@p.Value">@p.Text</option>
+                                                }
+                                            }
+                                            <option value="@PromotionRuleInputViewModel.OtherRewardValue">Other (custom item — no stock / no clawback)</option>
+                                        </select>
+                                        <div class="custom-free-name-wrap mt-2 @(isOther ? "" : "d-none")">
+                                            <label class="form-label small text-muted mb-1">Custom free item name</label>
+                                            <input asp-for="Rules[i].CustomFreeItemName" class="form-control custom-free-name" maxlength="200" placeholder="e.g. Free Mug, Keychain" />
+                                            <div class="form-text">Non-inventory gift. Shown on invoice as "Other: {name}". No price or clawback.</div>
+                                            <span asp-validation-for="Rules[i].CustomFreeItemName" class="text-danger small"></span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input asp-for="Rules[i].FreeQuantity" type="number" min="1" class="form-control" required />
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-rule" title="Remove Rule">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+            <a asp-action="Index" class="btn btn-light border px-4">Cancel</a>
+            <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                <i class="bi bi-check-circle me-1"></i> Update Promotion Campaign
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            let rowCount = $('#rulesTableBody tr.rule-row').length;
+
+            function syncCustomFreeNameVisibility($row) {
+                const val = $row.find('.select-free-reward').val();
+                const $wrap = $row.find('.custom-free-name-wrap');
+                if (val === 'OTHER') {
+                    $wrap.removeClass('d-none');
+                    $row.find('.custom-free-name').attr('required', 'required');
+                } else {
+                    $wrap.addClass('d-none');
+                    $row.find('.custom-free-name').removeAttr('required');
+                }
+            }
+
+            $(document).on('change', '.select-free-reward', function () {
+                const $row = $(this).closest('tr.rule-row');
+                if ($(this).val() !== 'OTHER') {
+                    $row.find('.custom-free-name').val('');
+                }
+                syncCustomFreeNameVisibility($row);
+            });
+
+            $('#rulesTableBody tr.rule-row').each(function () {
+                syncCustomFreeNameVisibility($(this));
+            });
+
+            $('#btnAddRule').on('click', function () {
+                let index = rowCount++;
+                let firstRow = $('#rulesTableBody tr.rule-row:first');
+                let newRow = (window.WimsSelect2 && window.WimsSelect2.cloneClean)
+                    ? window.WimsSelect2.cloneClean(firstRow)
+                    : firstRow.clone();
+                newRow.find('input[type="hidden"]').each(function () {
+                    if ($(this).hasClass('is-deleted-flag')) $(this).val('false');
+                    else $(this).val('0');
+                });
+                newRow.find('input[type="number"]').val(1);
+                newRow.find('select').val('');
+                newRow.find('.custom-free-name').val('');
+                newRow.find('.custom-free-name-wrap').addClass('d-none');
+                newRow.removeClass('d-none');
+                newRow.find('input, select').each(function () {
+                    let oldName = $(this).attr('name');
+                    if (oldName) {
+                        let newName = oldName.replace(/\[\d+\]/, '[' + index + ']');
+                        $(this).attr('name', newName);
+                        $(this).attr('id', newName.replace(/[\.\[\]]/g, '_'));
+                    }
+                });
+                $('#rulesTableBody').append(newRow);
+                if (window.WimsSelect2) {
+                    newRow.find('select').each(function () {
+                        window.WimsSelect2.initOne(this);
+                    });
+                }
+                syncCustomFreeNameVisibility(newRow);
+                updateRemoveButtons();
+            });
+
+            $(document).on('click', '.btn-remove-rule', function () {
+                let visibleRows = $('#rulesTableBody tr.rule-row:not(.d-none)').length;
+                if (visibleRows <= 1) {
+                    alert('At least one promotion rule is required.');
+                    return;
+                }
+                let row = $(this).closest('tr');
+                row.find('.is-deleted-flag').val('true');
+                row.addClass('d-none');
+                row.find('input[required], select[required]').removeAttr('required');
+                updateRemoveButtons();
+            });
+
+            function updateRemoveButtons() {
+                $('.btn-remove-rule').prop('disabled', $('#rulesTableBody tr.rule-row:not(.d-none)').length <= 1);
+            }
+            updateRemoveButtons();
+        });
+    </script>
+}

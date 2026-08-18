@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using InventorySystem.DTOs.Analytics;
+using InventorySystem.DTOs.LoadSheets;
 using InventorySystem.DTOs.Purchases;
 using InventorySystem.DTOs.Sales;
 using InventorySystem.Services.Interfaces;
@@ -662,6 +663,295 @@ namespace InventorySystem.Services.Implementations
             });
 
             return document.GeneratePdf();
+        }
+
+        public byte[] GenerateLoadSheetProductPdf(LoadSheetDto loadSheet)
+        {
+            if (loadSheet == null)
+            {
+                throw new ArgumentNullException(nameof(loadSheet));
+            }
+
+            var productRows = loadSheet.ProductRows ?? new System.Collections.Generic.List<LoadSheetProductRowDto>();
+            var navy = Color.FromHex("#1B365D");
+            var navySoft = Color.FromHex("#E8EEF4");
+            var line = Color.FromHex("#D5DEE8");
+            var ink = Color.FromHex("#243447");
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(28);
+                    page.PageColor(Colors.White);
+                    page.DefaultTextStyle(x => x.FontSize(9).FontColor(ink));
+
+                    page.Header().Element(header => ComposeLoadSheetHeader(
+                        header, loadSheet, "LOAD SHEET", "Product Load Summary", navy, navySoft));
+
+                    page.Content().PaddingTop(8).Column(col =>
+                    {
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.ConstantColumn(28);
+                                columns.RelativeColumn(1.3f);
+                                columns.RelativeColumn(2.2f);
+                                columns.RelativeColumn(2.6f);
+                                columns.ConstantColumn(78);
+                            });
+
+                            table.Header(h =>
+                            {
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "#"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Product ID"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Product Name"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Description"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Total Count", alignRight: true));
+                            });
+
+                            int index = 1;
+                            foreach (var row in productRows)
+                            {
+                                var bg = index % 2 == 0 ? navySoft : Colors.White;
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, index.ToString()));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.ProductIdDisplay));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.ProductName));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.Description ?? "—"));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.TotalQuantity.ToString("0.##"), alignRight: true));
+                                index++;
+                            }
+
+                            if (!productRows.Any())
+                            {
+                                table.Cell().ColumnSpan(5).Padding(14).AlignCenter()
+                                    .Text("No products to load.").Italic().FontColor(Colors.Grey.Medium);
+                            }
+                            else
+                            {
+                                table.Cell().ColumnSpan(4).Background(navy).Padding(6)
+                                    .Text("TOTAL COUNT").FontColor(Colors.White).Bold().FontSize(8);
+                                table.Cell().Background(navy).Padding(6).AlignRight()
+                                    .Text(loadSheet.TotalCountSum.ToString("0.##")).FontColor(Colors.White).Bold();
+                            }
+                        });
+
+                        col.Item().PaddingTop(28).Row(row =>
+                        {
+                            row.RelativeItem().Height(58).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            {
+                                c.Item().Text("Warehouse / Loading Notes").FontSize(8).SemiBold().FontColor(navy);
+                                c.Item().PaddingTop(4).Text(" ").FontSize(8);
+                            });
+                            row.ConstantItem(12);
+                            row.RelativeItem().Height(58).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            {
+                                c.Item().Text("Checked By").FontSize(8).SemiBold().FontColor(navy);
+                                c.Item().PaddingTop(18).LineHorizontal(0.5f).LineColor(line);
+                            });
+                        });
+                    });
+
+                    page.Footer().Element(footer => ComposeLoadSheetFooter(footer, "Product Load Summary", navy));
+                });
+            });
+
+            return document.GeneratePdf();
+        }
+
+        public byte[] GenerateLoadSheetInvoicePdf(LoadSheetDto loadSheet)
+        {
+            if (loadSheet == null)
+            {
+                throw new ArgumentNullException(nameof(loadSheet));
+            }
+
+            var invoiceRows = loadSheet.InvoiceRows ?? new System.Collections.Generic.List<LoadSheetInvoiceRowDto>();
+            var navy = Color.FromHex("#1B365D");
+            var navySoft = Color.FromHex("#E8EEF4");
+            var line = Color.FromHex("#D5DEE8");
+            var ink = Color.FromHex("#243447");
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(28);
+                    page.PageColor(Colors.White);
+                    page.DefaultTextStyle(x => x.FontSize(9).FontColor(ink));
+
+                    page.Header().Element(header => ComposeLoadSheetHeader(
+                        header, loadSheet, "LOAD SHEET", "Party Invoice Report", navy, navySoft));
+
+                    page.Content().PaddingTop(8).Column(col =>
+                    {
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.RelativeColumn(1.25f);
+                                columns.RelativeColumn(1.05f);
+                                columns.RelativeColumn(1.7f);
+                                columns.RelativeColumn(2.1f);
+                                columns.RelativeColumn(1.05f);
+                                columns.RelativeColumn(0.95f);
+                                columns.RelativeColumn(1.1f);
+                            });
+
+                            table.Header(h =>
+                            {
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Bill No"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Order Date"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Party Name"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Address"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Amount", alignRight: true));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Discount", alignRight: true));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Total Amount", alignRight: true));
+                            });
+
+                            int index = 0;
+                            foreach (var row in invoiceRows)
+                            {
+                                var bg = index % 2 == 0 ? navySoft : Colors.White;
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.InvoiceNumber));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.InvoiceDate.ToString("dd-MMM-yyyy")));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.PartyName));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.Address));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.Amount.ToString("N2"), alignRight: true));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.Discount.ToString("N2"), alignRight: true));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.TotalAmount.ToString("N2"), alignRight: true));
+                                index++;
+                            }
+
+                            if (invoiceRows.Any())
+                            {
+                                table.Cell().ColumnSpan(4).Background(navy).Padding(6)
+                                    .Text($"TOTAL  ·  {invoiceRows.Count} invoice{(invoiceRows.Count == 1 ? "" : "s")}").FontColor(Colors.White).Bold().FontSize(8);
+                                table.Cell().Background(navy).Padding(6).AlignRight()
+                                    .Text(loadSheet.TotalAmountSum.ToString("N2")).FontColor(Colors.White).Bold();
+                                table.Cell().Background(navy).Padding(6).AlignRight()
+                                    .Text(loadSheet.TotalDiscountSum.ToString("N2")).FontColor(Colors.White).Bold();
+                                table.Cell().Background(navy).Padding(6).AlignRight()
+                                    .Text(loadSheet.TotalGrandSum.ToString("N2")).FontColor(Colors.White).Bold();
+                            }
+                        });
+
+                        col.Item().PaddingTop(22).Row(row =>
+                        {
+                            row.RelativeItem().Height(54).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            {
+                                c.Item().Text("Cash / Return").FontSize(8).SemiBold().FontColor(navy);
+                            });
+                            row.ConstantItem(10);
+                            row.RelativeItem().Height(54).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            {
+                                c.Item().Text("Return Stock Notes").FontSize(8).SemiBold().FontColor(navy);
+                            });
+                            row.ConstantItem(10);
+                            row.RelativeItem().Height(54).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            {
+                                c.Item().Text("Received By").FontSize(8).SemiBold().FontColor(navy);
+                                c.Item().PaddingTop(16).LineHorizontal(0.5f).LineColor(line);
+                            });
+                        });
+                    });
+
+                    page.Footer().Element(footer => ComposeLoadSheetFooter(footer, "Party Invoice Report", navy));
+                });
+            });
+
+            return document.GeneratePdf();
+        }
+
+        private static void ComposeLoadSheetHeader(
+            IContainer container,
+            LoadSheetDto loadSheet,
+            string title,
+            string subtitle,
+            Color navy,
+            Color navySoft)
+        {
+            container.Column(col =>
+            {
+                col.Item().Background(navy).PaddingVertical(12).PaddingHorizontal(14).Row(row =>
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("WIMS").FontSize(8).FontColor(Colors.White);
+                        c.Item().Text(title).FontSize(16).Bold().FontColor(Colors.White);
+                        c.Item().Text(subtitle).FontSize(9).FontColor(Color.FromHex("#C5D4E4"));
+                    });
+                    row.ConstantItem(210).AlignRight().AlignMiddle().Column(c =>
+                    {
+                        c.Item().Text(loadSheet.FilterDate.ToString("dd MMMM yyyy")).FontSize(11).Bold().FontColor(Colors.White).AlignRight();
+                        c.Item().Text($"{loadSheet.InvoiceRows.Count} invoice{(loadSheet.InvoiceRows.Count == 1 ? "" : "s")}").FontSize(8).FontColor(Color.FromHex("#C5D4E4")).AlignRight();
+                    });
+                });
+
+                col.Item().Background(navySoft).PaddingVertical(8).PaddingHorizontal(12).Row(row =>
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("BROKER").FontSize(7).FontColor(navy).SemiBold();
+                        c.Item().Text(loadSheet.BrokerName).FontSize(10).Bold();
+                    });
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("DELIVERY PERSON").FontSize(7).FontColor(navy).SemiBold();
+                        c.Item().Text(loadSheet.DeliveryPersonDisplay).FontSize(10).Bold();
+                    });
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("SALESPERSON").FontSize(7).FontColor(navy).SemiBold();
+                        c.Item().Text(string.IsNullOrWhiteSpace(loadSheet.SalespersonDisplay) ? "—" : loadSheet.SalespersonDisplay).FontSize(10).Bold();
+                    });
+                });
+            });
+        }
+
+        private static void ComposeLoadSheetFooter(IContainer container, string documentLabel, Color navy)
+        {
+            container.PaddingTop(8).Row(row =>
+            {
+                row.RelativeItem().Text($"WIMS  ·  {documentLabel}").FontSize(8).FontColor(navy);
+                row.RelativeItem().AlignCenter().Text($"Generated {DateTime.Now:dd-MMM-yyyy HH:mm}").FontSize(8).FontColor(Colors.Grey.Medium);
+                row.RelativeItem().AlignRight().Text(x =>
+                {
+                    x.Span("Page ").FontSize(8).FontColor(Colors.Grey.Medium);
+                    x.CurrentPageNumber().FontSize(8).FontColor(Colors.Grey.Medium);
+                    x.Span(" of ").FontSize(8).FontColor(Colors.Grey.Medium);
+                    x.TotalPages().FontSize(8).FontColor(Colors.Grey.Medium);
+                });
+            });
+        }
+
+        private static void LoadSheetHeaderCell(IContainer container, Color navy, string text, bool alignRight = false)
+        {
+            var cell = container.Background(navy).PaddingVertical(6).PaddingHorizontal(6);
+            if (alignRight)
+            {
+                cell.AlignRight().Text(text).FontColor(Colors.White).SemiBold().FontSize(8);
+            }
+            else
+            {
+                cell.Text(text).FontColor(Colors.White).SemiBold().FontSize(8);
+            }
+        }
+
+        private static void LoadSheetBodyCell(IContainer container, string background, string text, bool alignRight = false)
+        {
+            var cell = container.Background(background).BorderBottom(0.5f).BorderColor(Color.FromHex("#D5DEE8")).PaddingVertical(5).PaddingHorizontal(6);
+            if (alignRight)
+            {
+                cell.AlignRight().Text(text).FontSize(8);
+            }
+            else
+            {
+                cell.Text(text).FontSize(8);
+            }
         }
     }
 }

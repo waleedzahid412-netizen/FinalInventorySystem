@@ -38,6 +38,7 @@ namespace InventorySystem.Services.Implementations
             {
                 ProductID = p.ProductID,
                 ProductName = p.ProductName,
+                Description = p.Description,
                 SKU = p.SKU,
                 Barcode = p.Barcode,
                 CategoryID = p.CategoryID,
@@ -82,6 +83,7 @@ namespace InventorySystem.Services.Implementations
             {
                 ProductID = product.ProductID,
                 ProductName = product.ProductName,
+                Description = product.Description,
                 SKU = product.SKU,
                 Barcode = product.Barcode,
                 CategoryID = product.CategoryID,
@@ -110,6 +112,7 @@ namespace InventorySystem.Services.Implementations
             {
                 ProductID = product.ProductID,
                 ProductName = product.ProductName,
+                Description = product.Description,
                 SKU = product.SKU,
                 Barcode = product.Barcode,
                 CategoryID = product.CategoryID,
@@ -151,6 +154,7 @@ namespace InventorySystem.Services.Implementations
                 var product = new Product
                 {
                     ProductName = dto.ProductName.Trim(),
+                    Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
                     SKU = string.IsNullOrWhiteSpace(dto.SKU) ? null : dto.SKU.Trim(),
                     Barcode = string.IsNullOrWhiteSpace(dto.Barcode) ? null : dto.Barcode.Trim(),
                     CategoryID = dto.CategoryID,
@@ -221,6 +225,7 @@ namespace InventorySystem.Services.Implementations
             {
                 var now = DateTime.UtcNow;
                 product.ProductName = dto.ProductName.Trim();
+                product.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
                 product.SKU = string.IsNullOrWhiteSpace(dto.SKU) ? null : dto.SKU.Trim();
                 product.Barcode = string.IsNullOrWhiteSpace(dto.Barcode) ? null : dto.Barcode.Trim();
                 product.CategoryID = dto.CategoryID;
@@ -354,9 +359,26 @@ namespace InventorySystem.Services.Implementations
                 errors.Add("Product Name is required.");
             }
 
+            if (dto.CompanyID <= 0)
+            {
+                errors.Add("Company is required.");
+            }
+            else
+            {
+                bool companyExists = await _context.Companies.AnyAsync(c => c.CompanyID == dto.CompanyID, cancellationToken);
+                if (!companyExists)
+                {
+                    errors.Add("Selected company does not exist.");
+                }
+            }
+
             if (dto.CategoryID <= 0)
             {
                 errors.Add("Category is required.");
+            }
+            else
+            {
+                await ValidateProductCategoryCompanyAsync(dto.CategoryID, dto.CompanyID, errors, cancellationToken);
             }
 
             if (dto.BaseUnitID <= 0)
@@ -406,9 +428,26 @@ namespace InventorySystem.Services.Implementations
                 errors.Add("Product Name is required.");
             }
 
+            if (dto.CompanyID <= 0)
+            {
+                errors.Add("Company is required.");
+            }
+            else
+            {
+                bool companyExists = await _context.Companies.AnyAsync(c => c.CompanyID == dto.CompanyID, cancellationToken);
+                if (!companyExists)
+                {
+                    errors.Add("Selected company does not exist.");
+                }
+            }
+
             if (dto.CategoryID <= 0)
             {
                 errors.Add("Category is required.");
+            }
+            else
+            {
+                await ValidateProductCategoryCompanyAsync(dto.CategoryID, dto.CompanyID, errors, cancellationToken);
             }
 
             if (dto.BaseSellingPrice < 0)
@@ -442,6 +481,24 @@ namespace InventorySystem.Services.Implementations
             ValidateProductUnits(dto.BaseUnitID, dto.Units, errors);
 
             return errors;
+        }
+
+        private async Task ValidateProductCategoryCompanyAsync(int categoryId, int companyId, List<string> errors, CancellationToken cancellationToken)
+        {
+            var category = await _context.Categories
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.CategoryID == categoryId, cancellationToken);
+
+            if (category == null)
+            {
+                errors.Add("Selected category does not exist.");
+                return;
+            }
+
+            if (companyId > 0 && category.CompanyID != companyId)
+            {
+                errors.Add("The selected category does not belong to the selected company.");
+            }
         }
 
         private static void ValidateProductUnits(int baseUnitId, List<ProductUnitDto> units, List<string> errors)

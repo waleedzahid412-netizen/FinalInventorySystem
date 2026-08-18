@@ -26,6 +26,10 @@
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="ItemsJson" id="ItemsJson" />
         <input type="hidden" asp-for="AppliedDiscountRuleID" id="AppliedDiscountRuleID" />
+        <input type="hidden" asp-for="DiscountMode" id="DiscountMode" />
+        <input type="hidden" asp-for="ManualDiscountType" id="ManualDiscountType" />
+        <input type="hidden" asp-for="ManualDiscountValue" id="ManualDiscountValue" />
+        <input type="hidden" asp-for="ApplyPromotions" id="ApplyPromotions" />
 
         <div asp-validation-summary="ModelOnly" class="alert alert-danger shadow-sm" role="alert"></div>
 
@@ -70,6 +74,22 @@
                             <i class="bi bi-exclamation-triangle-fill me-1"></i>
                             <strong>Credit Warning:</strong> Customer balance exceeds credit limit. Sale is permitted.
                         </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="BrokerID" class="form-label fw-semibold"></label>
+                        <select asp-for="BrokerID" asp-items="Model.Brokers" class="form-select" id="brokerSelect" required>
+                            <option value="">-- Select Broker --</option>
+                        </select>
+                        <span asp-validation-for="BrokerID" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="SalespersonID" class="form-label fw-semibold"></label>
+                        <select asp-for="SalespersonID" asp-items="Model.Salespersons" class="form-select" id="salespersonSelect" required>
+                            <option value="">-- Select Salesperson --</option>
+                        </select>
+                        <span asp-validation-for="SalespersonID" class="text-danger small"></span>
                     </div>
 
                     <div class="col-md-4">
@@ -152,6 +172,7 @@
                             <div class="alert alert-success p-2 small d-flex justify-content-between align-items-center mb-0">
                                 <div>
                                     <i class="bi bi-tag-fill me-1"></i> <strong id="lblAppliedDiscountName"></strong>
+                                    <span class="badge bg-secondary ms-1" id="lblDiscountModeBadge">Automatic</span>
                                 </div>
                                 <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="btnRemoveDiscount">Remove</button>
                             </div>
@@ -168,12 +189,49 @@
 
         <!-- Section 3: Promotions & Discounts Suggestions Engine Card -->
         <div class="card shadow-sm border-0 mb-4" id="promotionsCard">
-            <div class="card-header bg-white border-bottom py-3">
+            <div class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <h5 class="card-title h6 mb-0 text-success fw-bold">
                     <i class="bi bi-stars me-2"></i> Promotional & Discount Suggestions
                 </h5>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <span class="fw-semibold small text-muted mb-0">Discount Mode:</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Discount mode toggle">
+                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeNone" value="None" autocomplete="off">
+                        <label class="btn btn-outline-secondary" for="discountModeNone">None</label>
+                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeAutomatic" value="Automatic" autocomplete="off" checked>
+                        <label class="btn btn-outline-primary" for="discountModeAutomatic">Automatic</label>
+                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeManual" value="Manual" autocomplete="off">
+                        <label class="btn btn-outline-warning" for="discountModeManual">Manual</label>
+                    </div>
+                    <span class="fw-semibold small text-muted mb-0">Apply Promotion:</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Apply promotions toggle">
+                        <input type="radio" class="btn-check" name="applyPromotionsToggle" id="applyPromotionsYes" value="true" autocomplete="off" checked>
+                        <label class="btn btn-outline-success" for="applyPromotionsYes">Yes</label>
+                        <input type="radio" class="btn-check" name="applyPromotionsToggle" id="applyPromotionsNo" value="false" autocomplete="off">
+                        <label class="btn btn-outline-secondary" for="applyPromotionsNo">No</label>
+                    </div>
+                </div>
             </div>
             <div class="card-body">
+                <div id="manualDiscountPanel" class="border rounded p-3 mb-3 bg-light d-none">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-sliders me-1"></i> Manual Discount (no threshold)</h6>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold mb-1">Type</label>
+                            <select id="manualDiscountTypeSelect" class="form-select form-select-sm">
+                                <option value="Percentage" selected>Percentage (%)</option>
+                                <option value="FixedAmount">Fixed Amount (PKR)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold mb-1">Value</label>
+                            <input type="number" id="manualDiscountValueInput" class="form-control form-control-sm" min="0" step="0.01" value="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <div class="small text-muted" id="manualDiscountHint">Enter % off the invoice subtotal. Server allocates to each NORMAL line.</div>
+                        </div>
+                    </div>
+                </div>
                 <div id="promotionSuggestionsContainer">
                     <div class="text-muted small">
                         <i class="bi bi-info-circle me-1"></i> Add products to your cart to view eligible promotional schemes and order discount suggestions.
@@ -232,18 +290,151 @@
         document.addEventListener('DOMContentLoaded', function () {
             let rowCounter = 0;
             let productsList = [];
-            let currentAppliedDiscount = null; // { id, name, amount }
+            let currentAppliedDiscount = null; // { id, name, amount } — Automatic mode only
             let evaluationDebounceTimer = null;
 
-            // Load active products list immediately on page load
-            fetch('/Sales/GetProducts')
-                .then(res => res.json())
-                .then(data => {
-                    productsList = data || [];
-                    addRow(); // Add initial empty product row
-                })
+            function getDiscountMode() {
+                const checked = document.querySelector('input[name="discountModeToggle"]:checked');
+                return checked ? checked.value : 'Automatic';
+            }
+
+            function syncDiscountHiddenFields(subTotal) {
+                const mode = getDiscountMode();
+                document.getElementById('DiscountMode').value = mode;
+
+                if (mode === 'Manual') {
+                    const type = document.getElementById('manualDiscountTypeSelect').value || 'Percentage';
+                    let value = parseFloat(document.getElementById('manualDiscountValueInput').value) || 0;
+                    if (type === 'Percentage' && value > 100) value = 100;
+                    if (value < 0) value = 0;
+                    document.getElementById('ManualDiscountType').value = type;
+                    document.getElementById('ManualDiscountValue').value = value;
+                    document.getElementById('AppliedDiscountRuleID').value = '';
+                    currentAppliedDiscount = null;
+                    return computeManualDiscount(subTotal, type, value);
+                }
+
+                document.getElementById('ManualDiscountType').value = '';
+                document.getElementById('ManualDiscountValue').value = '0';
+
+                if (mode === 'None') {
+                    currentAppliedDiscount = null;
+                    document.getElementById('AppliedDiscountRuleID').value = '';
+                    return 0;
+                }
+
+                // Automatic
+                if (currentAppliedDiscount) {
+                    document.getElementById('AppliedDiscountRuleID').value = currentAppliedDiscount.id;
+                    return currentAppliedDiscount.amount || 0;
+                }
+                document.getElementById('AppliedDiscountRuleID').value = '';
+                return 0;
+            }
+
+            function computeManualDiscount(subTotal, type, value) {
+                if (subTotal <= 0 || value <= 0) return 0;
+                let amount = type === 'FixedAmount' ? value : (subTotal * (value / 100));
+                amount = Math.min(subTotal, Math.round(amount * 100) / 100);
+                return amount;
+            }
+
+            function updateDiscountModeUi() {
+                const mode = getDiscountMode();
+                const manualPanel = document.getElementById('manualDiscountPanel');
+                const suggestions = document.getElementById('promotionSuggestionsContainer');
+                if (manualPanel) {
+                    manualPanel.classList.toggle('d-none', mode !== 'Manual');
+                }
+                if (mode === 'Manual') {
+                    currentAppliedDiscount = null;
+                    document.getElementById('AppliedDiscountRuleID').value = '';
+                }
+                if (mode === 'None') {
+                    currentAppliedDiscount = null;
+                    document.getElementById('AppliedDiscountRuleID').value = '';
+                }
+                // When Manual/None, still show promo suggestions but hide auto discount apply buttons via calculateTotals refresh
+                calculateTotals();
+            }
+
+            document.querySelectorAll('input[name="discountModeToggle"]').forEach(el => {
+                el.addEventListener('change', updateDiscountModeUi);
+            });
+            document.getElementById('manualDiscountTypeSelect')?.addEventListener('change', function () {
+                const hint = document.getElementById('manualDiscountHint');
+                if (hint) {
+                    hint.textContent = this.value === 'FixedAmount'
+                        ? 'Enter fixed PKR off the invoice subtotal. Server allocates across NORMAL lines.'
+                        : 'Enter % off the invoice subtotal. Server allocates to each NORMAL line.';
+                }
+                calculateTotals();
+            });
+            document.getElementById('manualDiscountValueInput')?.addEventListener('input', calculateTotals);
+
+            function isApplyPromotionsEnabled() {
+                return document.getElementById('applyPromotionsYes')?.checked === true;
+            }
+
+            function setApplyPromotions(enabled) {
+                const yes = document.getElementById('applyPromotionsYes');
+                const no = document.getElementById('applyPromotionsNo');
+                const hidden = document.getElementById('ApplyPromotions');
+                if (yes) yes.checked = enabled;
+                if (no) no.checked = !enabled;
+                if (hidden) hidden.value = enabled ? 'true' : 'false';
+            }
+
+            function clearFreePromoRows() {
+                document.querySelectorAll('#itemsTableBody tr[data-item-type="FREE"]').forEach(row => row.remove());
+                calculateTotals();
+            }
+
+            let isSyncingFreeItems = false;
+
+            setApplyPromotions(true);
+
+            document.getElementById('applyPromotionsYes')?.addEventListener('change', function () {
+                if (this.checked) {
+                    setApplyPromotions(true);
+                    // Re-evaluate and auto-add FREE lines
+                    if (typeof calculateTotals === 'function') {
+                        calculateTotals();
+                    }
+                }
+            });
+
+            document.getElementById('applyPromotionsNo')?.addEventListener('change', function () {
+                if (this.checked) {
+                    setApplyPromotions(false);
+                    clearFreePromoRows();
+                    const container = document.getElementById('promotionSuggestionsContainer');
+                    if (container) {
+                        container.innerHTML = `
+                            <div class="alert alert-secondary py-2 mb-0 small">
+                                <i class="bi bi-slash-circle me-1"></i> Promotions will not be applied. Only paid (NORMAL) lines will be finalized.
+                            </div>`;
+                    }
+                }
+            });
+
+            function loadAllProducts() {
+                return fetch('/Sales/GetProducts')
+                    .then(res => {
+                        if (!res.ok) throw new Error('Failed to load products list: HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(data => {
+                        if (!Array.isArray(data)) throw new Error('Failed to load products list: unexpected response');
+                        productsList = data;
+                    });
+            }
+
+            loadAllProducts()
+                .then(() => addRow())
                 .catch(err => {
                     console.error('Failed to load products list:', err);
+                    productsList = [];
                     addRow();
                 });
 
@@ -328,53 +519,134 @@
                 const rowId = `row_${rowCounter}`;
                 const productOptions = getProductOptionsHtml();
                 const isFreeItem = prefillData && prefillData.itemType === 'FREE';
+                const isCustomFree = isFreeItem && !!prefillData.isCustomFreeItem;
                 const qtyVal = (prefillData && prefillData.quantity !== undefined) ? parseFloat(prefillData.quantity) : 1;
+                const customName = (prefillData?.customName || 'Custom Item').toString();
+                const displayCustomName = customName.startsWith('Other:') ? customName : `Other: ${customName}`;
+                const freeProductName = escapeHtml(prefillData?.productName || 'Free product');
+                const freeUnitName = escapeHtml(prefillData?.unitName || 'Unit');
 
-                const html = `
-                    <tr id="${rowId}" class="${isFreeItem ? 'table-warning promo-free-item-row' : ''}" data-item-type="${isFreeItem ? 'FREE' : 'NORMAL'}" data-promo-id="${prefillData?.promotionId || ''}">
+                let html;
+                if (isCustomFree) {
+                    html = `
+                    <tr id="${rowId}" class="table-warning promo-free-item-row" data-item-type="FREE" data-promo-id="${prefillData?.promotionId || ''}" data-is-custom="true" data-custom-name="${displayCustomName.replace(/"/g, '&quot;')}">
                         <td>
-                            <select class="form-select form-select-sm product-select" data-row-id="${rowId}" ${isFreeItem ? 'disabled' : ''}>
+                            <div class="fw-bold text-success">${displayCustomName}</div>
+                            <span class="badge bg-success mt-1"><i class="bi bi-gift me-1"></i> PROMO FREE (CUSTOM)</span>
+                            <input type="hidden" class="product-select" value="" />
+                        </td>
+                        <td>
+                            <span class="text-muted small">N/A (non-inventory)</span>
+                            <input type="hidden" class="unit-select" value="" />
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm qty-input" data-row-id="${rowId}" min="0.001" step="any" value="${qtyVal}" readonly />
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" readonly />
+                        </td>
+                        <td class="text-end fw-bold line-total text-success" id="total_${rowId}">FREE</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Managed by Apply Promotion toggle">
+                                <i class="bi bi-lock"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                } else if (isFreeItem) {
+                    // Promotional reward line — product identity is carried by hidden inputs so it can
+                    // never depend on which products happen to be present in the picker's option list.
+                    html = `
+                    <tr id="${rowId}" class="table-warning promo-free-item-row" data-item-type="FREE" data-promo-id="${prefillData?.promotionId || ''}" data-is-custom="false">
+                        <td>
+                            <input type="hidden" class="product-select" value="${prefillData.productId}" />
+                            <div class="fw-bold text-success">${freeProductName}</div>
+                            <span class="badge bg-success mt-1"><i class="bi bi-gift me-1"></i> PROMO FREE ITEM</span>
+                        </td>
+                        <td>
+                            <input type="hidden" class="unit-select" value="${prefillData.unitId}" />
+                            <span class="fw-semibold text-secondary">${freeUnitName}</span>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm qty-input" data-row-id="${rowId}" min="0.001" step="any" value="${qtyVal}" readonly />
+                            <div class="stock-err-container" id="stockErr_${rowId}"></div>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" readonly />
+                        </td>
+                        <td class="text-end fw-bold line-total text-success" id="total_${rowId}">0.00</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Managed by Apply Promotion toggle">
+                                <i class="bi bi-lock"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                } else {
+                    html = `
+                    <tr id="${rowId}" class="" data-item-type="NORMAL" data-promo-id="" data-is-custom="false">
+                        <td>
+                            <select class="form-select form-select-sm product-select" data-row-id="${rowId}">
                                 ${productOptions}
                             </select>
                             <div class="invalid-feedback">Please select a product.</div>
-                            ${isFreeItem ? '<span class="badge bg-success mt-1"><i class="bi bi-gift me-1"></i> PROMO FREE ITEM</span>' : ''}
                         </td>
                         <td>
-                            <select class="form-select form-select-sm unit-select" data-row-id="${rowId}" ${isFreeItem ? 'disabled' : ''}>
+                            <select class="form-select form-select-sm unit-select" data-row-id="${rowId}">
                                 <option value="">-- Select Unit --</option>
                             </select>
                             <div class="invalid-feedback">Please select a unit.</div>
                             <div class="form-text small text-info conversion-preview mt-1" id="preview_${rowId}"></div>
                         </td>
                         <td>
-                            <input type="number" class="form-control form-control-sm qty-input" data-row-id="${rowId}" min="0.001" step="any" value="${qtyVal}" ${isFreeItem ? 'readonly' : ''} />
+                            <input type="number" class="form-control form-control-sm qty-input" data-row-id="${rowId}" min="0.001" step="any" value="${qtyVal}" />
                             <div class="stock-err-container" id="stockErr_${rowId}"></div>
                         </td>
                         <td>
-                            <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" ${isFreeItem ? 'readonly' : ''} />
+                            <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" />
                         </td>
                         <td class="text-end fw-bold line-total" id="total_${rowId}">
                             0.00
                         </td>
                         <td class="text-center">
-                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove" data-row-id="${rowId}">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove" data-row-id="${rowId}"><i class="bi bi-trash"></i></button>
                         </td>
-                    </tr>
-                `;
+                    </tr>`;
+                }
 
                 document.getElementById('itemsTableBody').insertAdjacentHTML('beforeend', html);
+
+                if (isFreeItem) {
+                    // FREE lines are fully server-authoritative: no editable inputs to wire up.
+                    if (!isCustomFree) {
+                        validateRowStock(rowId);
+                    }
+                    calculateTotals();
+                    return;
+                }
+
                 attachRowEvents(rowId);
 
-                if (prefillData) {
-                    const row = document.getElementById(rowId);
-                    const productSelect = row.querySelector('.product-select');
-                    productSelect.value = prefillData.productId;
-                    loadUnitsAndSetPrice(rowId, prefillData.productId, prefillData.unitId, qtyVal, isFreeItem);
-                } else {
-                    calculateTotals();
+                const row = document.getElementById(rowId);
+                const productSelect = row.querySelector('.product-select');
+                const unitSelect = row.querySelector('.unit-select');
+
+                if (window.WimsSelect2) {
+                    if (productSelect && productSelect.tagName === 'SELECT') {
+                        window.WimsSelect2.refresh(productSelect);
+                    }
+                    if (unitSelect && unitSelect.tagName === 'SELECT') {
+                        window.WimsSelect2.refresh(unitSelect);
+                    }
                 }
+
+                calculateTotals();
+            }
+
+            function escapeHtml(value) {
+                return String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
             }
 
             function attachRowEvents(rowId) {
@@ -385,13 +657,19 @@
                 const costInput = row.querySelector('.cost-input');
                 const btnRemove = row.querySelector('.btn-remove');
 
-                productSelect.addEventListener('change', function () {
+                $(productSelect).on('change', function () {
                     validateField(this, 'Please select a product.');
                     const productId = this.value;
                     unitSelect.innerHTML = '<option value="">Loading...</option>';
+                    if (window.WimsSelect2) {
+                        window.WimsSelect2.refresh(unitSelect);
+                    }
 
                     if (!productId) {
                         unitSelect.innerHTML = '<option value="">-- Select Unit --</option>';
+                        if (window.WimsSelect2) {
+                            window.WimsSelect2.refresh(unitSelect);
+                        }
                         costInput.value = '0.00';
                         updateConversionPreview(rowId);
                         calculateTotals();
@@ -403,7 +681,7 @@
                 });
                 productSelect.addEventListener('blur', function () { validateField(this, 'Please select a product.'); });
 
-                unitSelect.addEventListener('change', function () {
+                $(unitSelect).on('change', function () {
                     validateField(this, 'Please select a unit.');
                     const productId = productSelect.value;
                     const unitId = this.value;
@@ -443,16 +721,18 @@
 
                 costInput.addEventListener('input', calculateTotals);
 
-                btnRemove.addEventListener('click', function () {
-                    const rows = document.querySelectorAll('#itemsTableBody tr');
-                    if (rows.length <= 1) {
-                        alert('Sales invoice must have at least one line item.');
-                        return;
-                    }
-                    row.remove();
-                    calculateTotals();
-                    checkGlobalFormValidity();
-                });
+                if (btnRemove) {
+                    btnRemove.addEventListener('click', function () {
+                        const rows = document.querySelectorAll('#itemsTableBody tr');
+                        if (rows.length <= 1) {
+                            alert('Sales invoice must have at least one line item.');
+                            return;
+                        }
+                        row.remove();
+                        calculateTotals();
+                        checkGlobalFormValidity();
+                    });
+                }
             }
 
             // Step 2: Live Row Stock Validation (UI)
@@ -549,6 +829,9 @@
                         } else if (units.length > 0) {
                             unitSelect.selectedIndex = 1;
                         }
+                        if (window.WimsSelect2) {
+                            window.WimsSelect2.refresh(unitSelect);
+                        }
 
                         const selectedUnitId = unitSelect.value;
                         if (!isFreeItem && selectedUnitId) {
@@ -578,6 +861,9 @@
                 const unitSelect = row.querySelector('.unit-select');
                 const qtyInput = row.querySelector('.qty-input');
                 const previewDiv = document.getElementById(`preview_${rowId}`);
+
+                // FREE promo lines carry their unit in a hidden input and render no preview.
+                if (!previewDiv || !unitSelect || !unitSelect.options) return;
 
                 const selectedOpt = unitSelect.options[unitSelect.selectedIndex];
                 const convFactor = selectedOpt ? parseFloat(selectedOpt.getAttribute('data-conv') || '1') : 1;
@@ -613,18 +899,34 @@
 
                 document.getElementById('lblSubTotal').textContent = 'PKR ' + subTotal.toFixed(2);
 
-                // Recalculate discount if applied
-                let discountAmount = 0;
-                if (currentAppliedDiscount) {
-                    discountAmount = currentAppliedDiscount.amount;
-                    document.getElementById('lblDiscountTotal').textContent = 'PKR ' + discountAmount.toFixed(2);
-                    document.getElementById('lblAppliedDiscountName').textContent = currentAppliedDiscount.name + ` (-PKR ${discountAmount.toFixed(2)})`;
-                    document.getElementById('appliedDiscountBadgeContainer').classList.remove('d-none');
+                const mode = getDiscountMode();
+                let discountAmount = syncDiscountHiddenFields(subTotal);
+
+                // For Automatic, recompute displayed amount from current subtotal if a rule is applied
+                // (server recalculates from rate; UI keeps last suggested amount until re-applied —
+                //  when mode is Automatic and discount applied, refresh from % if we stored rate).
+                if (mode === 'Automatic' && currentAppliedDiscount) {
+                    discountAmount = currentAppliedDiscount.amount || 0;
+                    // Cap display if cart shrunk below discount
+                    discountAmount = Math.min(subTotal, discountAmount);
+                    currentAppliedDiscount.amount = discountAmount;
                     document.getElementById('AppliedDiscountRuleID').value = currentAppliedDiscount.id;
+                }
+
+                if (discountAmount > 0) {
+                    document.getElementById('lblDiscountTotal').textContent = 'PKR ' + discountAmount.toFixed(2);
+                    const name = mode === 'Manual'
+                        ? (`Manual ${document.getElementById('manualDiscountTypeSelect').value} ${document.getElementById('manualDiscountValueInput').value}`)
+                        : (currentAppliedDiscount ? currentAppliedDiscount.name : 'Discount');
+                    document.getElementById('lblAppliedDiscountName').textContent = name + ` (-PKR ${discountAmount.toFixed(2)})`;
+                    document.getElementById('lblDiscountModeBadge').textContent = mode;
+                    document.getElementById('appliedDiscountBadgeContainer').classList.remove('d-none');
                 } else {
                     document.getElementById('lblDiscountTotal').textContent = 'PKR 0.00';
                     document.getElementById('appliedDiscountBadgeContainer').classList.add('d-none');
-                    document.getElementById('AppliedDiscountRuleID').value = '';
+                    if (mode !== 'Automatic') {
+                        document.getElementById('AppliedDiscountRuleID').value = '';
+                    }
                 }
 
                 const grandTotal = Math.max(0, subTotal - discountAmount);
@@ -637,6 +939,12 @@
             // Remove Order Discount button event
             document.getElementById('btnRemoveDiscount').addEventListener('click', function () {
                 currentAppliedDiscount = null;
+                if (getDiscountMode() === 'Manual') {
+                    document.getElementById('manualDiscountValueInput').value = '0';
+                } else if (getDiscountMode() === 'Automatic') {
+                    document.getElementById('discountModeNone').checked = true;
+                    document.getElementById('DiscountMode').value = 'None';
+                }
                 calculateTotals();
             });
 
@@ -649,15 +957,31 @@
             }
 
             function evaluatePromotions(subTotal) {
+                const container = document.getElementById('promotionSuggestionsContainer');
+                if (!isApplyPromotionsEnabled() && getDiscountMode() !== 'Automatic') {
+                    syncFreeItemsWithEligiblePromotions([]);
+                    if (container) {
+                        container.innerHTML = `
+                            <div class="alert alert-secondary py-2 mb-0 small">
+                                <i class="bi bi-slash-circle me-1"></i> Promotions will not be applied. Only paid (NORMAL) lines will be finalized.
+                            </div>`;
+                    }
+                    return;
+                }
+
                 const rows = document.querySelectorAll('#itemsTableBody tr');
                 const cartItems = [];
 
                 rows.forEach(row => {
-                    const productId = parseInt(row.querySelector('.product-select').value) || 0;
-                    const unitId = parseInt(row.querySelector('.unit-select').value) || 0;
-                    const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
-                    const price = parseFloat(row.querySelector('.cost-input').value) || 0;
                     const itemType = row.getAttribute('data-item-type') || 'NORMAL';
+                    if (itemType === 'FREE') {
+                        return; // only paid lines drive promotion eligibility
+                    }
+
+                    const productId = parseInt(row.querySelector('.product-select')?.value) || 0;
+                    const unitId = parseInt(row.querySelector('.unit-select')?.value) || 0;
+                    const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
+                    const price = parseFloat(row.querySelector('.cost-input')?.value) || 0;
 
                     if (productId > 0 && unitId > 0 && qty > 0) {
                         cartItems.push({
@@ -671,10 +995,19 @@
                 });
 
                 if (cartItems.length === 0) {
-                    document.getElementById('promotionSuggestionsContainer').innerHTML = `
+                    if (container) {
+                        container.innerHTML = `
                         <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Add products to cart to view eligible promotional schemes.</div>`;
-                    syncFreeItemsWithEligiblePromotions([]);
+                    }
+                    if (isApplyPromotionsEnabled()) {
+                        syncFreeItemsWithEligiblePromotions([]);
+                    }
                     return;
+                }
+
+                // Continue with existing fetch logic below (unchanged from here)...
+                if (!isApplyPromotionsEnabled()) {
+                    syncFreeItemsWithEligiblePromotions([]);
                 }
 
                 const payload = {
@@ -692,26 +1025,98 @@
                 .then(res => res.json())
                 .then(data => {
                     renderPromotionSuggestions(data);
-                    syncFreeItemsWithEligiblePromotions(data);
+                    if (isApplyPromotionsEnabled()) {
+                        syncFreeItemsWithEligiblePromotions(data);
+                    } else {
+                        syncFreeItemsWithEligiblePromotions([]);
+                    }
                 })
                 .catch(err => console.error('Failed to evaluate promotions:', err));
             }
 
             function syncFreeItemsWithEligiblePromotions(data) {
-                const eligiblePromoIds = (data.promotions || []).map(p => parseInt(p.promotionID));
-                const freeRows = document.querySelectorAll('#itemsTableBody tr[data-item-type="FREE"]');
-                let removedAny = false;
+                if (isSyncingFreeItems) {
+                    return;
+                }
 
-                freeRows.forEach(row => {
-                    const rowPromoId = parseInt(row.getAttribute('data-promo-id'));
-                    if (rowPromoId > 0 && !eligiblePromoIds.includes(rowPromoId)) {
-                        row.remove();
-                        removedAny = true;
+                isSyncingFreeItems = true;
+                let changed = false;
+
+                try {
+                    if (!isApplyPromotionsEnabled()) {
+                        const freeRows = document.querySelectorAll('#itemsTableBody tr[data-item-type="FREE"]');
+                        if (freeRows.length > 0) {
+                            freeRows.forEach(row => row.remove());
+                            changed = true;
+                        }
+                        return;
                     }
-                });
 
-                if (removedAny) {
-                    calculateTotals();
+                    const promotions = data?.promotions || [];
+                    const eligiblePromoIds = promotions.map(p => parseInt(p.promotionID));
+
+                    // Remove FREE rows that are no longer eligible
+                    document.querySelectorAll('#itemsTableBody tr[data-item-type="FREE"]').forEach(row => {
+                        const rowPromoId = parseInt(row.getAttribute('data-promo-id'));
+                        if (rowPromoId > 0 && !eligiblePromoIds.includes(rowPromoId)) {
+                            row.remove();
+                            changed = true;
+                        }
+                    });
+
+                    // Auto-add / update FREE rows for all eligible promotions
+                    promotions.forEach(p => {
+                        const promoId = parseInt(p.promotionID);
+                        const qty = parseFloat(p.rewardQuantity) || 0;
+                        if (!promoId || qty <= 0) {
+                            return;
+                        }
+
+                        const isCustom = !!p.isCustomFreeItem;
+                        let existingRow = document.querySelector(`#itemsTableBody tr[data-item-type="FREE"][data-promo-id="${promoId}"]`);
+
+                        if (existingRow) {
+                            const qtyInput = existingRow.querySelector('.qty-input');
+                            if (qtyInput && parseFloat(qtyInput.value) !== qty) {
+                                qtyInput.value = qty;
+                                changed = true;
+                            }
+                            return;
+                        }
+
+                        if (isCustom) {
+                            const customName = (p.customFreeItemName || p.freeProductName || 'Custom Item').toString();
+                            addRow({
+                                itemType: 'FREE',
+                                isCustomFreeItem: true,
+                                customName: customName,
+                                quantity: qty,
+                                promotionId: promoId
+                            });
+                        } else {
+                            const productId = parseInt(p.freeProductID) || 0;
+                            const unitId = parseInt(p.freeUnitID) || 0;
+                            if (productId <= 0 || unitId <= 0) {
+                                return;
+                            }
+                            addRow({
+                                productId: productId,
+                                unitId: unitId,
+                                productName: p.freeProductName,
+                                unitName: p.freeUnitName,
+                                quantity: qty,
+                                itemType: 'FREE',
+                                isCustomFreeItem: false,
+                                promotionId: promoId
+                            });
+                        }
+                        changed = true;
+                    });
+                } finally {
+                    isSyncingFreeItems = false;
+                    if (changed) {
+                        calculateTotals();
+                    }
                 }
             }
 
@@ -731,33 +1136,25 @@
                 if (hasPromos) {
                     html += '<h6 class="fw-bold text-success mb-2"><i class="bi bi-gift-fill me-1"></i> Eligible Promotional Schemes</h6>';
                     data.promotions.forEach(p => {
-                        const isAlreadyApplied = document.querySelector(`#itemsTableBody tr[data-promo-id="${p.promotionID}"]`) !== null;
-
+                        const rewardLabel = p.isCustomFreeItem
+                            ? (`Other: ${(p.customFreeItemName || 'Custom Item')}`)
+                            : (p.freeProductName || 'Free product');
                         html += `
                             <div class="alert alert-success border-success d-flex justify-content-between align-items-center p-2 mb-2">
                                 <div>
                                     <strong class="d-block">${p.title}</strong>
                                     <span class="small">${p.message}</span>
+                                    <div class="small text-success mt-1">FREE reward: <strong>${p.rewardQuantity}</strong> × ${rewardLabel}</div>
                                 </div>
-                                ${isAlreadyApplied ? `
-                                    <button type="button" class="btn btn-sm btn-secondary px-3 disabled">
-                                        <i class="bi bi-check-circle me-1"></i> Promotion Applied
-                                    </button>
-                                ` : `
-                                    <button type="button" class="btn btn-sm btn-success px-3 btn-apply-promo" 
-                                        data-promo-id="${p.promotionID}"
-                                        data-free-product-id="${p.freeProductID}"
-                                        data-free-unit-id="${p.freeUnitID}"
-                                        data-reward-qty="${p.rewardQuantity}">
-                                        <i class="bi bi-plus-circle me-1"></i> Apply Promotion
-                                    </button>
-                                `}
+                                <span class="badge bg-success px-3 py-2">
+                                    <i class="bi bi-check-circle me-1"></i> Auto-applied
+                                </span>
                             </div>
                         `;
                     });
                 }
 
-                if (hasDiscounts) {
+                if (hasDiscounts && getDiscountMode() === 'Automatic') {
                     html += '<h6 class="fw-bold text-primary mt-3 mb-2"><i class="bi bi-tag-fill me-1"></i> Eligible Order Level Discounts</h6>';
                     data.discounts.forEach(d => {
                         const isDiscountApplied = currentAppliedDiscount && currentAppliedDiscount.id === d.discountRuleID;
@@ -783,37 +1180,11 @@
                             </div>
                         `;
                     });
+                } else if (hasDiscounts && getDiscountMode() === 'Manual') {
+                    html += `<div class="alert alert-warning py-2 small mb-0"><i class="bi bi-info-circle me-1"></i> Automatic order discounts are disabled while Manual discount mode is selected.</div>`;
                 }
 
                 container.innerHTML = html;
-
-                document.querySelectorAll('.btn-apply-promo').forEach(btn => {
-                    btn.addEventListener('click', function () {
-                        const promoId = parseInt(this.getAttribute('data-promo-id'));
-                        const productId = parseInt(this.getAttribute('data-free-product-id'));
-                        const unitId = parseInt(this.getAttribute('data-free-unit-id'));
-                        const qty = parseFloat(this.getAttribute('data-reward-qty'));
-
-                        if (isNaN(qty) || qty <= 0) {
-                            console.error('Invalid reward quantity:', qty);
-                            return;
-                        }
-
-                        const existingRow = document.querySelector(`#itemsTableBody tr[data-promo-id="${promoId}"]`);
-                        if (existingRow) {
-                            alert('This promotion has already been applied to the invoice.');
-                            return;
-                        }
-
-                        addRow({
-                            productId: productId,
-                            unitId: unitId,
-                            quantity: qty,
-                            itemType: 'FREE',
-                            promotionId: promoId
-                        });
-                    });
-                });
 
                 document.querySelectorAll('.btn-apply-discount').forEach(btn => {
                     btn.addEventListener('click', function () {
@@ -821,6 +1192,8 @@
                         const discountName = this.getAttribute('data-discount-name');
                         const discountAmount = parseFloat(this.getAttribute('data-discount-amount'));
 
+                        document.getElementById('discountModeAutomatic').checked = true;
+                        document.getElementById('DiscountMode').value = 'Automatic';
                         currentAppliedDiscount = {
                             id: discountId,
                             name: discountName,
@@ -854,16 +1227,54 @@
                     const qtyInput = row.querySelector('.qty-input');
                     const priceInput = row.querySelector('.cost-input');
 
-                    const isProdValid = validateField(productSelect, 'Please select a product.');
-                    const isUnitValid = validateField(unitSelect, 'Please select a unit.');
-
-                    const productId = parseInt(productSelect.value) || 0;
-                    const unitId = parseInt(unitSelect.value) || 0;
-                    const qty = parseFloat(qtyInput.value) || 0;
-                    const price = parseFloat(priceInput.value) || 0;
                     const itemType = row.getAttribute('data-item-type') || 'NORMAL';
+                    const isCustomFree = itemType === 'FREE' && row.getAttribute('data-is-custom') === 'true';
                     const promoIdAttr = row.getAttribute('data-promo-id');
                     const promoId = promoIdAttr ? parseInt(promoIdAttr) : null;
+                    const qty = parseFloat(qtyInput?.value) || 0;
+                    const price = parseFloat(priceInput?.value) || 0;
+
+                    if (isCustomFree) {
+                        if (qty <= 0) {
+                            hasRowErrors = true;
+                        }
+                        const customName = (row.getAttribute('data-custom-name') || 'Custom Item').replace(/^Other:\s*/i, '');
+                        items.push({
+                            ProductID: 0,
+                            ProductUnitID: 0,
+                            Quantity: qty,
+                            UnitPrice: 0,
+                            DiscountAmount: 0,
+                            ItemType: 'FREE',
+                            PromotionID: promoId,
+                            IsCustomFreeItem: true,
+                            CustomFreeItemName: customName
+                        });
+                        return;
+                    }
+
+                    const productId = parseInt(productSelect?.value) || 0;
+                    const unitId = parseInt(unitSelect?.value) || 0;
+
+                    if (itemType === 'FREE') {
+                        // Promo reward lines are rebuilt server-side from the promotion rules;
+                        // they have no user-editable fields to validate here.
+                        items.push({
+                            ProductID: productId,
+                            ProductUnitID: unitId,
+                            Quantity: qty,
+                            UnitPrice: 0,
+                            DiscountAmount: 0,
+                            ItemType: 'FREE',
+                            PromotionID: promoId,
+                            IsCustomFreeItem: false,
+                            CustomFreeItemName: null
+                        });
+                        return;
+                    }
+
+                    const isProdValid = validateField(productSelect, 'Please select a product.');
+                    const isUnitValid = validateField(unitSelect, 'Please select a unit.');
 
                     if (!isProdValid || !isUnitValid || qty <= 0) {
                         hasRowErrors = true;
@@ -876,7 +1287,9 @@
                         UnitPrice: itemType === 'FREE' ? 0 : price,
                         DiscountAmount: 0,
                         ItemType: itemType,
-                        PromotionID: promoId
+                        PromotionID: promoId,
+                        IsCustomFreeItem: false,
+                        CustomFreeItemName: null
                     });
                 });
 
@@ -895,6 +1308,10 @@
                 }
 
                 document.getElementById('ItemsJson').value = JSON.stringify(items);
+                // Ensure discount mode fields are posted for server allocation
+                const finalSub = items.filter(i => i.ItemType !== 'FREE').reduce((s, i) => s + (i.Quantity * i.UnitPrice), 0);
+                syncDiscountHiddenFields(finalSub);
+                setApplyPromotions(isApplyPromotionsEnabled());
                 confirmModal.show();
             });
 

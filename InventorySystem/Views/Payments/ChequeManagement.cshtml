@@ -18,7 +18,7 @@
             <form method="get" asp-action="Cheques" class="row g-2 align-items-end">
                 <div class="col-md-2">
                     <label class="form-label small fw-semibold">Type</label>
-                    <select name="PaymentType" class="form-select form-select-sm" asp-for="Filter.PaymentType">
+                    <select name="PaymentType" class="form-select form-select-sm" asp-for="Filter.PaymentType" data-no-select2>
                         <option value="All">All Types</option>
                         <option value="Customer">Customer Cheques</option>
                         <option value="Company">Vendor / Company Cheques</option>
@@ -26,7 +26,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small fw-semibold">Status</label>
-                    <select name="Status" class="form-select form-select-sm" asp-for="Filter.Status">
+                    <select name="Status" class="form-select form-select-sm" asp-for="Filter.Status" data-no-select2>
                         <option value="All">All Statuses</option>
                         <option value="Received">Received (Pending Clearance)</option>
                         <option value="Cleared">Cleared</option>

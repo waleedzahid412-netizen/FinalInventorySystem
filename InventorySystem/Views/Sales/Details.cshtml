@@ -149,6 +149,22 @@
                     <span class="text-muted d-block small">Delivery Agent:</span>
                     <span class="fw-semibold">@(header.DeliveryPersonName ?? "Unassigned")</span>
                 </div>
+                @if (!string.IsNullOrWhiteSpace(header.CompanyName))
+                {
+                    @* Legacy invoices only — suppliers are a product-level attribute, not an invoice header field. *@
+                    <div class="col-md-3">
+                        <span class="text-muted d-block small">Supplier:</span>
+                        <span class="fw-semibold">@header.CompanyName</span>
+                    </div>
+                }
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Broker:</span>
+                    <span class="fw-semibold">@(header.BrokerName ?? "—")</span>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block small">Salesperson:</span>
+                    <span class="fw-semibold">@(header.SalespersonName ?? "—")</span>
+                </div>
                 <div class="col-md-3">
                     <span class="text-muted d-block small">Area / SubArea:</span>
                     <span class="fw-semibold">@(header.AreaName ?? "N/A") @(header.SubAreaName != null ? $"/ {header.SubAreaName}" : "")</span>

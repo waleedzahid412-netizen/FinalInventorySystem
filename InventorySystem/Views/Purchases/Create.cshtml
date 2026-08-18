@@ -170,7 +170,7 @@
             addRow();
 
             // When Company changes, fetch its products via AJAX
-            companySelect.addEventListener('change', function () {
+            $(companySelect).on('change', function () {
                 const companyId = this.value;
                 if (!companyId) {
                     companyProductsList = [];
@@ -193,7 +193,7 @@
 
             // Trigger initial load if company is pre-selected
             if (companySelect.value) {
-                companySelect.dispatchEvent(new Event('change'));
+                $(companySelect).trigger('change');
             }
 
             document.getElementById('btnAddRow').addEventListener('click', function () {
@@ -210,7 +210,7 @@
                         select.value = currentVal;
                     } else {
                         select.value = '';
-                        select.dispatchEvent(new Event('change'));
+                        $(select).trigger('change');
                     }
                 });
             }
@@ -277,12 +277,26 @@
                 const costInput = row.querySelector('.cost-input');
                 const btnRemove = row.querySelector('.btn-remove');
 
-                productSelect.addEventListener('change', function () {
+                function applySelectedUnitCost() {
+                    const selectedOption = unitSelect.options[unitSelect.selectedIndex];
+                    let price = 0;
+                    if (selectedOption && selectedOption.value) {
+                        price = parseFloat(selectedOption.getAttribute('data-purchase-price'));
+                        if (isNaN(price)) {
+                            price = 0;
+                        }
+                    }
+                    costInput.value = price.toFixed(2);
+                    calculateRowTotal(rowId);
+                }
+
+                $(productSelect).on('change', function () {
                     const productId = this.value;
                     unitSelect.innerHTML = '<option value="">Loading...</option>';
 
                     if (!productId) {
                         unitSelect.innerHTML = '<option value="">-- Select Unit --</option>';
+                        applySelectedUnitCost();
                         updateConversionPreview(rowId);
                         return;
                     }
@@ -292,18 +306,26 @@
                         .then(units => {
                             let options = '';
                             units.forEach(u => {
-                                options += `<option value="${u.productUnitID}" data-conversion="${u.conversionToBaseUnit}" data-unitname="${u.unitName}">${u.unitName} (x${u.conversionToBaseUnit})</option>`;
+                                const purchasePrice = (u.purchasePrice !== undefined && u.purchasePrice !== null) ? u.purchasePrice : 0;
+                                const unitId = u.productUnitId || u.productUnitID || u.id;
+                                const unitName = u.unitName || u.name || 'Unit';
+                                const conversion = (u.conversionToBaseUnit !== undefined && u.conversionToBaseUnit !== null)
+                                    ? u.conversionToBaseUnit
+                                    : (u.conversionFactor !== undefined ? u.conversionFactor : 1);
+                                options += `<option value="${unitId}" data-conversion="${conversion}" data-unitname="${unitName}" data-purchase-price="${purchasePrice}">${unitName} (x${conversion})</option>`;
                             });
                             unitSelect.innerHTML = options;
+                            applySelectedUnitCost();
                             updateConversionPreview(rowId);
-                            calculateRowTotal(rowId);
                         })
                         .catch(err => {
                             unitSelect.innerHTML = '<option value="">-- Error --</option>';
+                            applySelectedUnitCost();
                         });
                 });
 
-                unitSelect.addEventListener('change', function () {
+                $(unitSelect).on('change', function () {
+                    applySelectedUnitCost();
                     updateConversionPreview(rowId);
                 });
 

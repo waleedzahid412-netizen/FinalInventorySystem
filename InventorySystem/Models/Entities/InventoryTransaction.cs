@@ -24,13 +24,20 @@ namespace InventorySystem.Models.Entities
         public int WarehouseID { get; set; }
         public virtual Warehouse Warehouse { get; set; } = null!;
 
-        /// <summary>PURCHASE | SALE | RETURN | ADJUSTMENT</summary>
+        /// <summary>
+        /// Movement type. Common values:
+        /// PURCHASE | SALE | RETURN | RETURN_DAMAGED | PURCHASE_RETURN | ADJUSTMENT | REVERSAL_IN | REVERSAL_OUT | OUT.
+        /// RETURN = sellable stock returned (increases InventoryStock.Quantity).
+        /// RETURN_DAMAGED = damaged stock returned (increases InventoryStock.DamagedQuantity).
+        /// </summary>
         [Required]
         [MaxLength(30)]
         public string TransactionType { get; set; } = string.Empty;
 
         /// <summary>
         /// Quantity in BASE UNITS. Positive = stock in, Negative = stock out.
+        /// For RETURN_DAMAGED, the signed quantity is movement into the damaged bucket
+        /// (InventoryStock.DamagedQuantity), not sellable Quantity.
         /// </summary>
         [Column(TypeName = "decimal(18,3)")]
         public decimal Quantity { get; set; }

@@ -13,12 +13,18 @@ namespace InventorySystem.Mappings
             var dto = new CreateSalesInvoiceDto
             {
                 CustomerID = model.CustomerID,
+                BrokerID = model.BrokerID,
+                SalespersonID = model.SalespersonID,
                 WarehouseID = model.WarehouseID,
                 DeliveryPersonID = model.DeliveryPersonID,
                 InvoiceNumber = model.InvoiceNumber,
                 InvoiceDate = model.InvoiceDate,
                 Remarks = model.Remarks,
                 AppliedDiscountRuleID = model.AppliedDiscountRuleID,
+                DiscountMode = model.DiscountMode,
+                ManualDiscountType = model.ManualDiscountType,
+                ManualDiscountValue = model.ManualDiscountValue,
+                ApplyPromotions = model.ApplyPromotions,
                 Items = new List<CreateSalesItemDto>()
             };
 

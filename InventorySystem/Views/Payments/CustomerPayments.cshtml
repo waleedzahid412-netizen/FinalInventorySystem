@@ -33,7 +33,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small fw-semibold">Payment Method</label>
-                    <select name="PaymentMethod" class="form-select form-select-sm" asp-for="Filter.PaymentMethod">
+                    <select name="PaymentMethod" class="form-select form-select-sm" asp-for="Filter.PaymentMethod" data-no-select2>
                         <option value="">-- All Methods --</option>
                         <option value="Cash">Cash</option>
                         <option value="Bank">Bank</option>
@@ -176,7 +176,7 @@
 
                     <div class="mb-3">
                         <label for="modalPaymentMethod" class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
-                        <select class="form-select" id="modalPaymentMethod" required>
+                        <select class="form-select" id="modalPaymentMethod" required data-no-select2>
                             <option value="Cash">Cash</option>
                             <option value="Bank">Bank Transfer</option>
                             <option value="Cheque">Cheque</option>

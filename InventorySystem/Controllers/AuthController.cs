@@ -58,10 +58,18 @@ namespace InventorySystem.Controllers
             return RedirectToAction("Index", "Home");
         }
 
+        [HttpGet]
         [HttpPost]
         public IActionResult Logout()
         {
             Response.Cookies.Delete("jwt_token");
+            Response.Cookies.Append("jwt_token", "", new CookieOptions
+            {
+                Expires = DateTimeOffset.UtcNow.AddDays(-1),
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict
+            });
             return RedirectToAction("Login");
         }
     }

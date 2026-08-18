@@ -25,13 +25,15 @@ namespace InventorySystem.Models.Entities
         public int? InvoiceItemID { get; set; }
         public virtual SalesInvoiceItem? SalesInvoiceItem { get; set; }
 
+        /// <summary>Null when returning a non-inventory custom FREE promotional item.</summary>
         [ForeignKey("Product")]
-        public int ProductID { get; set; }
-        public virtual Product Product { get; set; } = null!;
+        public int? ProductID { get; set; }
+        public virtual Product? Product { get; set; }
 
+        /// <summary>Null when returning a non-inventory custom FREE promotional item.</summary>
         [ForeignKey("ProductUnit")]
-        public int ProductUnitID { get; set; }
-        public virtual ProductUnit ProductUnit { get; set; } = null!;
+        public int? ProductUnitID { get; set; }
+        public virtual ProductUnit? ProductUnit { get; set; }
 
         /// <summary>Quantity returned in packaging unit.</summary>
         [Column(TypeName = "decimal(18,3)")]
@@ -48,6 +50,13 @@ namespace InventorySystem.Models.Entities
         /// <summary>Line total refund amount granted.</summary>
         [Column(TypeName = "decimal(18,2)")]
         public decimal RefundAmount { get; set; } = 0;
+
+        /// <summary>
+        /// Discount amount released by this returned quantity (share of SalesInvoiceItem.DiscountAmount).
+        /// Used so subsequent returns can compute remaining line discount without 0.01 drift.
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal DiscountAmount { get; set; } = 0;
 
         /// <summary>Quantity of free item retained and charged as PromoPenalty in this return transaction.</summary>
         [Column(TypeName = "decimal(18,3)")]

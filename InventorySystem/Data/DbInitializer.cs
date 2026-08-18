@@ -55,14 +55,16 @@ namespace InventorySystem.Data
                     await context.SaveChangesAsync();
                 }
 
-                // ===== 3. SEED CATEGORIES =====
-                var categoriesDict = await SeedCategoriesAsync(context);
+                var salespersonUsers = await SeedSalespersonUsersAsync(context, adminRole.RoleID, adminUser.UserID);
 
-                // ===== 4. SEED UNITS =====
+                // ===== 3. SEED UNITS =====
                 var unitsDict = await SeedUnitsAsync(context);
 
-                // ===== 5. SEED COMPANIES =====
+                // ===== 4. SEED COMPANIES =====
                 var companiesDict = await SeedCompaniesAsync(context);
+
+                // ===== 5. SEED CATEGORIES (company-scoped) =====
+                var categoriesDict = await SeedCategoriesAsync(context, companiesDict);
 
                 // ===== 6. SEED PRODUCTS & PRODUCT UNITS =====
                 await SeedProductsAndUnitsAsync(context, adminUser.UserID, categoriesDict, unitsDict, companiesDict);
@@ -79,15 +81,24 @@ namespace InventorySystem.Data
                 // ===== 10. SEED PURCHASE INVOICES =====
                 await SeedPurchaseInvoicesAsync(context, adminUser.UserID, warehouses);
 
+                // ===== 10b. SEED BROKERS =====
+                var brokers = await SeedBrokersAsync(context);
+
+                // ===== 10c. SEED DELIVERY PERSONS =====
+                var deliveryPersons = await SeedDeliveryPersonsAsync(context);
+
                 // ===== 11. SEED SALES INVOICES =====
-                await SeedSalesInvoicesAsync(context, adminUser.UserID, warehouses);
+                await SeedSalesInvoicesAsync(context, adminUser.UserID, warehouses, brokers, deliveryPersons);
+
+                // ===== 11b. BACKFILL EXISTING INVOICES FOR LOAD SHEET TESTING =====
+                await BackfillExistingInvoicesForLoadSheetTestingAsync(context, brokers, salespersonUsers, deliveryPersons);
 
                 // ===== 12. SEED PROMOTIONS & DISCOUNTS =====
                 await SeedPromotionsAndDiscountsAsync(context, adminUser.UserID);
 
                 Console.WriteLine("=================================================");
                 Console.WriteLine("✅ Database seeded successfully!");
-                Console.WriteLine("   Categories: 10 | Units: 7 | Companies: 40 | Products: 50 | Areas: 7 | Customers: 42 | Warehouses: 3 | Purchase Invoices: 6 | Sales Invoices: 4 | Promos & Discounts: Active");
+                Console.WriteLine("   Categories: company-scoped | Units: 7 | Companies: 40 | Products: 50 | Areas: 7 | Customers: 42 | Warehouses: 3 | Purchase Invoices: 6 | Sales Invoices: 4 | Promos & Discounts: Active");
                 Console.WriteLine("   Default Admin Username: admin");
                 Console.WriteLine("   Default Password: admin123");
                 Console.WriteLine("=================================================");
@@ -99,32 +110,54 @@ namespace InventorySystem.Data
             }
         }
 
-        private static async Task<Dictionary<string, Category>> SeedCategoriesAsync(ApplicationDbContext context)
+        private static async Task<Dictionary<(int CompanyId, string Name), Category>> SeedCategoriesAsync(
+            ApplicationDbContext context,
+            Dictionary<string, Company> companies)
         {
             var existingCategories = await context.Categories.IgnoreQueryFilters().ToListAsync();
             if (existingCategories.Any())
             {
-                return existingCategories.ToDictionary(c => c.Name, c => c);
+                return existingCategories.ToDictionary(
+                    c => (c.CompanyID, c.Name),
+                    c => c);
             }
 
-            var categories = new List<Category>
+            var standardNames = new[]
             {
-                new Category { Name = "Beverages", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
-                new Category { Name = "Snacks & Confectionery", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
-                new Category { Name = "Dairy & Milk Products", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
-                new Category { Name = "Cooking Oil & Ghee", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
-                new Category { Name = "Rice & Grains", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
-                new Category { Name = "Spices & Recipe Mixes", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
-                new Category { Name = "Tea & Coffee", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
-                new Category { Name = "Jams, Sauces & Condiments", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
-                new Category { Name = "Personal Care & Hygiene", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
-                new Category { Name = "Household & Cleaning", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow }
+                "Beverages",
+                "Snacks & Confectionery",
+                "Dairy & Milk Products",
+                "Cooking Oil & Ghee",
+                "Rice & Grains",
+                "Spices & Recipe Mixes",
+                "Tea & Coffee",
+                "Jams, Sauces & Condiments",
+                "Personal Care & Hygiene",
+                "Household & Cleaning"
             };
+
+            var now = DateTime.UtcNow;
+            var categories = new List<Category>();
+
+            foreach (var company in companies.Values)
+            {
+                foreach (var name in standardNames)
+                {
+                    categories.Add(new Category
+                    {
+                        CompanyID = company.CompanyID,
+                        Name = name,
+                        IsActive = true,
+                        IsDeleted = false,
+                        CreatedAt = now
+                    });
+                }
+            }
 
             await context.Categories.AddRangeAsync(categories);
             await context.SaveChangesAsync();
 
-            return categories.ToDictionary(c => c.Name, c => c);
+            return categories.ToDictionary(c => (c.CompanyID, c.Name), c => c);
         }
 
         private static async Task<Dictionary<string, Unit>> SeedUnitsAsync(ApplicationDbContext context)
@@ -242,7 +275,7 @@ namespace InventorySystem.Data
         private static async Task SeedProductsAndUnitsAsync(
             ApplicationDbContext context,
             int adminUserId,
-            Dictionary<string, Category> categories,
+            Dictionary<(int CompanyId, string Name), Category> categories,
             Dictionary<string, Unit> units,
             Dictionary<string, Company> companies)
         {
@@ -578,10 +611,15 @@ namespace InventorySystem.Data
 
             foreach (var pDef in seedProductDefs)
             {
-                var cat = categories[pDef.CatName];
                 var baseUnit = units[pDef.BaseUnitName];
                 var company = companiesList[prodIdx % companiesList.Count];
                 prodIdx++;
+
+                if (!categories.TryGetValue((company.CompanyID, pDef.CatName), out var cat))
+                {
+                    throw new InvalidOperationException(
+                        $"Seed category '{pDef.CatName}' was not found for company '{company.CompanyName}'.");
+                }
 
                 var product = new Product
                 {
@@ -938,10 +976,203 @@ namespace InventorySystem.Data
             }
         }
 
+        private static async Task<List<User>> SeedSalespersonUsersAsync(
+            ApplicationDbContext context,
+            int adminRoleId,
+            int adminUserId)
+        {
+            var users = await context.Users
+                .IgnoreQueryFilters()
+                .Where(u => !u.IsDeleted && u.IsActive)
+                .OrderBy(u => u.UserID)
+                .ToListAsync();
+
+            if (users.Count >= 2)
+            {
+                return users;
+            }
+
+            var existing = await context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Username == "shahzaib");
+
+            if (existing == null)
+            {
+                existing = new User
+                {
+                    RoleID = adminRoleId,
+                    FullName = "Shahzaib",
+                    Username = "shahzaib",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
+                    IsActive = true,
+                    IsDeleted = false,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = adminUserId
+                };
+
+                await context.Users.AddAsync(existing);
+                await context.SaveChangesAsync();
+            }
+
+            users = await context.Users
+                .IgnoreQueryFilters()
+                .Where(u => !u.IsDeleted && u.IsActive)
+                .OrderBy(u => u.UserID)
+                .ToListAsync();
+
+            return users;
+        }
+
+        private static async Task BackfillExistingInvoicesForLoadSheetTestingAsync(
+            ApplicationDbContext context,
+            List<Broker> brokers,
+            List<User> salespersons,
+            List<DeliveryPerson> deliveryPersons)
+        {
+            if (brokers.Count < 2 || !salespersons.Any())
+            {
+                return;
+            }
+
+            var invoices = await context.SalesInvoices
+                .IgnoreQueryFilters()
+                .Where(si => !si.IsDeleted)
+                .OrderBy(si => si.InvoiceDate)
+                .ThenBy(si => si.InvoiceID)
+                .ToListAsync();
+
+            if (!invoices.Any())
+            {
+                return;
+            }
+
+            // Only Broker and Salesperson are backfilled. Suppliers are resolved per line item through
+            // Product.CompanyID, so no invoice-level supplier is derived here.
+            bool brokersAlreadyAssigned = invoices.Any(i => i.BrokerID.HasValue);
+            if (!brokersAlreadyAssigned)
+            {
+                var brokerA = brokers[0];
+                var brokerB = brokers[1];
+                var brokerC = brokers.Count > 2 ? brokers[2] : brokerA;
+                var userA = salespersons[0];
+                var userB = salespersons.Count > 1 ? salespersons[1] : salespersons[0];
+
+                var dateGroups = invoices
+                    .GroupBy(i => i.InvoiceDate.Date)
+                    .OrderBy(g => g.Key)
+                    .ToList();
+
+                bool assignedBrokerC = false;
+
+                foreach (var group in dateGroups)
+                {
+                    var list = group.OrderBy(i => i.InvoiceID).ToList();
+                    int splitIndex;
+                    if (list.Count >= 4)
+                    {
+                        splitIndex = list.Count / 2;
+                    }
+                    else if (list.Count == 3)
+                    {
+                        splitIndex = 2;
+                    }
+                    else if (list.Count == 2)
+                    {
+                        splitIndex = 1;
+                    }
+                    else
+                    {
+                        splitIndex = list.Count;
+                    }
+
+                    for (int i = 0; i < list.Count; i++)
+                    {
+                        var invoice = list[i];
+                        bool assignBrokerC = list.Count == 1 && !assignedBrokerC;
+
+                        if (assignBrokerC)
+                        {
+                            invoice.BrokerID = brokerC.BrokerID;
+                            invoice.SalespersonID = userA.UserID;
+                            assignedBrokerC = true;
+                            continue;
+                        }
+
+                        bool inBrokerAGroup = i < splitIndex;
+                        invoice.BrokerID = inBrokerAGroup ? brokerA.BrokerID : brokerB.BrokerID;
+
+                        if (inBrokerAGroup && list.Count >= 3 && i < 2)
+                        {
+                            invoice.SalespersonID = userB.UserID;
+                        }
+                        else if (!inBrokerAGroup)
+                        {
+                            invoice.SalespersonID = userB.UserID;
+                        }
+                        else
+                        {
+                            invoice.SalespersonID = userA.UserID;
+                        }
+                    }
+                }
+            }
+
+            if (deliveryPersons.Any())
+            {
+                var unassigned = invoices.Where(i => !i.DeliveryPersonID.HasValue).ToList();
+                for (int i = 0; i < unassigned.Count; i++)
+                {
+                    unassigned[i].DeliveryPersonID = deliveryPersons[i % deliveryPersons.Count].DeliveryPersonID;
+                }
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task<List<Broker>> SeedBrokersAsync(ApplicationDbContext context)
+        {
+            if (await context.Brokers.IgnoreQueryFilters().AnyAsync())
+            {
+                return await context.Brokers.IgnoreQueryFilters().Where(b => !b.IsDeleted).ToListAsync();
+            }
+
+            var brokers = new List<Broker>
+            {
+                new Broker { Name = "Nadeem", Phone = "03001234567", IsActive = true, IsDeleted = false },
+                new Broker { Name = "Imran", Phone = "03007654321", IsActive = true, IsDeleted = false },
+                new Broker { Name = "Asif", Phone = "03009876543", IsActive = true, IsDeleted = false }
+            };
+
+            await context.Brokers.AddRangeAsync(brokers);
+            await context.SaveChangesAsync();
+            return brokers;
+        }
+
+        private static async Task<List<DeliveryPerson>> SeedDeliveryPersonsAsync(ApplicationDbContext context)
+        {
+            if (await context.DeliveryPersons.IgnoreQueryFilters().AnyAsync())
+            {
+                return await context.DeliveryPersons.IgnoreQueryFilters().Where(dp => !dp.IsDeleted).ToListAsync();
+            }
+
+            var deliveryPersons = new List<DeliveryPerson>
+            {
+                new DeliveryPerson { Name = "Khalid", Phone = "03001112233", Type = "Employee", IsActive = true, IsDeleted = false },
+                new DeliveryPerson { Name = "Waseem", Phone = "03004445566", Type = "Employee", IsActive = true, IsDeleted = false },
+                new DeliveryPerson { Name = "Tariq", Phone = "03007778899", Type = "External", IsActive = true, IsDeleted = false }
+            };
+
+            await context.DeliveryPersons.AddRangeAsync(deliveryPersons);
+            await context.SaveChangesAsync();
+            return deliveryPersons;
+        }
+
         private static async Task SeedSalesInvoicesAsync(
             ApplicationDbContext context,
             int adminUserId,
-            List<Warehouse> warehouses)
+            List<Warehouse> warehouses,
+            List<Broker> brokers,
+            List<DeliveryPerson> deliveryPersons)
         {
             if (await context.SalesInvoices.IgnoreQueryFilters().AnyAsync()) return;
 
@@ -949,7 +1180,7 @@ namespace InventorySystem.Data
             var customers = await context.Customers.IgnoreQueryFilters().Where(c => !c.IsDeleted).ToListAsync();
             var products = await context.Products.IgnoreQueryFilters().Include(p => p.ProductUnits).Where(p => !p.IsDeleted).ToListAsync();
 
-            if (!customers.Any() || !products.Any()) return;
+            if (!customers.Any() || !products.Any() || !brokers.Any()) return;
 
             var now = DateTime.UtcNow;
 
@@ -957,7 +1188,15 @@ namespace InventorySystem.Data
             {
                 var customer = customers[(i - 1) % customers.Count];
                 var product1 = products[(i * 2 - 2) % products.Count];
-                var product2 = products[(i * 2 - 1) % products.Count];
+                // Deliberately pick a second product from a DIFFERENT supplier so seeded invoices
+                // remain valid mixed-company invoices.
+                var product2 = products
+                    .FirstOrDefault(p => p.CompanyID != product1.CompanyID)
+                    ?? products.FirstOrDefault(p => p.ProductID != product1.ProductID)
+                    ?? product1;
+                var broker = brokers[(i - 1) % brokers.Count];
+                var deliveryPerson = deliveryPersons.Any() ? deliveryPersons[(i - 1) % deliveryPersons.Count] : null;
+                var invoiceDate = now.AddDays(-i);
 
                 var pu1 = product1.ProductUnits.FirstOrDefault() ?? new ProductUnit { UnitID = product1.BaseUnitID, ConversionToBaseUnit = 1m };
                 var pu2 = product2.ProductUnits.FirstOrDefault() ?? new ProductUnit { UnitID = product2.BaseUnitID, ConversionToBaseUnit = 1m };
@@ -974,16 +1213,19 @@ namespace InventorySystem.Data
                 decimal convertedQty1 = qty1 * pu1.ConversionToBaseUnit;
                 decimal convertedQty2 = qty2 * pu2.ConversionToBaseUnit;
 
-                string invoiceNo = $"INV-{now.AddDays(-i):yyyyMMdd}-000{i}";
+                string invoiceNo = $"INV-{invoiceDate:yyyyMMdd}-000{i}";
 
                 var invoice = new SalesInvoice
                 {
                     CustomerID = customer.CustomerID,
+                    BrokerID = broker.BrokerID,
+                    SalespersonID = adminUserId,
+                    DeliveryPersonID = deliveryPerson?.DeliveryPersonID,
                     WarehouseID = mainWarehouse.WarehouseID,
                     AreaID = customer.AreaID,
                     SubAreaID = customer.SubAreaID,
                     InvoiceNumber = invoiceNo,
-                    InvoiceDate = now.AddDays(-i),
+                    InvoiceDate = invoiceDate,
                     SubTotal = grandTotal,
                     DiscountTotal = 0m,
                     TaxTotal = 0m,
@@ -991,7 +1233,7 @@ namespace InventorySystem.Data
                     PaidAmount = 0m,
                     PaymentStatus = "UNPAID",
                     IsLocked = false,
-                    CreatedAt = now.AddDays(-i),
+                    CreatedAt = invoiceDate,
                     CreatedBy = adminUserId,
                     IsDeleted = false
                 };
@@ -1010,7 +1252,7 @@ namespace InventorySystem.Data
                     DiscountAmount = 0m,
                     ItemType = "NORMAL",
                     IsActive = true,
-                    CreatedAt = now.AddDays(-i),
+                    CreatedAt = invoiceDate,
                     CreatedBy = adminUserId,
                     IsDeleted = false
                 };
@@ -1026,7 +1268,7 @@ namespace InventorySystem.Data
                     DiscountAmount = 0m,
                     ItemType = "NORMAL",
                     IsActive = true,
-                    CreatedAt = now.AddDays(-i),
+                    CreatedAt = invoiceDate,
                     CreatedBy = adminUserId,
                     IsDeleted = false
                 };
@@ -1048,12 +1290,12 @@ namespace InventorySystem.Data
                 }
 
                 // Inventory Transactions (Outward Stock Movement)
-                var tx1 = new InventoryTransaction { ProductID = product1.ProductID, WarehouseID = mainWarehouse.WarehouseID, TransactionType = "SALE", Quantity = -convertedQty1, ReferenceNumber = invoiceNo, SalesInvoiceItemID = item1.InvoiceItemID, CreatedBy = adminUserId, CreatedAt = now.AddDays(-i), IsActive = true, IsDeleted = false };
-                var tx2 = new InventoryTransaction { ProductID = product2.ProductID, WarehouseID = mainWarehouse.WarehouseID, TransactionType = "SALE", Quantity = -convertedQty2, ReferenceNumber = invoiceNo, SalesInvoiceItemID = item2.InvoiceItemID, CreatedBy = adminUserId, CreatedAt = now.AddDays(-i), IsActive = true, IsDeleted = false };
+                var tx1 = new InventoryTransaction { ProductID = product1.ProductID, WarehouseID = mainWarehouse.WarehouseID, TransactionType = "SALE", Quantity = -convertedQty1, ReferenceNumber = invoiceNo, SalesInvoiceItemID = item1.InvoiceItemID, CreatedBy = adminUserId, CreatedAt = invoiceDate, IsActive = true, IsDeleted = false };
+                var tx2 = new InventoryTransaction { ProductID = product2.ProductID, WarehouseID = mainWarehouse.WarehouseID, TransactionType = "SALE", Quantity = -convertedQty2, ReferenceNumber = invoiceNo, SalesInvoiceItemID = item2.InvoiceItemID, CreatedBy = adminUserId, CreatedAt = invoiceDate, IsActive = true, IsDeleted = false };
                 await context.InventoryTransactions.AddRangeAsync(tx1, tx2);
 
                 // Customer Ledger (Debit Entry)
-                var ledger = new CustomerLedger { CustomerID = customer.CustomerID, TransactionDate = invoice.InvoiceDate, TransactionType = "SALE", DebitAmount = grandTotal, CreditAmount = 0m, SalesInvoiceID = invoice.InvoiceID, Description = $"Sales Invoice #{invoiceNo}", CreatedBy = adminUserId, CreatedAt = now.AddDays(-i) };
+                var ledger = new CustomerLedger { CustomerID = customer.CustomerID, TransactionDate = invoice.InvoiceDate, TransactionType = "SALE", DebitAmount = grandTotal, CreditAmount = 0m, SalesInvoiceID = invoice.InvoiceID, Description = $"Sales Invoice #{invoiceNo}", CreatedBy = adminUserId, CreatedAt = invoiceDate };
                 await context.CustomerLedgers.AddAsync(ledger);
 
                 await context.SaveChangesAsync();

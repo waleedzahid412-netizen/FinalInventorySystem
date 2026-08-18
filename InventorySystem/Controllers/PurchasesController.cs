@@ -157,7 +157,7 @@ namespace InventorySystem.Controllers
                 productUnitId = u.ProductUnitID,
                 name = u.UnitName,
                 unitName = u.UnitName,
-                purchasePrice = 0m,
+                purchasePrice = u.PurchasePrice ?? 0m,
                 conversionFactor = u.ConversionToBaseUnit,
                 conversionToBaseUnit = u.ConversionToBaseUnit
             });

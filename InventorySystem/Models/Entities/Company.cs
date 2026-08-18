@@ -48,8 +48,10 @@ namespace InventorySystem.Models.Entities
         public DateTime? DeletedAt { get; set; }
 
         // ===== RELATIONSHIPS =====
+        public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
         public virtual ICollection<Product> Products { get; set; } = new List<Product>();
         public virtual ICollection<PurchaseInvoice> PurchaseInvoices { get; set; } = new List<PurchaseInvoice>();
+        public virtual ICollection<SalesInvoice> SalesInvoices { get; set; } = new List<SalesInvoice>();
         public virtual ICollection<CompanyPayment> CompanyPayments { get; set; } = new List<CompanyPayment>();
         public virtual ICollection<CompanyLedger> CompanyLedgerEntries { get; set; } = new List<CompanyLedger>();
     }

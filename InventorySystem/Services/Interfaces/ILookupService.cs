@@ -8,13 +8,13 @@ namespace InventorySystem.Services.Interfaces
 {
     public interface ILookupService
     {
-        Task<List<LookupItemDto>> GetCategoriesAsync(CancellationToken cancellationToken = default);
+        Task<List<LookupItemDto>> GetCategoriesAsync(int? companyId = null, CancellationToken cancellationToken = default);
         Task<List<LookupItemDto>> GetUnitsAsync(CancellationToken cancellationToken = default);
         Task<List<LookupItemDto>> GetCompaniesAsync(CancellationToken cancellationToken = default);
         Task<List<LookupItemDto>> GetCustomersAsync(CancellationToken cancellationToken = default);
         Task<List<LookupItemDto>> GetAreasAsync(CancellationToken cancellationToken = default);
         Task<List<LookupItemDto>> GetSubAreasAsync(int? areaId = null, CancellationToken cancellationToken = default);
-        Task<ProductFormDropdownsDto> GetProductFormDropdownsAsync(CancellationToken cancellationToken = default);
+        Task<ProductFormDropdownsDto> GetProductFormDropdownsAsync(int? companyId = null, CancellationToken cancellationToken = default);
 
         // ===== PURCHASE & SALES LOOKUPS =====
         Task<List<LookupItemDto>> GetWarehousesAsync(CancellationToken cancellationToken = default);
@@ -25,6 +25,8 @@ namespace InventorySystem.Services.Interfaces
         // ===== SALES LOOKUPS =====
         Task<List<LookupItemDto>> GetProductsAsync(CancellationToken cancellationToken = default);
         Task<List<LookupItemDto>> GetDeliveryPersonsAsync(CancellationToken cancellationToken = default);
+        Task<List<LookupItemDto>> GetBrokersAsync(CancellationToken cancellationToken = default);
+        Task<List<LookupItemDto>> GetSalespersonsAsync(CancellationToken cancellationToken = default);
         Task<DTOs.Sales.CustomerInfoDto?> GetCustomerInfoAsync(int customerId, CancellationToken cancellationToken = default);
         Task<DTOs.Sales.ProductUnitPriceDto?> GetProductUnitPriceAsync(int productId, int productUnitId, CancellationToken cancellationToken = default);
         Task<DTOs.Sales.AvailableStockDto> GetAvailableStockAsync(int productId, int warehouseId, int productUnitId, CancellationToken cancellationToken = default);

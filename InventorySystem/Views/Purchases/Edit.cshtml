@@ -218,6 +218,9 @@
                 } else if (units.length > 0) {
                     $unitSelect.val(units[0].id);
                 }
+                if (window.WimsSelect2) {
+                    window.WimsSelect2.sync($unitSelect[0]);
+                }
                 calculateRowTotal(rowId);
             } catch (err) {
                 console.error("Failed to load units:", err);
