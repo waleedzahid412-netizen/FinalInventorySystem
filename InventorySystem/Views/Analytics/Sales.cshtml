@@ -1,0 +1,103 @@
+@{
+    ViewData["Title"] = "Sales Analytics";
+}
+
+<div class="container-fluid px-4 py-3">
+    <h2 class="h3 fw-bold mb-1">Sales Analytics</h2>
+    <p class="text-muted">Sales, net sales, returns, area mix, payment status, and unpaid aging. Click a trend point to see invoices.</p>
+    <partial name="_AnalyticsNav" />
+    <partial name="_AnalyticsFilters" />
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-2"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Total Sales</div><div class="fs-5 fw-bold" id="kpiSales">PKR 0.00</div></div></div></div>
+        <div class="col-md-2"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Net Sales</div><div class="fs-5 fw-bold" id="kpiNet">PKR 0.00</div></div></div></div>
+        <div class="col-md-2"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Returns</div><div class="fs-5 fw-bold" id="kpiReturns">PKR 0.00</div></div></div></div>
+        <div class="col-md-2"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Invoice Count</div><div class="fs-5 fw-bold" id="kpiCount">0</div></div></div></div>
+        <div class="col-md-2"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Avg Invoice</div><div class="fs-5 fw-bold" id="kpiAov">PKR 0.00</div></div></div></div>
+        <div class="col-md-2"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Discount Rate</div><div class="fs-5 fw-bold" id="kpiDiscount">0%</div></div></div></div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between">
+            <h5 class="mb-0 fw-bold">Trends</h5>
+            <div class="btn-group btn-group-sm" id="intervalGroup">
+                <button type="button" class="btn btn-outline-secondary active" data-interval="Daily">Daily</button>
+                <button type="button" class="btn btn-outline-secondary" data-interval="Weekly">Weekly</button>
+                <button type="button" class="btn btn-outline-secondary" data-interval="Monthly">Monthly</button>
+            </div>
+        </div>
+        <div class="card-body" style="min-height: 320px;"><canvas id="chartTrends"></canvas></div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6"><div class="card border-0 shadow-sm h-100"><div class="card-header bg-white"><h5 class="mb-0 fw-bold">Sales by Area</h5></div><div class="card-body"><canvas id="chartArea"></canvas></div></div></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm h-100"><div class="card-header bg-white"><h5 class="mb-0 fw-bold">Sales by Sub Area</h5></div><div class="card-body"><canvas id="chartSubArea"></canvas></div></div></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm h-100"><div class="card-header bg-white"><h5 class="mb-0 fw-bold">Payment Status</h5></div><div class="card-body"><canvas id="chartPay"></canvas></div></div></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm h-100"><div class="card-header bg-white"><h5 class="mb-0 fw-bold">Unpaid Aging</h5></div>
+            <div class="card-body p-0"><table class="table mb-0"><thead><tr><th>Bucket</th><th class="text-end">Invoices</th><th class="text-end">Outstanding</th></tr></thead><tbody id="agingBody"></tbody></table></div>
+        </div></div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white"><h5 class="mb-0 fw-bold">Invoices in selected bucket</h5></div>
+        <div class="card-body p-0">
+            <table class="table mb-0"><thead><tr><th>Number</th><th>Date</th><th>Customer</th><th class="text-end">Total</th><th>Status</th></tr></thead>
+            <tbody id="drillBody"><tr><td colspan="5" class="text-muted text-center py-3">Click a point on the trend chart.</td></tr></tbody></table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let currentPreset = 'ThisMonth', currentInterval = 'Daily';
+        let chartT, chartA, chartS, chartP, trendRows = [];
+        function money(v) { return 'PKR ' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function buildFilter() {
+            const b = $('#brokerId').val();
+            return { Preset: currentPreset, StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null, EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
+                WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null,
+                BrokerID: b === '-1' ? -1 : (parseInt(b) || null) };
+        }
+        $(function () {
+            $('#presetGroup button').click(function () { $('#presetGroup button').removeClass('active'); $(this).addClass('active'); currentPreset = $(this).data('preset'); if (currentPreset === 'Custom') $('.custom-date-container').slideDown(); else { $('.custom-date-container').slideUp(); load(); } });
+            $('#intervalGroup button').click(function () { $('#intervalGroup button').removeClass('active'); $(this).addClass('active'); currentInterval = $(this).data('interval'); load(); });
+            $('#btnApplyFilter').click(load);
+            load();
+        });
+        async function load() {
+            const res = await fetch('/Analytics/GetSalesAnalytics?interval=' + currentInterval, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildFilter()) });
+            const d = await res.json();
+            $('#kpiSales').text(money(d.totalSales)); $('#kpiNet').text(money(d.netSales)); $('#kpiReturns').text(money(d.returns));
+            $('#kpiCount').text(d.invoiceCount || 0); $('#kpiAov').text(money(d.averageInvoiceValue)); $('#kpiDiscount').text((d.discountRate || 0) + '%');
+            trendRows = d.trends || [];
+            renderLine('chartTrends', chartT, (c) => chartT = c, trendRows.map(r => r.label), [
+                { label: 'Sales', data: trendRows.map(r => r.salesAmount), borderColor: '#0d6efd' },
+                { label: 'Net Sales', data: trendRows.map(r => r.netSalesAmount), borderColor: '#198754' },
+                { label: 'Returns', data: trendRows.map(r => r.returnsAmount), borderColor: '#dc3545' },
+                { label: 'Purchases', data: trendRows.map(r => r.purchaseAmount), borderColor: '#6c757d' }
+            ]);
+            renderBar('chartArea', chartA, (c) => chartA = c, (d.salesByArea || []).map(x => x.name), (d.salesByArea || []).map(x => x.amount));
+            renderBar('chartSubArea', chartS, (c) => chartS = c, (d.salesBySubArea || []).map(x => x.name), (d.salesBySubArea || []).map(x => x.amount));
+            renderDoughnut('chartPay', chartP, (c) => chartP = c, (d.paymentStatuses || []).map(x => x.status), (d.paymentStatuses || []).map(x => x.totalAmount));
+            $('#agingBody').html((d.aging || []).map(a => `<tr><td>${a.bucket}</td><td class="text-end">${a.invoiceCount}</td><td class="text-end">${money(a.outstandingAmount)}</td></tr>`).join(''));
+        }
+        function renderLine(id, inst, set, labels, datasets) {
+            if (inst) inst.destroy();
+            const ctx = document.getElementById(id);
+            ctx.onclick = async function (evt) {
+                const points = (set._chart || chartT)?.getElementsAtEventForMode?.(evt, 'nearest', { intersect: true }, true);
+            };
+            const chart = new Chart(ctx, { type: 'line', data: { labels, datasets: datasets.map(ds => ({ ...ds, tension: 0.2, fill: false })) }, options: { onClick: async (e, els) => {
+                if (!els.length) return;
+                const row = trendRows[els[0].index];
+                const res = await fetch(`/Analytics/GetSalesDrilldown?bucketStart=${encodeURIComponent(row.bucketStart)}&bucketEnd=${encodeURIComponent(row.bucketEnd)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildFilter()) });
+                const rows = await res.json();
+                $('#drillBody').html(rows.length ? rows.map(r => `<tr><td><a href="/Sales/Details/${r.invoiceID}">${r.invoiceNumber}</a></td><td>${new Date(r.invoiceDate).toLocaleDateString()}</td><td>${r.customerName}</td><td class="text-end">${money(r.grandTotal)}</td><td>${r.paymentStatus}</td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No invoices.</td></tr>');
+            }}});
+            set(chart);
+        }
+        function renderBar(id, inst, set, labels, data) { if (inst) inst.destroy(); set(new Chart(document.getElementById(id), { type: 'bar', data: { labels, datasets: [{ data, backgroundColor: '#0d6efd' }] }, options: { plugins: { legend: { display: false } } } })); }
+        function renderDoughnut(id, inst, set, labels, data) { if (inst) inst.destroy(); set(new Chart(document.getElementById(id), { type: 'doughnut', data: { labels, datasets: [{ data, backgroundColor: ['#198754', '#ffc107', '#dc3545'] }] } })); }
+    </script>
+}

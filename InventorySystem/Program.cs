@@ -87,6 +87,7 @@ builder.Services.AddScoped<IReturnRepository, ReturnRepository>();
 builder.Services.AddScoped<IReturnService, ReturnService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
+builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IBrokerRepository, BrokerRepository>();
 builder.Services.AddScoped<IBrokerService, BrokerService>();

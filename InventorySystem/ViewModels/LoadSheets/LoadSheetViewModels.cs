@@ -7,9 +7,9 @@ namespace InventorySystem.ViewModels.LoadSheets
 {
     public class LoadSheetIndexViewModel
     {
-        [Required(ErrorMessage = "Please select a broker.")]
-        [Range(1, int.MaxValue, ErrorMessage = "Please select a broker.")]
-        [Display(Name = "Broker")]
+        [Required(ErrorMessage = "Please select a bookie.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Please select a bookie.")]
+        [Display(Name = "Bookie")]
         public int BrokerID { get; set; }
 
         [Required(ErrorMessage = "Please select a date.")]

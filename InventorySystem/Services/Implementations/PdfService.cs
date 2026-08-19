@@ -588,7 +588,7 @@ namespace InventorySystem.Services.Implementations
                             {
                                 AddRow("Total Sales", kpi.TotalSales);
                                 AddRow("Total Purchases", kpi.TotalPurchases);
-                                AddRow("Gross Profit", kpi.EstimatedGrossProfit);
+                                AddRow("Estimated Gross Profit (Avg Cost)", kpi.EstimatedGrossProfit);
                                 AddRow("Total Discounts", kpi.TotalDiscounts);
                                 AddRow("Total Returns", kpi.TotalReturns);
                                 AddRow("Net Sales", kpi.NetSales);

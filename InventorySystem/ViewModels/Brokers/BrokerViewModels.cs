@@ -13,9 +13,9 @@ namespace InventorySystem.ViewModels.Brokers
 
     public class CreateBrokerViewModel
     {
-        [Required(ErrorMessage = "Broker name is required.")]
+        [Required(ErrorMessage = "Bookie name is required.")]
         [MaxLength(100)]
-        [Display(Name = "Broker Name")]
+        [Display(Name = "Bookie Name")]
         public string Name { get; set; } = string.Empty;
 
         [MaxLength(20)]
@@ -30,9 +30,9 @@ namespace InventorySystem.ViewModels.Brokers
     {
         public int BrokerID { get; set; }
 
-        [Required(ErrorMessage = "Broker name is required.")]
+        [Required(ErrorMessage = "Bookie name is required.")]
         [MaxLength(100)]
-        [Display(Name = "Broker Name")]
+        [Display(Name = "Bookie Name")]
         public string Name { get; set; } = string.Empty;
 
         [MaxLength(20)]

@@ -1,0 +1,76 @@
+@{
+    var showBroker = ViewBag.ShowBrokerFilter as bool? ?? true;
+    var hideCustomer = ViewData["HideCustomerFilter"] as bool? ?? false;
+    var hideBroker = ViewData["HideBrokerFilter"] as bool? ?? false;
+    var showPdf = ViewData["ShowPdfExport"] as bool? ?? false;
+}
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-3">
+        <form id="analyticsFilterForm" onsubmit="return false;">
+            <div class="row g-3 align-items-end">
+                <div class="col-12">
+                    <label class="form-label fw-bold text-secondary mb-2 small text-uppercase">Time Range Presets</label>
+                    <div class="btn-group w-100 flex-wrap" role="group" id="presetGroup">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="Today">Today</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="Last7Days">Last 7 Days</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="Last30Days">Last 30 Days</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm active" data-preset="ThisMonth">This Month</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="LastMonth">Last Month</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="ThisYear">This Year</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="Custom">Custom Range</button>
+                    </div>
+                </div>
+                <div class="col-md-3 custom-date-container" style="display: none;">
+                    <label class="form-label small fw-bold text-muted">Start Date</label>
+                    <input type="date" class="form-control form-control-sm" id="startDate" />
+                </div>
+                <div class="col-md-3 custom-date-container" style="display: none;">
+                    <label class="form-label small fw-bold text-muted">End Date</label>
+                    <input type="date" class="form-control form-control-sm" id="endDate" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted">Warehouse</label>
+                    <select class="form-select form-select-sm" id="warehouseId" asp-items="@(ViewBag.Warehouses as IEnumerable<SelectListItem>)">
+                        <option value="">All Warehouses</option>
+                    </select>
+                </div>
+                @if (!hideCustomer)
+                {
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted">Customer</label>
+                        <select class="form-select form-select-sm" id="customerId" asp-items="@(ViewBag.Customers as IEnumerable<SelectListItem>)">
+                            <option value="">All Customers</option>
+                        </select>
+                    </div>
+                }
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted">Category</label>
+                    <select class="form-select form-select-sm" id="categoryId" asp-items="@(ViewBag.Categories as IEnumerable<SelectListItem>)">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+                @if (showBroker && !hideBroker)
+                {
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-muted">Bookie</label>
+                        <select class="form-select form-select-sm" id="brokerId" asp-items="@(ViewBag.Brokers as IEnumerable<SelectListItem>)">
+                            <option value="">All Bookies</option>
+                            <option value="-1">Unassigned</option>
+                        </select>
+                    </div>
+                }
+                <div class="col-md-3 ms-auto text-end">
+                    <button type="button" class="btn btn-primary btn-sm px-4 fw-bold shadow-sm" id="btnApplyFilter">
+                        <i class="bi bi-funnel me-1"></i> Apply Filters
+                    </button>
+                    @if (showPdf)
+                    {
+                        <button type="button" class="btn btn-outline-danger btn-sm fw-bold shadow-sm" id="btnExportPdf">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+                        </button>
+                    }
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,117 @@
+@{
+    ViewData["Title"] = "Product Analytics";
+}
+<div class="container-fluid px-4 py-3">
+    <h2 class="h3 fw-bold mb-1">Product Analytics</h2>
+    <p class="text-muted">Quantities are in base units. Profit is estimated using average purchase cost.</p>
+    <partial name="_AnalyticsNav" />
+    <partial name="_AnalyticsFilters" />
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0 fw-bold">Top products by quantity sold and revenue</h5>
+            <p class="text-muted small mb-0">Base-unit quantity (left) vs invoice revenue in PKR (right). Top 10 by revenue.</p>
+        </div>
+        <div class="card-body" style="min-height: 380px;">
+            <canvas id="chartTopSold"></canvas>
+        </div>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6"><div class="card border-0 shadow-sm h-100"><div class="card-header bg-white"><h5 class="mb-0">Category mix</h5></div><div class="card-body"><canvas id="chartCat"></canvas></div></div></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm h-100"><div class="card-header bg-white"><h5 class="mb-0">Inventory movement (base units)</h5></div><div class="card-body"><canvas id="chartMove"></canvas></div></div></div>
+    </div>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between">
+            <h5 class="mb-0 fw-bold">Products sold</h5>
+            <select id="sortBy" class="form-select form-select-sm w-auto">
+                <option value="Quantity">Base qty sold</option>
+                <option value="Revenue">Revenue</option>
+                <option value="Profit">Estimated profit</option>
+                <option value="Stock">Current stock</option>
+                <option value="Velocity">Velocity</option>
+            </select>
+        </div>
+        <div class="table-responsive"><table class="table table-hover mb-0">
+            <thead><tr><th>Product</th><th>Category</th><th>Class</th><th class="text-end">Qty sold</th><th class="text-end">Revenue</th><th class="text-end">Est. profit</th><th class="text-end">Stock</th><th class="text-end">Velocity</th></tr></thead>
+            <tbody id="prodBody"></tbody>
+        </table></div>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-12 col-md-4" style="min-width: 0;">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white"><h5 class="mb-0 text-break">Fast movers</h5></div>
+                <ul class="list-group list-group-flush" id="fastList"></ul>
+            </div>
+        </div>
+        <div class="col-12 col-md-4" style="min-width: 0;">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white"><h5 class="mb-0 text-break">Slow movers</h5></div>
+                <ul class="list-group list-group-flush" id="slowList"></ul>
+            </div>
+        </div>
+        <div class="col-12 col-md-4" style="min-width: 0;">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white"><h5 class="mb-0 text-break">Dead movers (stock, no sales)</h5></div>
+                <ul class="list-group list-group-flush" id="deadList"></ul>
+            </div>
+        </div>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-6 min-w-0"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Top purchased products</h5></div>
+            <div class="table-responsive"><table class="table mb-0"><thead><tr><th>Product</th><th class="text-end">Qty (base)</th><th class="text-end">Cost</th></tr></thead><tbody id="purchBody"></tbody></table></div></div></div>
+        <div class="col-lg-6 min-w-0"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Stock risk</h5></div>
+            <div class="table-responsive"><table class="table mb-0"><thead><tr><th>Product</th><th class="text-end">Stock</th><th>Status</th></tr></thead><tbody id="riskBody"></tbody></table></div></div></div>
+    </div>
+</div>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let currentPreset = 'ThisMonth', chartC, chartM, chartTop;
+        function money(v) { return 'PKR ' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function buildFilter() {
+            return { Preset: currentPreset, StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null, EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
+                WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null };
+        }
+        $(function () {
+            $('#presetGroup button').click(function () { $('#presetGroup button').removeClass('active'); $(this).addClass('active'); currentPreset = $(this).data('preset'); if (currentPreset === 'Custom') $('.custom-date-container').slideDown(); else { $('.custom-date-container').slideUp(); load(); } });
+            $('#btnApplyFilter, #sortBy').on('click change', load);
+            load();
+        });
+        async function load() {
+            const res = await fetch('/Analytics/GetProductAnalytics?sortBy=' + $('#sortBy').val(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildFilter()) });
+            const d = await res.json();
+            const topSold = [...(d.products || [])].sort((a, b) => (b.revenue || 0) - (a.revenue || 0)).slice(0, 10);
+            if (chartTop) chartTop.destroy();
+            chartTop = new Chart(document.getElementById('chartTopSold'), {
+                type: 'bar',
+                data: {
+                    labels: topSold.map(p => p.productName),
+                    datasets: [
+                        { label: 'Qty sold (base units)', data: topSold.map(p => p.quantitySoldBase), backgroundColor: '#0d6efd', yAxisID: 'yQty' },
+                        { label: 'Revenue (PKR)', data: topSold.map(p => p.revenue), backgroundColor: '#198754', yAxisID: 'yRev' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: {
+                        yQty: { type: 'linear', position: 'left', beginAtZero: true, title: { display: true, text: 'Base units sold' } },
+                        yRev: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Revenue (PKR)' }, ticks: { callback: v => Number(v).toLocaleString() } }
+                    }
+                }
+            });
+            if (chartC) chartC.destroy();
+            chartC = new Chart(document.getElementById('chartCat'), { type: 'doughnut', data: { labels: (d.categoryMix || []).map(x => x.categoryName), datasets: [{ data: (d.categoryMix || []).map(x => x.salesAmount) }] } });
+            if (chartM) chartM.destroy();
+            const mv = d.movement || {};
+            chartM = new Chart(document.getElementById('chartMove'), { type: 'bar', data: { labels: ['Purchased', 'Sold', 'Returned', 'Adjusted'], datasets: [{ data: [mv.purchasedQuantity, mv.soldQuantity, mv.salesReturnQuantity, mv.adjustmentQuantity], backgroundColor: '#0d6efd' }] }, options: { plugins: { legend: { display: false } } } });
+            $('#prodBody').html((d.products || []).map(p => `<tr><td><a href="/Analytics/Product/${p.productID}">${p.productName}</a></td><td>${p.categoryName}</td><td>${p.moverClass}</td><td class="text-end">${p.quantitySoldBase}</td><td class="text-end">${money(p.revenue)}</td><td class="text-end">${money(p.estimatedProfit)}</td><td class="text-end">${p.currentStock}</td><td class="text-end">${p.velocity ?? '—'}</td></tr>`).join(''));
+            const itemHtml = (p, extra) => `<li class="list-group-item text-break"><a class="text-break" href="/Analytics/Product/${p.productID}">${p.productName}</a>${extra || ''}</li>`;
+            $('#fastList').html((d.fastMovers || []).map(p => itemHtml(p)).join(''));
+            $('#slowList').html((d.slowMovers || []).map(p => itemHtml(p)).join(''));
+            $('#deadList').html((d.deadMovers || []).map(p => itemHtml(p, ` (${p.currentStock})`)).join(''));
+            $('#purchBody').html((d.topPurchased || []).map(p => `<tr><td><a href="/Analytics/Product/${p.productID}">${p.productName}</a></td><td class="text-end">${p.quantityPurchasedBase}</td><td class="text-end">${money(p.purchaseCost)}</td></tr>`).join(''));
+            $('#riskBody').html((d.stockRisk || []).map(p => `<tr><td><a href="/Analytics/Product/${p.productID}">${p.productName}</a></td><td class="text-end">${p.currentStock}</td><td>${p.riskLevel}</td></tr>`).join(''));
+        }
+    </script>
+}

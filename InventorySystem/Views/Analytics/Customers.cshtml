@@ -1,0 +1,56 @@
+@{
+    ViewData["Title"] = "Customer Analytics";
+}
+<div class="container-fluid px-4 py-3">
+    <h2 class="h3 fw-bold mb-1">Customer Analytics</h2>
+    <p class="text-muted">Rank customers by revenue, invoices, returns, outstanding, or last sale.</p>
+    <partial name="_AnalyticsNav" />
+    <partial name="_AnalyticsFilters" />
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold">Customers in period</h5>
+            <select class="form-select form-select-sm w-auto" id="sortBy">
+                <option value="Revenue">Revenue</option>
+                <option value="InvoiceCount">Invoice Count</option>
+                <option value="Returns">Returns</option>
+                <option value="Outstanding">Outstanding</option>
+                <option value="LastSaleDate">Last Sale Date</option>
+            </select>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>Customer</th><th>Area</th><th class="text-end">Revenue</th><th class="text-end">Invoices</th><th class="text-end">Returns</th><th class="text-end">Outstanding</th><th>Last Sale</th></tr></thead>
+                <tbody id="custBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white"><h5 class="mb-0 fw-bold">No sales in selected period</h5></div>
+        <div class="table-responsive">
+            <table class="table mb-0"><thead><tr><th>Customer</th></tr></thead><tbody id="inactiveBody"></tbody></table>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <script>
+        let currentPreset = 'ThisMonth';
+        function money(v) { return 'PKR ' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function buildFilter() {
+            const b = $('#brokerId').val();
+            return { Preset: currentPreset, StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null, EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
+                WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null,
+                BrokerID: b === '-1' ? -1 : (parseInt(b) || null) };
+        }
+        $(function () {
+            $('#presetGroup button').click(function () { $('#presetGroup button').removeClass('active'); $(this).addClass('active'); currentPreset = $(this).data('preset'); if (currentPreset === 'Custom') $('.custom-date-container').slideDown(); else { $('.custom-date-container').slideUp(); load(); } });
+            $('#btnApplyFilter, #sortBy').on('click change', load);
+            load();
+        });
+        async function load() {
+            const res = await fetch('/Analytics/GetCustomerAnalytics?sortBy=' + $('#sortBy').val(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildFilter()) });
+            const d = await res.json();
+            $('#custBody').html((d.customers || []).map(c => `<tr><td><a href="/Analytics/Customer/${c.customerID}">${c.customerName}</a></td><td>${c.areaName || ''}</td><td class="text-end">${money(c.revenue)}</td><td class="text-end">${c.invoiceCount}</td><td class="text-end">${money(c.returns)}</td><td class="text-end">${money(c.outstanding)}</td><td>${c.lastSaleDate ? new Date(c.lastSaleDate).toLocaleDateString() : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="text-center text-muted">No customers.</td></tr>');
+            $('#inactiveBody').html((d.inactiveCustomers || []).map(c => `<tr><td><a href="/Analytics/Customer/${c.customerID}">${c.customerName}</a></td></tr>`).join('') || '<tr><td class="text-muted">None</td></tr>');
+        }
+    </script>
+}

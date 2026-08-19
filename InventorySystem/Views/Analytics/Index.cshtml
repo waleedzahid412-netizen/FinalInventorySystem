@@ -1,576 +1,143 @@
-@model InventorySystem.DTOs.Analytics.AnalyticsKpiSummaryDto
+@model InventorySystem.DTOs.Analytics.OverviewAnalyticsDto
 @{
-    ViewData["Title"] = "Analytics & Insights";
+    ViewData["Title"] = "Analytics Overview";
+    ViewData["ShowPdfExport"] = true;
 }
 
 <div class="container-fluid px-4 py-3">
-    <!-- PAGE HEADER -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
         <div>
-            <h2 class="h3 fw-bold text-dark mb-1"><i class="bi bi-graph-up-arrow me-2 text-primary"></i> Analytics & Insights</h2>
-            <p class="text-muted mb-0">Analyze sales, purchasing, inventory, customers, products, and profitability to make better business decisions.</p>
-        </div>
-        <div class="mt-3 mt-md-0 d-flex gap-2 align-items-center flex-wrap">
-            <span class="badge bg-light text-dark border px-3 py-2 fs-6">
-                <i class="bi bi-clock me-1 text-primary"></i> Live ERP Business Intelligence
-            </span>
-            <button type="button" class="btn btn-outline-danger btn-sm fw-bold shadow-sm" id="btnExportPdf">
-                <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
-            </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm fw-bold shadow-sm" id="btnPrintReport" onclick="window.print();">
-                <i class="bi bi-printer me-1"></i> Print
-            </button>
+            <h2 class="h3 fw-bold text-dark mb-1"><i class="bi bi-graph-up-arrow me-2 text-primary"></i> Analytics &amp; Insights</h2>
+            <p class="text-muted mb-0">Period KPIs, sales trend, and operational warnings. Estimated profit uses average purchase cost, not FIFO.</p>
         </div>
     </div>
 
-    <!-- FILTER CONTROL CARD -->
-    <div class="card border-0 shadow-sm rounded-3 mb-4">
-        <div class="card-body p-3">
-            <form id="analyticsFilterForm" onsubmit="return false;">
-                <div class="row g-3 align-items-end">
-                    <!-- Time Range Presets -->
-                    <div class="col-12">
-                        <label class="form-label fw-bold text-secondary mb-2 small text-uppercase">Time Range Presets</label>
-                        <div class="btn-group w-100 flex-wrap" role="group" id="presetGroup">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="Today">Today</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="Last7Days">Last 7 Days</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="Last30Days">Last 30 Days</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm active" data-preset="ThisMonth">This Month</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="LastMonth">Last Month</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="ThisYear">This Year</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-preset="Custom">Custom Range</button>
-                        </div>
-                    </div>
+    <partial name="_AnalyticsNav" />
+    <partial name="_AnalyticsFilters" />
 
-                    <!-- Custom Date Inputs -->
-                    <div class="col-md-3 custom-date-container" style="display: none;">
-                        <label class="form-label small fw-bold text-muted">Start Date</label>
-                        <input type="date" class="form-control form-control-sm" id="startDate" />
-                    </div>
-                    <div class="col-md-3 custom-date-container" style="display: none;">
-                        <label class="form-label small fw-bold text-muted">End Date</label>
-                        <input type="date" class="form-control form-control-sm" id="endDate" />
-                    </div>
+    <div id="businessInsightsContainer" class="row g-3 mb-4"></div>
 
-                    <!-- Warehouse Filter -->
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-muted">Warehouse</label>
-                        <select class="form-select form-select-sm" id="warehouseId" asp-items="@(ViewBag.Warehouses as IEnumerable<SelectListItem>)">
-                            <option value="">All Warehouses</option>
-                        </select>
-                    </div>
-
-                    <!-- Customer Filter -->
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-muted">Customer</label>
-                        <select class="form-select form-select-sm" id="customerId" asp-items="@(ViewBag.Customers as IEnumerable<SelectListItem>)">
-                            <option value="">All Customers</option>
-                        </select>
-                    </div>
-
-                    <!-- Category Filter -->
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-muted">Category</label>
-                        <select class="form-select form-select-sm" id="categoryId" asp-items="@(ViewBag.Categories as IEnumerable<SelectListItem>)">
-                            <option value="">All Categories</option>
-                        </select>
-                    </div>
-
-                    <!-- Apply Button -->
-                    <div class="col-md-3 ms-auto text-end">
-                        <button type="button" class="btn btn-primary btn-sm px-4 fw-bold shadow-sm" id="btnApplyFilter">
-                            <i class="bi bi-funnel me-1"></i> Apply Filters
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- AUTOMATED BUSINESS INSIGHTS ENGINE -->
-    <div id="businessInsightsContainer" class="row g-3 mb-4">
-        <!-- Dynamic Alert Banners populated via AJAX -->
-    </div>
-
-    <!-- KPI SUMMARY CARDS GRID (WAVE 1) -->
     <div class="row g-3 mb-4" id="kpiCardsContainer">
-        <!-- 1. Total Sales -->
         <div class="col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-primary border-4">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted small fw-semibold text-uppercase">Total Sales</span>
-                        <div class="p-2 bg-primary bg-opacity-10 text-primary rounded-3">
-                            <i class="bi bi-cart-check fs-5"></i>
-                        </div>
-                    </div>
-                    <h3 class="fw-bold text-dark mb-1" id="kpiTotalSales">@(Model?.TotalSales?.FormattedCurrentValue ?? "PKR 0.00")</h3>
-                    <div class="d-flex align-items-center small">
-                        <span class="badge @((Model?.TotalSales?.IsIncrease ?? true) ? "bg-success bg-opacity-10 text-success" : "bg-danger bg-opacity-10 text-danger") me-2" id="kpiTotalSalesBadge">
-                            <i class="bi @((Model?.TotalSales?.IsIncrease ?? true) ? "bi-arrow-up" : "bi-arrow-down") me-1"></i><span id="kpiTotalSalesChange">@(Model?.TotalSales?.ComparisonText ?? "0.0% vs previous period")</span>
-                        </span>
-                    </div>
+                    <span class="text-muted small fw-semibold text-uppercase">Total Sales</span>
+                    <h3 class="fw-bold mb-1" id="kpiTotalSales">@Model.Kpi.TotalSales.FormattedCurrentValue</h3>
+                    <span class="badge bg-light text-dark" id="kpiTotalSalesChange">@Model.Kpi.TotalSales.ComparisonText</span>
                 </div>
             </div>
         </div>
-
-        <!-- 2. Total Purchases -->
-        <div class="col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-info border-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted small fw-semibold text-uppercase">Total Purchases</span>
-                        <div class="p-2 bg-info bg-opacity-10 text-info rounded-3">
-                            <i class="bi bi-box-seam fs-5"></i>
-                        </div>
-                    </div>
-                    <h3 class="fw-bold text-dark mb-1" id="kpiTotalPurchases">@(Model?.TotalPurchases?.FormattedCurrentValue ?? "PKR 0.00")</h3>
-                    <div class="d-flex align-items-center small">
-                        <span class="badge @((Model?.TotalPurchases?.IsIncrease ?? true) ? "bg-info bg-opacity-10 text-info" : "bg-secondary bg-opacity-10 text-secondary") me-2" id="kpiTotalPurchasesBadge">
-                            <i class="bi @((Model?.TotalPurchases?.IsIncrease ?? true) ? "bi-arrow-up" : "bi-arrow-down") me-1"></i><span id="kpiTotalPurchasesChange">@(Model?.TotalPurchases?.ComparisonText ?? "0.0% vs previous period")</span>
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 3. Estimated Gross Profit -->
-        <div class="col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-success border-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted small fw-semibold text-uppercase">Est. Gross Profit</span>
-                        <div class="p-2 bg-success bg-opacity-10 text-success rounded-3">
-                            <i class="bi bi-cash-coin fs-5"></i>
-                        </div>
-                    </div>
-                    <h3 class="fw-bold text-dark mb-1" id="kpiEstimatedGrossProfit">@(Model?.EstimatedGrossProfit?.FormattedCurrentValue ?? "PKR 0.00")</h3>
-                    <div class="d-flex align-items-center small">
-                        <span class="badge @((Model?.EstimatedGrossProfit?.IsIncrease ?? true) ? "bg-success bg-opacity-10 text-success" : "bg-danger bg-opacity-10 text-danger") me-2" id="kpiEstimatedGrossProfitBadge">
-                            <i class="bi @((Model?.EstimatedGrossProfit?.IsIncrease ?? true) ? "bi-arrow-up" : "bi-arrow-down") me-1"></i><span id="kpiEstimatedGrossProfitChange">@(Model?.EstimatedGrossProfit?.ComparisonText ?? "0.0% vs previous period")</span>
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. Total Discounts -->
-        <div class="col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-warning border-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted small fw-semibold text-uppercase">Total Discounts</span>
-                        <div class="p-2 bg-warning bg-opacity-10 text-warning rounded-3">
-                            <i class="bi bi-tag fs-5"></i>
-                        </div>
-                    </div>
-                    <h3 class="fw-bold text-dark mb-1" id="kpiTotalDiscounts">@(Model?.TotalDiscounts?.FormattedCurrentValue ?? "PKR 0.00")</h3>
-                    <div class="d-flex align-items-center small">
-                        <span class="badge bg-warning bg-opacity-10 text-dark me-2" id="kpiTotalDiscountsBadge">
-                            <i class="bi @((Model?.TotalDiscounts?.IsIncrease ?? true) ? "bi-arrow-up" : "bi-arrow-down") me-1"></i><span id="kpiTotalDiscountsChange">@(Model?.TotalDiscounts?.ComparisonText ?? "0.0% vs previous period")</span>
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 5. Total Returns -->
-        <div class="col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-danger border-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted small fw-semibold text-uppercase">Total Returns</span>
-                        <div class="p-2 bg-danger bg-opacity-10 text-danger rounded-3">
-                            <i class="bi bi-arrow-return-left fs-5"></i>
-                        </div>
-                    </div>
-                    <h3 class="fw-bold text-dark mb-1" id="kpiTotalReturns">@(Model?.TotalReturns?.FormattedCurrentValue ?? "PKR 0.00")</h3>
-                    <div class="d-flex align-items-center small">
-                        <span class="badge @((Model?.TotalReturns?.IsIncrease ?? true) ? "bg-danger bg-opacity-10 text-danger" : "bg-success bg-opacity-10 text-success") me-2" id="kpiTotalReturnsBadge">
-                            <i class="bi @((Model?.TotalReturns?.IsIncrease ?? true) ? "bi-arrow-up" : "bi-arrow-down") me-1"></i><span id="kpiTotalReturnsChange">@(Model?.TotalReturns?.ComparisonText ?? "0.0% vs previous period")</span>
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 6. Net Sales -->
         <div class="col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-dark border-4">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted small fw-semibold text-uppercase">Net Sales</span>
-                        <div class="p-2 bg-dark bg-opacity-10 text-dark rounded-3">
-                            <i class="bi bi-wallet2 fs-5"></i>
-                        </div>
-                    </div>
-                    <h3 class="fw-bold text-dark mb-1" id="kpiNetSales">@(Model?.NetSales?.FormattedCurrentValue ?? "PKR 0.00")</h3>
-                    <div class="d-flex align-items-center small">
-                        <span class="badge @((Model?.NetSales?.IsIncrease ?? true) ? "bg-success bg-opacity-10 text-success" : "bg-danger bg-opacity-10 text-danger") me-2" id="kpiNetSalesBadge">
-                            <i class="bi @((Model?.NetSales?.IsIncrease ?? true) ? "bi-arrow-up" : "bi-arrow-down") me-1"></i><span id="kpiNetSalesChange">@(Model?.NetSales?.ComparisonText ?? "0.0% vs previous period")</span>
-                        </span>
-                    </div>
+                    <span class="text-muted small fw-semibold text-uppercase">Net Sales</span>
+                    <h3 class="fw-bold mb-1" id="kpiNetSales">@Model.Kpi.NetSales.FormattedCurrentValue</h3>
+                    <span class="badge bg-light text-dark" id="kpiNetSalesChange">@Model.Kpi.NetSales.ComparisonText</span>
                 </div>
             </div>
         </div>
-
-        <!-- 7. Customer Receivables -->
         <div class="col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-secondary border-4">
+            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-danger border-4">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted small fw-semibold text-uppercase">Customer Receivables</span>
-                        <div class="p-2 bg-secondary bg-opacity-10 text-secondary rounded-3">
-                            <i class="bi bi-person-lines-fill fs-5"></i>
-                        </div>
-                    </div>
-                    <h3 class="fw-bold text-dark mb-1" id="kpiCustomerReceivables">@(Model?.CustomerReceivables?.FormattedCurrentValue ?? "PKR 0.00")</h3>
-                    <div class="d-flex align-items-center small">
-                        <span class="badge bg-secondary bg-opacity-10 text-secondary me-2">Cumulative Ledger Balance</span>
-                    </div>
+                    <span class="text-muted small fw-semibold text-uppercase">Returns</span>
+                    <h3 class="fw-bold mb-1" id="kpiTotalReturns">@Model.Kpi.TotalReturns.FormattedCurrentValue</h3>
+                    <span class="badge bg-light text-dark" id="kpiTotalReturnsChange">@Model.Kpi.TotalReturns.ComparisonText</span>
                 </div>
             </div>
         </div>
-
-        <!-- 8. Company Payables -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-success border-4">
+                <div class="card-body">
+                    <span class="text-muted small fw-semibold text-uppercase">Est. Gross Profit (Avg Cost)</span>
+                    <h3 class="fw-bold mb-1" id="kpiEstimatedGrossProfit">@Model.Kpi.EstimatedGrossProfit.FormattedCurrentValue</h3>
+                    <span class="badge bg-light text-dark" id="kpiEstimatedGrossProfitChange">@Model.Kpi.EstimatedGrossProfit.ComparisonText</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-warning border-4">
+                <div class="card-body">
+                    <span class="text-muted small fw-semibold text-uppercase">Customer Receivables</span>
+                    <h3 class="fw-bold mb-1" id="kpiCustomerReceivables">@Model.Kpi.CustomerReceivables.FormattedCurrentValue</h3>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary">Cumulative ledger balance</span>
+                </div>
+            </div>
+        </div>
         <div class="col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-info border-4">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted small fw-semibold text-uppercase">Company Payables</span>
-                        <div class="p-2 bg-info bg-opacity-10 text-info rounded-3">
-                            <i class="bi bi-building-up fs-5"></i>
-                        </div>
-                    </div>
-                    <h3 class="fw-bold text-dark mb-1" id="kpiCompanyPayables">@(Model?.CompanyPayables?.FormattedCurrentValue ?? "PKR 0.00")</h3>
-                    <div class="d-flex align-items-center small">
-                        <span class="badge bg-secondary bg-opacity-10 text-secondary me-2">Cumulative Ledger Balance</span>
-                    </div>
+                    <span class="text-muted small fw-semibold text-uppercase">Company Payables</span>
+                    <h3 class="fw-bold mb-1" id="kpiCompanyPayables">@Model.Kpi.CompanyPayables.FormattedCurrentValue</h3>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary">Cumulative ledger balance</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body">
+                    <span class="text-muted small fw-semibold text-uppercase">Out of Stock</span>
+                    <h3 class="fw-bold mb-1" id="kpiOutOfStock">@Model.Inventory.OutOfStockProductCount</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body">
+                    <span class="text-muted small fw-semibold text-uppercase">Low Stock</span>
+                    <h3 class="fw-bold mb-1" id="kpiLowStock">@Model.Inventory.LowStockProductCount</h3>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- CORE CHARTS GRID (WAVE 2) -->
-    <div class="row g-4 mb-4">
-        <!-- 1. SALES TREND CHART -->
-        <div class="col-12">
-            <div class="card border-0 shadow-sm rounded-3">
-                <div class="card-header bg-white py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center">
-                    <div>
-                        <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-graph-up text-primary me-2"></i> Sales Trend Analysis</h5>
-                        <p class="text-muted small mb-0">Track revenue and invoice counts over selected time buckets.</p>
-                    </div>
-                    <div class="btn-group btn-group-sm mt-2 mt-md-0" role="group" id="salesTrendIntervalGroup">
-                        <button type="button" class="btn btn-outline-secondary active" data-interval="Daily">Daily</button>
-                        <button type="button" class="btn btn-outline-secondary" data-interval="Weekly">Weekly</button>
-                        <button type="button" class="btn btn-outline-secondary" data-interval="Monthly">Monthly</button>
-                    </div>
-                </div>
-                <div class="card-body position-relative" style="min-height: 320px;">
-                    <div id="salesTrendSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <div class="small text-muted mt-2">Loading sales trend...</div>
-                    </div>
-                    <div id="salesTrendEmpty" class="position-absolute top-50 start-50 translate-middle text-center text-muted" style="display: none;">
-                        <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
-                        <span>No sales data recorded for this filter range.</span>
-                    </div>
-                    <canvas id="chartSalesTrend" style="max-height: 350px;"></canvas>
-                </div>
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="card-title mb-0 fw-bold">Sales Trend</h5>
+                <p class="text-muted small mb-0">Revenue buckets for the selected period.</p>
+            </div>
+            <div class="btn-group btn-group-sm" id="salesTrendIntervalGroup">
+                <button type="button" class="btn btn-outline-secondary active" data-interval="Daily">Daily</button>
+                <button type="button" class="btn btn-outline-secondary" data-interval="Weekly">Weekly</button>
+                <button type="button" class="btn btn-outline-secondary" data-interval="Monthly">Monthly</button>
             </div>
         </div>
-
-        <!-- 2. TOP SELLING PRODUCTS CHART -->
-        <div class="col-lg-6">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-header bg-white py-3 d-flex flex-column flex-sm-row justify-content-between align-items-sm-center">
-                    <div>
-                        <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-trophy text-warning me-2"></i> Top Selling Products</h5>
-                        <p class="text-muted small mb-0">Identify products driving overall revenue & volume.</p>
-                    </div>
-                    <div class="d-flex gap-2 mt-2 mt-sm-0">
-                        <select class="form-select form-select-sm" id="topProductsSortBy" data-no-select2>
-                            <option value="Revenue">Sort by Revenue</option>
-                            <option value="Quantity">Sort by Quantity</option>
-                        </select>
-                        <select class="form-select form-select-sm" id="topProductsCount" data-no-select2>
-                            <option value="5">Top 5</option>
-                            <option value="10" selected>Top 10</option>
-                            <option value="20">Top 20</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="card-body position-relative" style="min-height: 320px;">
-                    <div id="topProductsSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
-                        <div class="spinner-border text-warning" role="status"></div>
-                        <div class="small text-muted mt-2">Loading top products...</div>
-                    </div>
-                    <div id="topProductsEmpty" class="position-absolute top-50 start-50 translate-middle text-center text-muted" style="display: none;">
-                        <i class="bi bi-box-seam fs-1 d-block mb-2 text-secondary"></i>
-                        <span>No product sales found for this filter range.</span>
-                    </div>
-                    <canvas id="chartTopProducts" style="max-height: 350px;"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- 3. TOP CUSTOMERS CHART -->
-        <div class="col-lg-6">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-people text-info me-2"></i> Top Customers</h5>
-                        <p class="text-muted small mb-0">Identify key accounts and outstanding balances.</p>
-                    </div>
-                    <select class="form-select form-select-sm w-auto" id="topCustomersCount" data-no-select2>
-                        <option value="5">Top 5</option>
-                        <option value="10" selected>Top 10</option>
-                    </select>
-                </div>
-                <div class="card-body position-relative" style="min-height: 320px;">
-                    <div id="topCustomersSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
-                        <div class="spinner-border text-info" role="status"></div>
-                        <div class="small text-muted mt-2">Loading top customers...</div>
-                    </div>
-                    <div id="topCustomersEmpty" class="position-absolute top-50 start-50 translate-middle text-center text-muted" style="display: none;">
-                        <i class="bi bi-person-x fs-1 d-block mb-2 text-secondary"></i>
-                        <span>No customer purchases found for this filter range.</span>
-                    </div>
-                    <canvas id="chartTopCustomers" style="max-height: 350px;"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. SALES BY CATEGORY CHART -->
-        <div class="col-12">
-            <div class="card border-0 shadow-sm rounded-3">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-pie-chart text-success me-2"></i> Sales by Product Category</h5>
-                    <p class="text-muted small mb-0">Distribution of gross revenue across categories.</p>
-                </div>
-                <div class="card-body position-relative" style="min-height: 320px;">
-                    <div id="categorySalesSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
-                        <div class="spinner-border text-success" role="status"></div>
-                        <div class="small text-muted mt-2">Loading category sales...</div>
-                    </div>
-                    <div id="categorySalesEmpty" class="position-absolute top-50 start-50 translate-middle text-center text-muted" style="display: none;">
-                        <i class="bi bi-tags fs-1 d-block mb-2 text-secondary"></i>
-                        <span>No category data available for this filter range.</span>
-                    </div>
-                    <div class="row align-items-center">
-                        <div class="col-md-6 mb-3 mb-md-0">
-                            <canvas id="chartCategorySales" style="max-height: 320px;"></canvas>
-                        </div>
-                        <div class="col-md-6">
-                            <div id="categoryLegendContainer" class="list-group list-group-flush border rounded-3 p-2 bg-light">
-                                <!-- Legend Badges -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ADVANCED ANALYTICS & INSIGHTS GRID (WAVE 3) -->
-    <div class="row g-4 mb-4">
-        <!-- 5. PAYMENT COLLECTION & INVOICE PAYMENT STATUS -->
-        <div class="col-lg-6">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-cash-stack text-success me-2"></i> Payment Collection & Status</h5>
-                    <p class="text-muted small mb-0">Overview of payments collected and invoice status distribution.</p>
-                </div>
-                <div class="card-body">
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <div class="p-3 bg-light rounded-3 border">
-                                <span class="text-muted small fw-semibold d-block">Customer Payments</span>
-                                <span class="fs-5 fw-bold text-success" id="paymentCustCollected">PKR 0.00</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="p-3 bg-light rounded-3 border">
-                                <span class="text-muted small fw-semibold d-block">Company Payments</span>
-                                <span class="fs-5 fw-bold text-info" id="paymentCompMade">PKR 0.00</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="position-relative" style="min-height: 250px;">
-                        <div id="paymentSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
-                            <div class="spinner-border text-success" role="status"></div>
-                        </div>
-                        <canvas id="chartPaymentStatus" style="max-height: 250px;"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 6. INVENTORY MOVEMENT BREAKDOWN -->
-        <div class="col-lg-6">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-arrows-move text-primary me-2"></i> Inventory Movement Summary</h5>
-                    <p class="text-muted small mb-0">Quantities purchased, sold, returned, and adjusted.</p>
-                </div>
-                <div class="card-body position-relative" style="min-height: 320px;">
-                    <div id="movementSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
-                        <div class="spinner-border text-primary" role="status"></div>
-                    </div>
-                    <canvas id="chartInventoryMovement" style="max-height: 300px;"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- 7. TOP COMPANIES (SUPPLIER PURCHASES) -->
-        <div class="col-lg-6">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-building text-info me-2"></i> Top Companies by Purchase Volume</h5>
-                    <p class="text-muted small mb-0">Primary suppliers driving stock replenishment.</p>
-                </div>
-                <div class="card-body position-relative" style="min-height: 300px;">
-                    <div id="companiesSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
-                        <div class="spinner-border text-info" role="status"></div>
-                    </div>
-                    <canvas id="chartTopCompanies" style="max-height: 280px;"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- 8. PROMOTION & DISCOUNT PERFORMANCE -->
-        <div class="col-lg-6">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-header bg-white py-3">
-                    <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-tags-fill text-warning me-2"></i> Discount & Promo Performance</h5>
-                    <p class="text-muted small mb-0">Breakdown of promo campaign discounts vs regular discounts.</p>
-                </div>
-                <div class="card-body">
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <div class="p-3 bg-light rounded-3 border">
-                                <span class="text-muted small fw-semibold d-block">Total Discount Given</span>
-                                <span class="fs-5 fw-bold text-warning" id="promoTotalDiscount">PKR 0.00</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="p-3 bg-light rounded-3 border">
-                                <span class="text-muted small fw-semibold d-block">Discounted Invoices</span>
-                                <span class="fs-5 fw-bold text-dark" id="promoInvoicesCount">0</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="position-relative" style="min-height: 220px;">
-                        <div id="promoSpinner" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
-                            <div class="spinner-border text-warning" role="status"></div>
-                        </div>
-                        <canvas id="chartPromoPerformance" style="max-height: 220px;"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 9. STOCK RISK & REORDER ACTION TABLE -->
-        <div class="col-12">
-            <div class="card border-0 shadow-sm rounded-3">
-                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="card-title mb-0 fw-bold text-dark"><i class="bi bi-shield-exclamation text-danger me-2"></i> Stock Risk & Reorder Action Table</h5>
-                        <p class="text-muted small mb-0">Products below minimum reorder levels requiring stock replenishment.</p>
-                    </div>
-                    <span class="badge bg-danger bg-opacity-10 text-danger px-3 py-2 fw-semibold" id="stockRiskCountBadge">0 High Risk Items</span>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" id="stockRiskTable">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="ps-3">Product Name</th>
-                                    <th>Category</th>
-                                    <th class="text-end">Current Stock</th>
-                                    <th class="text-end">Reorder Level</th>
-                                    <th>Base Unit</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">Loading stock risk analysis...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+        <div class="card-body" style="min-height: 320px;">
+            <canvas id="chartSalesTrend" style="max-height: 350px;"></canvas>
         </div>
     </div>
 </div>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <script>
         let currentPreset = 'ThisMonth';
         let currentInterval = 'Daily';
-
-        // Wave 2 Chart Instances
         let chartSalesTrendInstance = null;
-        let chartTopProductsInstance = null;
-        let chartTopCustomersInstance = null;
-        let chartCategorySalesInstance = null;
 
-        // Wave 3 Chart Instances
-        let chartPaymentStatusInstance = null;
-        let chartInventoryMovementInstance = null;
-        let chartTopCompaniesInstance = null;
-        let chartPromoPerformanceInstance = null;
-
-        $(document.body).ready(function () {
-            loadAllWaveData();
-        });
-
-        $('#presetGroup button').click(function () {
-            $('#presetGroup button').removeClass('active');
-            $(this).addClass('active');
-            currentPreset = $(this).attr('data-preset');
-
-            if (currentPreset === 'Custom') {
-                $('.custom-date-container').slideDown();
-            } else {
-                $('.custom-date-container').slideUp();
-                loadAllWaveData();
-            }
-        });
-
-        $('#salesTrendIntervalGroup button').click(function () {
-            $('#salesTrendIntervalGroup button').removeClass('active');
-            $(this).addClass('active');
-            currentInterval = $(this).attr('data-interval');
-            loadSalesTrend();
-        });
-
-        $('#topProductsSortBy, #topProductsCount').change(function () {
-            loadTopProducts();
-        });
-
-        $('#topCustomersCount').change(function () {
-            loadTopCustomers();
-        });
-
-        $('#btnApplyFilter').click(function () {
-            loadAllWaveData();
-        });
-
-        $('#btnExportPdf').click(function () {
-            const filter = buildFilterPayload();
-            const query = $.param({
-                preset: filter.Preset,
-                warehouseId: filter.WarehouseID,
-                customerId: filter.CustomerID,
-                categoryId: filter.CategoryID
+        $(function () {
+            loadOverview();
+            $('#presetGroup button').click(function () {
+                $('#presetGroup button').removeClass('active');
+                $(this).addClass('active');
+                currentPreset = $(this).attr('data-preset');
+                if (currentPreset === 'Custom') $('.custom-date-container').slideDown();
+                else { $('.custom-date-container').slideUp(); loadOverview(); }
             });
-            window.open('/Analytics/ExportPdf?' + query, '_blank');
+            $('#salesTrendIntervalGroup button').click(function () {
+                $('#salesTrendIntervalGroup button').removeClass('active');
+                $(this).addClass('active');
+                currentInterval = $(this).attr('data-interval');
+                loadOverview();
+            });
+            $('#btnApplyFilter').click(loadOverview);
+            $('#btnExportPdf').click(function () {
+                const f = buildFilterPayload();
+                window.open('/Analytics/ExportPdf?' + $.param({
+                    preset: f.Preset, startDate: f.StartDate, endDate: f.EndDate,
+                    warehouseId: f.WarehouseID, customerId: f.CustomerID, categoryId: f.CategoryID, brokerId: f.BrokerID
+                }), '_blank');
+            });
         });
 
         function buildFilterPayload() {
@@ -580,556 +147,54 @@
                 EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
                 WarehouseID: parseInt($('#warehouseId').val()) || null,
                 CustomerID: parseInt($('#customerId').val()) || null,
-                CategoryID: parseInt($('#categoryId').val()) || null
+                CategoryID: parseInt($('#categoryId').val()) || null,
+                BrokerID: parseInt($('#brokerId').val()) || ($('#brokerId').val() === '-1' ? -1 : null)
             };
         }
 
-        function loadAllWaveData() {
-            // Wave 1
-            loadKpiData();
+        function money(v) { return 'PKR ' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
-            // Wave 2
-            loadSalesTrend();
-            loadTopProducts();
-            loadTopCustomers();
-            loadCategorySales();
-
-            // Wave 3
-            loadBusinessInsights();
-            loadPaymentAnalytics();
-            loadInventoryMovement();
-            loadTopCompanies();
-            loadPromotionPerformance();
-            loadStockRiskItems();
+        async function loadOverview() {
+            const res = await fetch('/Analytics/GetOverview?interval=' + currentInterval, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(buildFilterPayload())
+            });
+            const data = await res.json();
+            const kpi = data.kpi || {};
+            $('#kpiTotalSales').text(kpi.totalSales?.formattedCurrentValue || money(kpi.totalSales?.currentValue));
+            $('#kpiTotalSalesChange').text(kpi.totalSales?.comparisonText || '');
+            $('#kpiNetSales').text(kpi.netSales?.formattedCurrentValue || money(kpi.netSales?.currentValue));
+            $('#kpiNetSalesChange').text(kpi.netSales?.comparisonText || '');
+            $('#kpiTotalReturns').text(kpi.totalReturns?.formattedCurrentValue || money(kpi.totalReturns?.currentValue));
+            $('#kpiTotalReturnsChange').text(kpi.totalReturns?.comparisonText || '');
+            $('#kpiEstimatedGrossProfit').text(kpi.estimatedGrossProfit?.formattedCurrentValue || money(kpi.estimatedGrossProfit?.currentValue));
+            $('#kpiEstimatedGrossProfitChange').text(kpi.estimatedGrossProfit?.comparisonText || '');
+            $('#kpiCustomerReceivables').text(kpi.customerReceivables?.formattedCurrentValue || money(kpi.customerReceivables?.currentValue));
+            $('#kpiCompanyPayables').text(kpi.companyPayables?.formattedCurrentValue || money(kpi.companyPayables?.currentValue));
+            $('#kpiOutOfStock').text(data.inventory?.outOfStockProductCount ?? 0);
+            $('#kpiLowStock').text(data.inventory?.lowStockProductCount ?? 0);
+            renderInsights(data.insights || []);
+            renderTrend(data.salesTrend || []);
         }
 
-        // ===== WAVE 1 LOADERS =====
-        async function loadKpiData() {
-            try {
-                const res = await fetch('/Analytics/GetKpiSummary', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-                updateKpiCard('kpiTotalSales', data.totalSales);
-                updateKpiCard('kpiTotalPurchases', data.totalPurchases);
-                updateKpiCard('kpiEstimatedGrossProfit', data.estimatedGrossProfit);
-                updateKpiCard('kpiTotalDiscounts', data.totalDiscounts);
-                updateKpiCard('kpiTotalReturns', data.totalReturns);
-                updateKpiCard('kpiNetSales', data.netSales);
-                if (data.customerReceivables) $('#kpiCustomerReceivables').text(data.customerReceivables.formattedCurrentValue);
-                if (data.companyPayables) $('#kpiCompanyPayables').text(data.companyPayables.formattedCurrentValue);
-            } catch (err) {
-                console.error("Failed to load KPI summary:", err);
-            }
+        function renderInsights(list) {
+            const colors = { DANGER: 'danger', WARNING: 'warning', SUCCESS: 'success', INFO: 'info' };
+            $('#businessInsightsContainer').html((list || []).map(i =>
+                `<div class="col-md-6"><div class="alert alert-${colors[i.type] || 'info'} mb-0"><i class="bi ${i.icon} me-2"></i><strong>${i.title}:</strong> ${i.message}</div></div>`
+            ).join(''));
         }
 
-        function updateKpiCard(idPrefix, metric) {
-            if (!metric) return;
-            $(`#${idPrefix}`).text(metric.formattedCurrentValue);
-            const badge = $(`#${idPrefix}Badge`);
-            const change = $(`#${idPrefix}Change`);
-            if (metric.isIncrease) {
-                badge.removeClass('bg-danger text-danger').addClass('bg-success text-success');
-                badge.find('i').removeClass('bi-arrow-down').addClass('bi-arrow-up');
-            } else {
-                badge.removeClass('bg-success text-success').addClass('bg-danger text-danger');
-                badge.find('i').removeClass('bi-arrow-up').addClass('bi-arrow-down');
-            }
-            change.text(metric.comparisonText);
-        }
-
-        // ===== WAVE 2 LOADERS =====
-        async function loadSalesTrend() {
-            $('#salesTrendSpinner').show();
-            $('#salesTrendEmpty').hide();
-            try {
-                const res = await fetch(`/Analytics/GetSalesTrend?interval=${currentInterval}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-                $('#salesTrendSpinner').hide();
-
-                if (!data || data.length === 0) {
-                    $('#salesTrendEmpty').show();
-                    if (chartSalesTrendInstance) chartSalesTrendInstance.destroy();
-                    return;
-                }
-
-                const labels = data.map(d => d.label);
-                const sales = data.map(d => d.salesAmount);
-                const count = data.map(d => d.invoiceCount);
-
-                if (chartSalesTrendInstance) chartSalesTrendInstance.destroy();
-
-                const ctx = document.getElementById('chartSalesTrend').getContext('2d');
-                chartSalesTrendInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                label: 'Sales Revenue (PKR)',
-                                data: sales,
-                                borderColor: '#0d6efd',
-                                backgroundColor: 'rgba(13, 110, 253, 0.08)',
-                                fill: true,
-                                tension: 0.3,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'Invoices Count',
-                                data: count,
-                                borderColor: '#6c757d',
-                                borderDash: [4, 4],
-                                fill: false,
-                                tension: 0.3,
-                                yAxisID: 'y1'
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: { mode: 'index', intersect: false },
-                        scales: {
-                            y: { type: 'linear', display: true, position: 'left', ticks: { callback: v => 'PKR ' + v.toLocaleString() } },
-                            y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { precision: 0 } }
-                        }
-                    }
-                });
-            } catch (err) {
-                $('#salesTrendSpinner').hide();
-                console.error("Sales Trend Error:", err);
-            }
-        }
-
-        async function loadTopProducts() {
-            const sortBy = $('#topProductsSortBy').val();
-            const topCount = $('#topProductsCount').val();
-            $('#topProductsSpinner').show();
-            $('#topProductsEmpty').hide();
-
-            try {
-                const res = await fetch(`/Analytics/GetTopProducts?sortBy=${sortBy}&topCount=${topCount}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-                $('#topProductsSpinner').hide();
-
-                if (!data || data.length === 0) {
-                    $('#topProductsEmpty').show();
-                    if (chartTopProductsInstance) chartTopProductsInstance.destroy();
-                    return;
-                }
-
-                const labels = data.map(d => d.productName);
-                const values = sortBy === 'Revenue' ? data.map(d => d.revenue) : data.map(d => d.quantitySold);
-
-                if (chartTopProductsInstance) chartTopProductsInstance.destroy();
-
-                const ctx = document.getElementById('chartTopProducts').getContext('2d');
-                chartTopProductsInstance = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: sortBy === 'Revenue' ? 'Revenue (PKR)' : 'Quantity Sold',
-                            data: values,
-                            backgroundColor: 'rgba(255, 193, 7, 0.75)',
-                            borderColor: '#ffc107',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: { x: { ticks: { callback: v => sortBy === 'Revenue' ? 'PKR ' + v.toLocaleString() : v } } }
-                    }
-                });
-            } catch (err) {
-                $('#topProductsSpinner').hide();
-                console.error("Top Products Error:", err);
-            }
-        }
-
-        async function loadTopCustomers() {
-            const topCount = $('#topCustomersCount').val();
-            $('#topCustomersSpinner').show();
-            $('#topCustomersEmpty').hide();
-
-            try {
-                const res = await fetch(`/Analytics/GetTopCustomers?sortBy=Revenue&topCount=${topCount}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-                $('#topCustomersSpinner').hide();
-
-                if (!data || data.length === 0) {
-                    $('#topCustomersEmpty').show();
-                    if (chartTopCustomersInstance) chartTopCustomersInstance.destroy();
-                    return;
-                }
-
-                const labels = data.map(d => d.customerName);
-                const revenues = data.map(d => d.revenue);
-
-                if (chartTopCustomersInstance) chartTopCustomersInstance.destroy();
-
-                const ctx = document.getElementById('chartTopCustomers').getContext('2d');
-                chartTopCustomersInstance = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Revenue (PKR)',
-                            data: revenues,
-                            backgroundColor: 'rgba(13, 202, 240, 0.75)',
-                            borderColor: '#0dcaf0',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: { x: { ticks: { callback: v => 'PKR ' + v.toLocaleString() } } }
-                    }
-                });
-            } catch (err) {
-                $('#topCustomersSpinner').hide();
-                console.error("Top Customers Error:", err);
-            }
-        }
-
-        async function loadCategorySales() {
-            $('#categorySalesSpinner').show();
-            $('#categorySalesEmpty').hide();
-
-            try {
-                const res = await fetch('/Analytics/GetCategorySales', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-                $('#categorySalesSpinner').hide();
-
-                if (!data || data.length === 0) {
-                    $('#categorySalesEmpty').show();
-                    $('#categoryLegendContainer').html('');
-                    if (chartCategorySalesInstance) chartCategorySalesInstance.destroy();
-                    return;
-                }
-
-                const labels = data.map(d => d.categoryName);
-                const amounts = data.map(d => d.salesAmount);
-                const colors = ['#0d6efd', '#198754', '#ffc107', '#0dcaf0', '#6f42c1', '#d63384', '#fd7e14', '#20c997'];
-
-                let legendHtml = '';
-                data.forEach((d, i) => {
-                    const bg = colors[i % colors.length];
-                    legendHtml += `
-                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                            <div>
-                                <span class="d-inline-block rounded-circle me-2" style="width: 10px; height: 10px; background-color: ${bg};"></span>
-                                <span class="fw-semibold text-dark">${d.categoryName}</span>
-                            </div>
-                            <div class="text-end">
-                                <span class="fw-bold text-dark d-block">PKR ${d.salesAmount.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
-                                <span class="badge bg-secondary bg-opacity-10 text-secondary">${d.percentage}%</span>
-                            </div>
-                        </div>
-                    `;
-                });
-                $('#categoryLegendContainer').html(legendHtml);
-
-                if (chartCategorySalesInstance) chartCategorySalesInstance.destroy();
-
-                const ctx = document.getElementById('chartCategorySales').getContext('2d');
-                chartCategorySalesInstance = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            data: amounts,
-                            backgroundColor: colors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } }
-                    }
-                });
-            } catch (err) {
-                $('#categorySalesSpinner').hide();
-                console.error("Category Sales Error:", err);
-            }
-        }
-
-        // ===== WAVE 3 LOADERS =====
-
-        async function loadBusinessInsights() {
-            try {
-                const res = await fetch('/Analytics/GetBusinessInsights', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-
-                let html = '';
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        let alertClass = 'alert-info';
-                        let iconClass = item.icon || 'bi-info-circle';
-                        if (item.type === 'DANGER') alertClass = 'alert-danger';
-                        else if (item.type === 'WARNING') alertClass = 'alert-warning';
-                        else if (item.type === 'SUCCESS') alertClass = 'alert-success';
-
-                        html += `
-                            <div class="col-md-6 col-xl-4">
-                                <div class="alert ${alertClass} border-0 shadow-sm rounded-3 d-flex align-items-center mb-0 p-3 h-100">
-                                    <i class="bi ${iconClass} fs-3 me-3"></i>
-                                    <div>
-                                        <h6 class="fw-bold mb-1">${item.title}</h6>
-                                        <p class="small mb-0 opacity-90">${item.message}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-                $('#businessInsightsContainer').html(html);
-            } catch (err) {
-                console.error("Business Insights Error:", err);
-            }
-        }
-
-        async function loadPaymentAnalytics() {
-            $('#paymentSpinner').show();
-            try {
-                const res = await fetch('/Analytics/GetPaymentAnalytics', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-                $('#paymentSpinner').hide();
-
-                if (data) {
-                    $('#paymentCustCollected').text('PKR ' + (data.customerPaymentsCollected || 0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}));
-                    $('#paymentCompMade').text('PKR ' + (data.companyPaymentsMade || 0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}));
-
-                    const statuses = data.invoiceStatuses || [];
-                    const labels = statuses.map(s => s.status);
-                    const values = statuses.map(s => s.totalAmount);
-                    const colors = ['#198754', '#ffc107', '#dc3545'];
-
-                    if (chartPaymentStatusInstance) chartPaymentStatusInstance.destroy();
-
-                    const ctx = document.getElementById('chartPaymentStatus').getContext('2d');
-                    chartPaymentStatusInstance = new Chart(ctx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                data: values,
-                                backgroundColor: colors
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: { legend: { position: 'bottom' } }
-                        }
-                    });
-                }
-            } catch (err) {
-                $('#paymentSpinner').hide();
-                console.error("Payment Analytics Error:", err);
-            }
-        }
-
-        async function loadInventoryMovement() {
-            $('#movementSpinner').show();
-            try {
-                const res = await fetch('/Analytics/GetInventoryMovement', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-                $('#movementSpinner').hide();
-
-                if (data) {
-                    const labels = ['Purchases', 'Sales', 'Returns', 'Adjustments'];
-                    const values = [data.purchasedQuantity || 0, data.soldQuantity || 0, data.salesReturnQuantity || 0, data.adjustmentQuantity || 0];
-
-                    if (chartInventoryMovementInstance) chartInventoryMovementInstance.destroy();
-
-                    const ctx = document.getElementById('chartInventoryMovement').getContext('2d');
-                    chartInventoryMovementInstance = new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                label: 'Base Unit Movement',
-                                data: values,
-                                backgroundColor: ['#0d6efd', '#198754', '#dc3545', '#ffc107'],
-                                borderRadius: 4
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: { legend: { display: false } }
-                        }
-                    });
-                }
-            } catch (err) {
-                $('#movementSpinner').hide();
-                console.error("Inventory Movement Error:", err);
-            }
-        }
-
-        async function loadTopCompanies() {
-            $('#companiesSpinner').show();
-            try {
-                const res = await fetch('/Analytics/GetTopCompanies?topCount=5', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-                $('#companiesSpinner').hide();
-
-                if (data && data.length > 0) {
-                    const labels = data.map(d => d.companyName);
-                    const values = data.map(d => d.totalPurchases);
-
-                    if (chartTopCompaniesInstance) chartTopCompaniesInstance.destroy();
-
-                    const ctx = document.getElementById('chartTopCompanies').getContext('2d');
-                    chartTopCompaniesInstance = new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                label: 'Purchase Volume (PKR)',
-                                data: values,
-                                backgroundColor: 'rgba(13, 110, 253, 0.75)',
-                                borderColor: '#0d6efd',
-                                borderRadius: 4
-                            }]
-                        },
-                        options: {
-                            indexAxis: 'y',
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: { legend: { display: false } },
-                            scales: { x: { ticks: { callback: v => 'PKR ' + v.toLocaleString() } } }
-                        }
-                    });
-                }
-            } catch (err) {
-                $('#companiesSpinner').hide();
-                console.error("Top Companies Error:", err);
-            }
-        }
-
-        async function loadPromotionPerformance() {
-            $('#promoSpinner').show();
-            try {
-                const res = await fetch('/Analytics/GetPromotionPerformance', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-                $('#promoSpinner').hide();
-
-                if (data) {
-                    $('#promoTotalDiscount').text('PKR ' + (data.totalDiscountAmount || 0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}));
-                    $('#promoInvoicesCount').text(data.promoInvoicesCount || 0);
-
-                    const labels = ['Promo Discounts', 'Regular Discounts'];
-                    const values = [data.totalInvoicePromotionsAmount || 0, data.totalRegularDiscountsAmount || 0];
-
-                    if (chartPromoPerformanceInstance) chartPromoPerformanceInstance.destroy();
-
-                    const ctx = document.getElementById('chartPromoPerformance').getContext('2d');
-                    chartPromoPerformanceInstance = new Chart(ctx, {
-                        type: 'pie',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                data: values,
-                                backgroundColor: ['#ffc107', '#6c757d']
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: { legend: { position: 'bottom' } }
-                        }
-                    });
-                }
-            } catch (err) {
-                $('#promoSpinner').hide();
-                console.error("Promotion Performance Error:", err);
-            }
-        }
-
-        async function loadStockRiskItems() {
-            try {
-                const res = await fetch('/Analytics/GetStockRiskItems', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildFilterPayload())
-                });
-                const data = await res.json();
-
-                let html = '';
-                if (data && data.length > 0) {
-                    $('#stockRiskCountBadge').text(`${data.length} Risk Items`);
-                    data.forEach(item => {
-                        const isOutOfStock = item.riskLevel === 'OUT_OF_STOCK';
-                        const badgeClass = isOutOfStock ? 'bg-danger text-danger' : 'bg-warning text-dark';
-                        const badgeText = isOutOfStock ? 'OUT OF STOCK' : 'LOW STOCK';
-
-                        html += `
-                            <tr>
-                                <td class="ps-3 fw-semibold text-dark">${item.productName}</td>
-                                <td><span class="badge bg-light text-dark border">${item.categoryName}</span></td>
-                                <td class="text-end fw-bold ${isOutOfStock ? 'text-danger' : 'text-warning'}">${item.currentStock.toLocaleString()}</td>
-                                <td class="text-end text-muted">${item.reorderLevel.toLocaleString()}</td>
-                                <td>${item.baseUnit}</td>
-                                <td><span class="badge ${badgeClass} bg-opacity-10 px-2 py-1">${badgeText}</span></td>
-                            </tr>
-                        `;
-                    });
-                } else {
-                    $('#stockRiskCountBadge').text('0 Risk Items').removeClass('bg-danger text-danger').addClass('bg-success text-success').text('Stock Healthy');
-                    html = `<tr><td colspan="6" class="text-center text-success py-4"><i class="bi bi-check-circle me-1"></i> All products are well above reorder thresholds!</td></tr>`;
-                }
-                $('#stockRiskTable tbody').html(html);
-            } catch (err) {
-                console.error("Stock Risk Table Error:", err);
-            }
+        function renderTrend(rows) {
+            const ctx = document.getElementById('chartSalesTrend');
+            if (chartSalesTrendInstance) chartSalesTrendInstance.destroy();
+            chartSalesTrendInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: rows.map(r => r.label),
+                    datasets: [{ label: 'Sales', data: rows.map(r => r.salesAmount), borderColor: '#0d6efd', tension: 0.2, fill: false }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
         }
     </script>
 }

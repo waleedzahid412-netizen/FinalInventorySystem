@@ -1,0 +1,48 @@
+@model InventorySystem.DTOs.Analytics.CustomerDetailDto
+@{
+    ViewData["Title"] = "Customer Analytics";
+}
+<div class="container-fluid px-4 py-3">
+    <h2 class="h3 fw-bold mb-1">@Model.CustomerName</h2>
+    <p class="text-muted">Invoice area snapshot: @(Model.AreaName ?? "Unassigned") / @(Model.SubAreaName ?? "Unassigned")</p>
+    <partial name="_AnalyticsNav" />
+    <partial name="_AnalyticsFilters" />
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Billed</div><div class="fs-5 fw-bold" id="dBilled">PKR @Model.Billed.ToString("N2")</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Payments collected</div><div class="fs-5 fw-bold" id="dPay">PKR @Model.PaymentsCollected.ToString("N2")</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Returns</div><div class="fs-5 fw-bold" id="dRet">PKR @Model.Returns.ToString("N2")</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Outstanding (ledger)</div><div class="fs-5 fw-bold" id="dOut">PKR @Model.Outstanding.ToString("N2")</div></div></div></div>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-7"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0 fw-bold">Sales trend</h5></div><div class="card-body"><canvas id="chartCustTrend"></canvas></div></div></div>
+        <div class="col-lg-5"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0 fw-bold">Product mix</h5></div>
+            <table class="table mb-0"><thead><tr><th>Product</th><th class="text-end">Qty (base)</th><th class="text-end">Revenue</th></tr></thead><tbody id="mixBody"></tbody></table>
+        </div></div>
+    </div>
+</div>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const customerId = @Model.CustomerID;
+        let currentPreset = 'ThisMonth', chart;
+        function money(v) { return 'PKR ' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function buildFilter() {
+            const b = $('#brokerId').val();
+            return { Preset: currentPreset, StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null, EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
+                WarehouseID: parseInt($('#warehouseId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null, BrokerID: b === '-1' ? -1 : (parseInt(b) || null) };
+        }
+        $(function () {
+            $('#presetGroup button').click(function () { $('#presetGroup button').removeClass('active'); $(this).addClass('active'); currentPreset = $(this).data('preset'); if (currentPreset === 'Custom') $('.custom-date-container').slideDown(); else { $('.custom-date-container').slideUp(); load(); } });
+            $('#btnApplyFilter').click(load);
+            load();
+        });
+        async function load() {
+            const res = await fetch('/Analytics/GetCustomerDetail?id=' + customerId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildFilter()) });
+            const d = await res.json();
+            $('#dBilled').text(money(d.billed)); $('#dPay').text(money(d.paymentsCollected)); $('#dRet').text(money(d.returns)); $('#dOut').text(money(d.outstanding));
+            if (chart) chart.destroy();
+            chart = new Chart(document.getElementById('chartCustTrend'), { type: 'line', data: { labels: (d.salesTrend || []).map(r => r.label), datasets: [{ label: 'Sales', data: (d.salesTrend || []).map(r => r.salesAmount), borderColor: '#0d6efd', tension: 0.2, fill: false }] } });
+            $('#mixBody').html((d.productMix || []).map(p => `<tr><td><a href="/Analytics/Product/${p.productID}">${p.productName}</a></td><td class="text-end">${p.quantitySold}</td><td class="text-end">${money(p.revenue)}</td></tr>`).join(''));
+        }
+    </script>
+}

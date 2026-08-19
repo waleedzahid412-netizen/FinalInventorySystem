@@ -1,0 +1,51 @@
+@model InventorySystem.DTOs.Analytics.ProductDetailDto
+@{
+    ViewData["Title"] = Model.ProductName;
+}
+<div class="container-fluid px-4 py-3">
+    <h2 class="h3 fw-bold mb-1">@Model.ProductName</h2>
+    <p class="text-muted">@Model.CategoryName · @Model.BaseUnit · Stock risk: @Model.RiskLevel</p>
+    <partial name="_AnalyticsNav" />
+    <partial name="_AnalyticsFilters" />
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Qty sold (base)</div><div class="fs-5 fw-bold" id="dQty">@Model.QuantitySoldBase</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Revenue</div><div class="fs-5 fw-bold" id="dRev">PKR @Model.Revenue.ToString("N2")</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Est. profit (avg cost)</div><div class="fs-5 fw-bold" id="dProf">PKR @Model.EstimatedProfit.ToString("N2")</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Current stock</div><div class="fs-5 fw-bold" id="dStock">@Model.CurrentStock</div></div></div></div>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-7"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Sales over time</h5></div><div class="card-body"><canvas id="chartProd"></canvas></div></div></div>
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm mb-4"><div class="card-header bg-white"><h5 class="mb-0">Customers</h5></div>
+                <table class="table mb-0"><thead><tr><th>Customer</th><th class="text-end">Qty</th><th class="text-end">Revenue</th></tr></thead><tbody id="custBody"></tbody></table></div>
+            <div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Warehouse stock</h5></div>
+                <table class="table mb-0"><thead><tr><th>Warehouse</th><th class="text-end">Qty</th></tr></thead><tbody id="whBody"></tbody></table></div>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const productId = @Model.ProductID;
+        let currentPreset = 'ThisMonth', chart;
+        function money(v) { return 'PKR ' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function buildFilter() {
+            return { Preset: currentPreset, StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null, EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
+                WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null };
+        }
+        $(function () {
+            $('#presetGroup button').click(function () { $('#presetGroup button').removeClass('active'); $(this).addClass('active'); currentPreset = $(this).data('preset'); if (currentPreset === 'Custom') $('.custom-date-container').slideDown(); else { $('.custom-date-container').slideUp(); load(); } });
+            $('#btnApplyFilter').click(load);
+            load();
+        });
+        async function load() {
+            const res = await fetch('/Analytics/GetProductDetail?id=' + productId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildFilter()) });
+            const d = await res.json();
+            $('#dQty').text(d.quantitySoldBase); $('#dRev').text(money(d.revenue)); $('#dProf').text(money(d.estimatedProfit)); $('#dStock').text(d.currentStock);
+            if (chart) chart.destroy();
+            chart = new Chart(document.getElementById('chartProd'), { type: 'line', data: { labels: (d.salesTrend || []).map(r => r.label), datasets: [{ data: (d.salesTrend || []).map(r => r.salesAmount), borderColor: '#0d6efd', tension: 0.2, fill: false }] } });
+            $('#custBody').html((d.customers || []).map(c => `<tr><td><a href="/Analytics/Customer/${c.customerID}">${c.customerName}</a></td><td class="text-end">${c.quantitySoldBase}</td><td class="text-end">${money(c.revenue)}</td></tr>`).join(''));
+            $('#whBody').html((d.warehouseStock || []).map(w => `<tr><td>${w.warehouseName}</td><td class="text-end">${w.quantity}</td></tr>`).join(''));
+        }
+    </script>
+}

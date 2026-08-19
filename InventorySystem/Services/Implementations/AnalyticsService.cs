@@ -1,468 +1,264 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
-using InventorySystem.Data;
-using InventorySystem.DTOs.Analytics;
-using InventorySystem.Services.Interfaces;
-
 using Microsoft.Extensions.Logging;
+using InventorySystem.DTOs.Analytics;
+using InventorySystem.Repositories.Interfaces;
+using InventorySystem.Services.Interfaces;
 
 namespace InventorySystem.Services.Implementations
 {
     public class AnalyticsService : IAnalyticsService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IAnalyticsRepository _repository;
         private readonly ILogger<AnalyticsService> _logger;
 
-        public AnalyticsService(ApplicationDbContext context, ILogger<AnalyticsService> logger)
+        public AnalyticsService(IAnalyticsRepository repository, ILogger<AnalyticsService> logger)
         {
-            _context = context;
+            _repository = repository;
             _logger = logger;
+        }
+
+        public async Task<OverviewAnalyticsDto> GetOverviewAsync(AnalyticsFilterDto filter, string interval = "Daily", CancellationToken cancellationToken = default)
+        {
+            var kpi = await GetKpiSummaryAsync(filter, cancellationToken);
+            var inventory = await GetInventoryInsightsAsync(filter, cancellationToken);
+            var trend = await GetSalesTrendAsync(filter, interval, cancellationToken);
+            var insights = BuildInsights(kpi, inventory);
+            return new OverviewAnalyticsDto
+            {
+                Kpi = kpi,
+                SalesTrend = trend,
+                Insights = insights,
+                Inventory = inventory
+            };
         }
 
         public async Task<AnalyticsKpiSummaryDto> GetKpiSummaryAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
-            var (startDate, endDate, prevStartDate, prevEndDate) = ResolveDates(filter);
+            var (start, end, prevStart, prevEnd) = AnalyticsFilterHelper.ResolveDates(filter);
 
-            // Base queries
-            var salesQuery = _context.SalesInvoices.AsNoTracking().Where(s => !s.IsDeleted);
-            var purchaseQuery = _context.PurchaseInvoices.AsNoTracking().Where(p => !p.IsDeleted);
-            var returnsQuery = _context.SalesReturns.AsNoTracking().Where(r => !r.IsDeleted);
-            var salesItemsQuery = _context.SalesInvoiceItems.AsNoTracking()
-                .Include(i => i.Product)
-                .Where(i => !i.IsDeleted && !i.SalesInvoice.IsDeleted && i.ProductID != null);
+            var curr = await BuildPeriodFinancialsAsync(filter, start, end, cancellationToken);
+            var prev = await BuildPeriodFinancialsAsync(filter, prevStart, prevEnd, cancellationToken);
 
-            // Optional filters
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-            {
-                salesQuery = salesQuery.Where(s => s.WarehouseID == filter.WarehouseID.Value);
-                purchaseQuery = purchaseQuery.Where(p => p.WarehouseID == filter.WarehouseID.Value);
-                returnsQuery = returnsQuery.Where(r => r.WarehouseID == filter.WarehouseID.Value || (r.SalesInvoice != null && r.SalesInvoice.WarehouseID == filter.WarehouseID.Value));
-                salesItemsQuery = salesItemsQuery.Where(i => i.SalesInvoice.WarehouseID == filter.WarehouseID.Value);
-            }
-
-            if (filter.CustomerID.HasValue && filter.CustomerID.Value > 0)
-            {
-                salesQuery = salesQuery.Where(s => s.CustomerID == filter.CustomerID.Value);
-                returnsQuery = returnsQuery.Where(r => r.CustomerID == filter.CustomerID.Value);
-                salesItemsQuery = salesItemsQuery.Where(i => i.SalesInvoice.CustomerID == filter.CustomerID.Value);
-            }
-
-            if (filter.CategoryID.HasValue && filter.CategoryID.Value > 0)
-            {
-                salesItemsQuery = salesItemsQuery.Where(i => i.Product.CategoryID == filter.CategoryID.Value);
-            }
-
-            // Current Period Aggregations
-            var currentSalesInvoices = await salesQuery
-                .Where(s => s.InvoiceDate >= startDate && s.InvoiceDate <= endDate)
-                .Select(s => new { s.GrandTotal, s.DiscountTotal })
-                .ToListAsync(cancellationToken);
-
-            decimal currTotalSales = currentSalesInvoices.Sum(s => s.GrandTotal);
-            decimal currTotalDiscounts = currentSalesInvoices.Sum(s => s.DiscountTotal);
-
-            decimal currTotalPurchases = await purchaseQuery
-                .Where(p => p.InvoiceDate >= startDate && p.InvoiceDate <= endDate)
-                .SumAsync(p => (decimal?)p.GrandTotal, cancellationToken) ?? 0m;
-
-            decimal currTotalReturns = await returnsQuery
-                .Where(r => r.ReturnDate >= startDate && r.ReturnDate <= endDate)
-                .SumAsync(r => (decimal?)r.NetRefundAmount, cancellationToken) ?? 0m;
-
-            decimal currNetSales = Math.Max(0m, currTotalSales - currTotalReturns);
-
-            // Current Estimated Cost of Goods Sold
-            var currentItemsCost = await salesItemsQuery
-                .Where(i => i.SalesInvoice.InvoiceDate >= startDate && i.SalesInvoice.InvoiceDate <= endDate)
-                .SumAsync(i => (decimal?)(i.ConvertedQuantity * i.Product.AveragePurchaseCost), cancellationToken) ?? 0m;
-
-            decimal currEstimatedProfit = Math.Max(0m, currNetSales - currentItemsCost);
-
-            // Previous Period Aggregations
-            var prevSalesInvoices = await salesQuery
-                .Where(s => s.InvoiceDate >= prevStartDate && s.InvoiceDate <= prevEndDate)
-                .Select(s => new { s.GrandTotal, s.DiscountTotal })
-                .ToListAsync(cancellationToken);
-
-            decimal prevTotalSales = prevSalesInvoices.Sum(s => s.GrandTotal);
-            decimal prevTotalDiscounts = prevSalesInvoices.Sum(s => s.DiscountTotal);
-
-            decimal prevTotalPurchases = await purchaseQuery
-                .Where(p => p.InvoiceDate >= prevStartDate && p.InvoiceDate <= prevEndDate)
-                .SumAsync(p => (decimal?)p.GrandTotal, cancellationToken) ?? 0m;
-
-            decimal prevTotalReturns = await returnsQuery
-                .Where(r => r.ReturnDate >= prevStartDate && r.ReturnDate <= prevEndDate)
-                .SumAsync(r => (decimal?)r.NetRefundAmount, cancellationToken) ?? 0m;
-
-            decimal prevNetSales = Math.Max(0m, prevTotalSales - prevTotalReturns);
-
-            var prevItemsCost = await salesItemsQuery
-                .Where(i => i.SalesInvoice.InvoiceDate >= prevStartDate && i.SalesInvoice.InvoiceDate <= prevEndDate)
-                .SumAsync(i => (decimal?)(i.ConvertedQuantity * i.Product.AveragePurchaseCost), cancellationToken) ?? 0m;
-
-            decimal prevEstimatedProfit = Math.Max(0m, prevNetSales - prevItemsCost);
-
-            // Outstanding Receivables & Payables (Cumulative snapshots)
-            decimal customerReceivables = await _context.CustomerLedgers.AsNoTracking()
-                .Where(l => !l.Customer.IsDeleted)
-                .SumAsync(l => (decimal?)(l.DebitAmount - l.CreditAmount), cancellationToken) ?? 0m;
-
-            decimal supplierPayables = await _context.CompanyLedgers.AsNoTracking()
-                .Where(l => !l.Company.IsDeleted)
-                .SumAsync(l => (decimal?)(l.CreditAmount - l.DebitAmount), cancellationToken) ?? 0m;
+            decimal receivables = await _repository.GetCustomerReceivablesAsync(
+                AnalyticsFilterHelper.HasCustomer(filter) ? filter.CustomerID : null, cancellationToken);
+            decimal payables = await _repository.GetCompanyPayablesAsync(cancellationToken);
 
             return new AnalyticsKpiSummaryDto
             {
-                TotalSales = BuildMetric("Total Sales", currTotalSales, prevTotalSales),
-                TotalPurchases = BuildMetric("Total Purchases", currTotalPurchases, prevTotalPurchases),
-                EstimatedGrossProfit = BuildMetric("Estimated Gross Profit", currEstimatedProfit, prevEstimatedProfit),
-                TotalDiscounts = BuildMetric("Total Discounts", currTotalDiscounts, prevTotalDiscounts),
-                TotalReturns = BuildMetric("Total Returns", currTotalReturns, prevTotalReturns),
-                NetSales = BuildMetric("Net Sales", currNetSales, prevNetSales),
-                CustomerReceivables = BuildMetric("Outstanding Customer Receivables", Math.Max(0m, customerReceivables), Math.Max(0m, customerReceivables)),
-                CompanyPayables = BuildMetric("Outstanding Company Payables", Math.Max(0m, supplierPayables), Math.Max(0m, supplierPayables))
+                TotalSales = BuildMetric("Total Sales", curr.Sales, prev.Sales),
+                TotalPurchases = BuildMetric("Total Purchases", curr.Purchases, prev.Purchases),
+                EstimatedGrossProfit = BuildMetric("Estimated Gross Profit (Avg Cost)", curr.Profit, prev.Profit),
+                TotalDiscounts = BuildMetric("Total Discounts", curr.Discounts, prev.Discounts),
+                TotalReturns = BuildMetric("Total Returns", curr.Returns, prev.Returns),
+                NetSales = BuildMetric("Net Sales", curr.NetSales, prev.NetSales),
+                CustomerReceivables = SnapshotMetric("Outstanding Customer Receivables", Math.Max(0m, receivables)),
+                CompanyPayables = SnapshotMetric("Outstanding Company Payables", Math.Max(0m, payables))
             };
         }
 
         public async Task<List<SalesTrendItemDto>> GetSalesTrendAsync(AnalyticsFilterDto filter, string interval = "Daily", CancellationToken cancellationToken = default)
         {
-            var (startDate, endDate, _, _) = ResolveDates(filter);
-            var query = _context.SalesInvoices.AsNoTracking().Where(s => !s.IsDeleted && s.InvoiceDate >= startDate && s.InvoiceDate <= endDate);
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, start, end, cancellationToken);
+            var items = AnalyticsFilterHelper.HasCategory(filter)
+                ? await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken)
+                : new List<AnalyticsSalesItemRow>();
+            var returns = await _repository.GetReturnRowsAsync(filter, start, end, cancellationToken);
+            var purchases = AnalyticsFilterHelper.HasCategory(filter)
+                ? (await _repository.GetPurchaseItemRowsAsync(filter, start, end, cancellationToken))
+                    .Select(p => new { p.InvoiceDate, Amount = p.TotalCost })
+                    .ToList()
+                : (await _repository.GetPurchaseInvoiceRowsAsync(filter, start, end, cancellationToken))
+                    .Select(p => new { p.InvoiceDate, Amount = p.GrandTotal })
+                    .ToList();
 
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                query = query.Where(s => s.WarehouseID == filter.WarehouseID.Value);
-            if (filter.CustomerID.HasValue && filter.CustomerID.Value > 0)
-                query = query.Where(s => s.CustomerID == filter.CustomerID.Value);
+            var salesByInvoice = AnalyticsFilterHelper.HasCategory(filter)
+                ? items.GroupBy(i => i.InvoiceID).ToDictionary(g => g.Key, g => g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)))
+                : invoices.ToDictionary(i => i.InvoiceID, i => i.GrandTotal);
 
-            var rawInvoices = await query
-                .Select(s => new { s.InvoiceDate, s.GrandTotal })
-                .ToListAsync(cancellationToken);
+            var buckets = new Dictionary<(DateTime Start, DateTime End, string Label), SalesTrendItemDto>();
 
-            var result = new List<SalesTrendItemDto>();
-            string mode = (interval ?? "Daily").ToLowerInvariant();
-
-            if (mode == "monthly")
+            foreach (var inv in invoices)
             {
-                var grouped = rawInvoices
-                    .GroupBy(s => new { s.InvoiceDate.Year, s.InvoiceDate.Month })
-                    .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month);
-
-                foreach (var g in grouped)
+                var (bStart, bEnd, label) = AnalyticsFilterHelper.Bucket(inv.InvoiceDate, interval);
+                var key = (bStart, bEnd, label);
+                if (!buckets.TryGetValue(key, out var dto))
                 {
-                    string label = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy");
-                    result.Add(new SalesTrendItemDto
-                    {
-                        Label = label,
-                        SalesAmount = g.Sum(x => x.GrandTotal),
-                        InvoiceCount = g.Count()
-                    });
+                    dto = new SalesTrendItemDto { Label = label, BucketStart = bStart, BucketEnd = bEnd };
+                    buckets[key] = dto;
                 }
-            }
-            else if (mode == "weekly")
-            {
-                var grouped = rawInvoices
-                    .GroupBy(s => System.Globalization.ISOWeek.GetWeekOfYear(s.InvoiceDate))
-                    .OrderBy(g => g.Key);
 
-                foreach (var g in grouped)
-                {
-                    result.Add(new SalesTrendItemDto
-                    {
-                        Label = $"Week {g.Key}",
-                        SalesAmount = g.Sum(x => x.GrandTotal),
-                        InvoiceCount = g.Count()
-                    });
-                }
-            }
-            else
-            {
-                // Daily (Default)
-                var grouped = rawInvoices
-                    .GroupBy(s => s.InvoiceDate.Date)
-                    .OrderBy(g => g.Key);
-
-                foreach (var g in grouped)
-                {
-                    result.Add(new SalesTrendItemDto
-                    {
-                        Label = g.Key.ToString("dd MMM"),
-                        SalesAmount = g.Sum(x => x.GrandTotal),
-                        InvoiceCount = g.Count()
-                    });
-                }
+                decimal amount = salesByInvoice.TryGetValue(inv.InvoiceID, out var a) ? a : 0m;
+                dto.SalesAmount += amount;
+                dto.InvoiceCount += 1;
             }
 
-            return result;
+            foreach (var ret in returns)
+            {
+                var (bStart, bEnd, label) = AnalyticsFilterHelper.Bucket(ret.ReturnDate, interval);
+                var key = (bStart, bEnd, label);
+                if (!buckets.TryGetValue(key, out var dto))
+                {
+                    dto = new SalesTrendItemDto { Label = label, BucketStart = bStart, BucketEnd = bEnd };
+                    buckets[key] = dto;
+                }
+                dto.ReturnsAmount += ret.LineRefundAmount;
+            }
+
+            foreach (var p in purchases)
+            {
+                var (bStart, bEnd, label) = AnalyticsFilterHelper.Bucket(p.InvoiceDate, interval);
+                var key = (bStart, bEnd, label);
+                if (!buckets.TryGetValue(key, out var dto))
+                {
+                    dto = new SalesTrendItemDto { Label = label, BucketStart = bStart, BucketEnd = bEnd };
+                    buckets[key] = dto;
+                }
+                dto.PurchaseAmount += p.Amount;
+            }
+
+            foreach (var dto in buckets.Values)
+                dto.NetSalesAmount = dto.SalesAmount - dto.ReturnsAmount;
+
+            return buckets.Values.OrderBy(b => b.BucketStart).ToList();
         }
 
         public async Task<List<TopProductDto>> GetTopProductsAsync(AnalyticsFilterDto filter, string sortBy = "Revenue", int topCount = 10, CancellationToken cancellationToken = default)
         {
-            var (startDate, endDate, _, _) = ResolveDates(filter);
-            var query = _context.SalesInvoiceItems.AsNoTracking()
-                .Include(i => i.Product).ThenInclude(p => p!.Category)
-                .Where(i => !i.IsDeleted && !i.SalesInvoice.IsDeleted && i.ProductID != null && i.SalesInvoice.InvoiceDate >= startDate && i.SalesInvoice.InvoiceDate <= endDate);
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var items = await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken);
 
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                query = query.Where(i => i.SalesInvoice.WarehouseID == filter.WarehouseID.Value);
-            if (filter.CustomerID.HasValue && filter.CustomerID.Value > 0)
-                query = query.Where(i => i.SalesInvoice.CustomerID == filter.CustomerID.Value);
-            if (filter.CategoryID.HasValue && filter.CategoryID.Value > 0)
-                query = query.Where(i => i.Product.CategoryID == filter.CategoryID.Value);
-
-            var grouped = await query
-                .GroupBy(i => new { i.ProductID, i.Product.ProductName, CategoryName = i.Product.Category.Name, i.Product.AveragePurchaseCost })
-                .Select(g => new
+            var grouped = items
+                .Where(i => i.ProductID.HasValue)
+                .GroupBy(i => new { i.ProductID, i.ProductName, i.CategoryName })
+                .Select(g => new TopProductDto
                 {
-                    g.Key.ProductID,
-                    g.Key.ProductName,
-                    g.Key.CategoryName,
-                    QuantitySold = g.Sum(i => i.Quantity),
-                    ConvertedQty = g.Sum(i => i.ConvertedQuantity),
-                    Revenue = g.Sum(i => (i.Quantity * i.UnitPrice) - i.DiscountAmount),
-                    Cost = g.Sum(i => i.ConvertedQuantity * g.Key.AveragePurchaseCost)
-                })
-                .ToListAsync(cancellationToken);
+                    ProductID = g.Key.ProductID ?? 0,
+                    ProductName = g.Key.ProductName,
+                    CategoryName = g.Key.CategoryName,
+                    QuantitySold = g.Sum(i => i.ConvertedQuantity),
+                    Revenue = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)),
+                    EstimatedProfit = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount) - (i.ConvertedQuantity * i.AveragePurchaseCost))
+                });
 
-            bool isQuantitySort = string.Equals(sortBy, "Quantity", StringComparison.OrdinalIgnoreCase);
-
-            var sorted = isQuantitySort
+            bool byQty = string.Equals(sortBy, "Quantity", StringComparison.OrdinalIgnoreCase);
+            var sorted = byQty
                 ? grouped.OrderByDescending(p => p.QuantitySold).ThenByDescending(p => p.Revenue)
                 : grouped.OrderByDescending(p => p.Revenue).ThenByDescending(p => p.QuantitySold);
 
-            return sorted.Take(topCount).Select(p => new TopProductDto
-            {
-                ProductID = p.ProductID ?? 0,
-                ProductName = p.ProductName,
-                CategoryName = p.CategoryName,
-                QuantitySold = p.QuantitySold,
-                Revenue = p.Revenue,
-                EstimatedProfit = Math.Max(0m, p.Revenue - p.Cost)
-            }).ToList();
+            return sorted.Take(topCount).ToList();
         }
 
         public async Task<List<TopCustomerDto>> GetTopCustomersAsync(AnalyticsFilterDto filter, string sortBy = "Revenue", int topCount = 10, CancellationToken cancellationToken = default)
         {
-            var (startDate, endDate, _, _) = ResolveDates(filter);
-            var query = _context.SalesInvoices.AsNoTracking()
-                .Include(s => s.Customer)
-                .Where(s => !s.IsDeleted && s.InvoiceDate >= startDate && s.InvoiceDate <= endDate);
-
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                query = query.Where(s => s.WarehouseID == filter.WarehouseID.Value);
-            if (filter.CustomerID.HasValue && filter.CustomerID.Value > 0)
-                query = query.Where(s => s.CustomerID == filter.CustomerID.Value);
-
-            var grouped = await query
-                .GroupBy(s => new { s.CustomerID, s.Customer.ShopName })
-                .Select(g => new
-                {
-                    g.Key.CustomerID,
-                    CustomerName = g.Key.ShopName,
-                    Revenue = g.Sum(s => s.GrandTotal),
-                    InvoiceCount = g.Count()
-                })
-                .OrderByDescending(c => c.Revenue)
-                .Take(topCount)
-                .ToListAsync(cancellationToken);
-
-            var customerIds = grouped.Select(c => c.CustomerID).ToList();
-            var balances = await _context.CustomerLedgers.AsNoTracking()
-                .Where(l => customerIds.Contains(l.CustomerID))
-                .GroupBy(l => l.CustomerID)
-                .Select(g => new { CustomerID = g.Key, Balance = g.Sum(l => l.DebitAmount - l.CreditAmount) })
-                .ToDictionaryAsync(x => x.CustomerID, x => x.Balance, cancellationToken);
-
-            return grouped.Select(c => new TopCustomerDto
+            var page = await GetCustomerAnalyticsAsync(filter, sortBy, cancellationToken);
+            return page.Customers.Take(topCount).Select(c => new TopCustomerDto
             {
                 CustomerID = c.CustomerID,
                 CustomerName = c.CustomerName,
                 Revenue = c.Revenue,
                 InvoiceCount = c.InvoiceCount,
-                OutstandingBalance = Math.Max(0m, balances.ContainsKey(c.CustomerID) ? balances[c.CustomerID] : 0m)
+                OutstandingBalance = c.Outstanding,
+                ReturnsAmount = c.Returns,
+                LastSaleDate = c.LastSaleDate
             }).ToList();
         }
 
         public async Task<List<CategorySalesDto>> GetCategorySalesAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
-            var (startDate, endDate, _, _) = ResolveDates(filter);
-            var query = _context.SalesInvoiceItems.AsNoTracking()
-                .Include(i => i.Product).ThenInclude(p => p!.Category)
-                .Where(i => !i.IsDeleted && !i.SalesInvoice.IsDeleted && i.ProductID != null && i.SalesInvoice.InvoiceDate >= startDate && i.SalesInvoice.InvoiceDate <= endDate);
-
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                query = query.Where(i => i.SalesInvoice.WarehouseID == filter.WarehouseID.Value);
-            if (filter.CustomerID.HasValue && filter.CustomerID.Value > 0)
-                query = query.Where(i => i.SalesInvoice.CustomerID == filter.CustomerID.Value);
-            if (filter.CategoryID.HasValue && filter.CategoryID.Value > 0)
-                query = query.Where(i => i.Product.CategoryID == filter.CategoryID.Value);
-
-            var grouped = await query
-                .GroupBy(i => i.Product.Category.Name)
-                .Select(g => new
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var items = await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken);
+            var grouped = items
+                .GroupBy(i => string.IsNullOrWhiteSpace(i.CategoryName) ? "Uncategorized" : i.CategoryName)
+                .Select(g => new CategorySalesDto
                 {
                     CategoryName = g.Key,
-                    SalesAmount = g.Sum(i => (i.Quantity * i.UnitPrice) - i.DiscountAmount)
+                    SalesAmount = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount))
                 })
                 .OrderByDescending(c => c.SalesAmount)
-                .ToListAsync(cancellationToken);
+                .ToList();
 
-            decimal totalSales = grouped.Sum(c => c.SalesAmount);
-            return grouped.Select(c => new CategorySalesDto
-            {
-                CategoryName = c.CategoryName,
-                SalesAmount = c.SalesAmount,
-                Percentage = totalSales > 0 ? Math.Round((c.SalesAmount / totalSales) * 100m, 1) : 0m
-            }).ToList();
+            decimal total = grouped.Sum(c => c.SalesAmount);
+            foreach (var c in grouped)
+                c.Percentage = total > 0 ? Math.Round((c.SalesAmount / total) * 100m, 1) : 0m;
+            return grouped;
         }
-
-        private KpiMetricDto BuildMetric(string title, decimal current, decimal previous)
-        {
-            decimal change = 0m;
-            if (previous > 0)
-            {
-                change = Math.Round(((current - previous) / previous) * 100m, 1);
-            }
-            else if (current > 0)
-            {
-                change = 100m;
-            }
-
-            return new KpiMetricDto
-            {
-                Title = title,
-                CurrentValue = current,
-                PreviousValue = previous,
-                PercentageChange = change
-            };
-        }
-
-        private (DateTime startDate, DateTime endDate, DateTime prevStartDate, DateTime prevEndDate) ResolveDates(AnalyticsFilterDto filter)
-        {
-            DateTime now = DateTime.UtcNow;
-            DateTime startDate;
-            DateTime endDate = new DateTime(now.Year, now.Month, now.Day, 23, 59, 59, DateTimeKind.Utc);
-
-            switch ((filter.Preset ?? "ThisMonth").ToLowerInvariant())
-            {
-                case "today":
-                    startDate = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0, DateTimeKind.Utc);
-                    break;
-                case "last7days":
-                    startDate = endDate.AddDays(-7).Date;
-                    break;
-                case "last30days":
-                    startDate = endDate.AddDays(-30).Date;
-                    break;
-                case "lastmonth":
-                    var lastMonth = now.AddMonths(-1);
-                    startDate = new DateTime(lastMonth.Year, lastMonth.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-                    endDate = new DateTime(lastMonth.Year, lastMonth.Month, DateTime.DaysInMonth(lastMonth.Year, lastMonth.Month), 23, 59, 59, DateTimeKind.Utc);
-                    break;
-                case "thisyear":
-                    startDate = new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-                    break;
-                case "custom":
-                    startDate = filter.StartDate ?? new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-                    endDate = filter.EndDate.HasValue 
-                        ? new DateTime(filter.EndDate.Value.Year, filter.EndDate.Value.Month, filter.EndDate.Value.Day, 23, 59, 59, DateTimeKind.Utc)
-                        : endDate;
-                    break;
-                case "thismonth":
-                default:
-                    startDate = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-                    break;
-            }
-
-            TimeSpan duration = endDate - startDate;
-            DateTime prevEndDate = startDate.AddSeconds(-1);
-            DateTime prevStartDate = prevEndDate - duration;
-
-            return (startDate, endDate, prevStartDate, prevEndDate);
-        }
-
-        // ===== WAVE 3 SERVICE METHODS =====
 
         public async Task<PaymentAnalyticsDto> GetPaymentAnalyticsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
-            var (startDate, endDate, _, _) = ResolveDates(filter);
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, start, end, cancellationToken);
+            var custPayments = await _repository.GetCustomerPaymentsAsync(filter, start, end, cancellationToken);
+            var compPayments = await _repository.GetCompanyPaymentsAsync(filter, start, end, cancellationToken);
+            var receivables = await _repository.GetCustomerReceivablesAsync(
+                AnalyticsFilterHelper.HasCustomer(filter) ? filter.CustomerID : null, cancellationToken);
+            var payables = await _repository.GetCompanyPayablesAsync(cancellationToken);
 
-            var custPayments = await _context.CustomerPayments.AsNoTracking()
-                .Where(p => !p.IsDeleted && p.PaymentDate >= startDate && p.PaymentDate <= endDate)
-                .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
-
-            var compPayments = await _context.CompanyPayments.AsNoTracking()
-                .Where(p => !p.IsDeleted && p.PaymentDate >= startDate && p.PaymentDate <= endDate)
-                .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
-
-            var customerReceivables = await _context.CustomerLedgers.AsNoTracking()
-                .Where(l => l.Customer != null && !l.Customer.IsDeleted)
-                .SumAsync(l => (decimal?)(l.DebitAmount - l.CreditAmount), cancellationToken) ?? 0m;
-
-            var companyPayables = await _context.CompanyLedgers.AsNoTracking()
-                .Where(l => l.Company != null && !l.Company.IsDeleted)
-                .SumAsync(l => (decimal?)(l.CreditAmount - l.DebitAmount), cancellationToken) ?? 0m;
-
-            var salesQuery = _context.SalesInvoices.AsNoTracking()
-                .Where(s => !s.IsDeleted && s.InvoiceDate >= startDate && s.InvoiceDate <= endDate);
-
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                salesQuery = salesQuery.Where(s => s.WarehouseID == filter.WarehouseID.Value);
-            if (filter.CustomerID.HasValue && filter.CustomerID.Value > 0)
-                salesQuery = salesQuery.Where(s => s.CustomerID == filter.CustomerID.Value);
-
-            var statusGroups = await salesQuery
-                .GroupBy(s => s.PaymentStatus ?? "UNPAID")
-                .Select(g => new
+            var statuses = invoices
+                .Select(i => new
+                {
+                    Status = AnalyticsFilterHelper.EffectivePaymentStatus(
+                        i.PaymentStatus,
+                        AnalyticsFilterHelper.InvoiceRemaining(i.GrandTotal, i.PaidAmount, i.ReturnedAmount)),
+                    Amount = AnalyticsFilterHelper.HasCategory(filter) ? 0m : i.GrandTotal
+                })
+                .GroupBy(x => x.Status)
+                .Select(g => new InvoiceStatusBreakdownDto
                 {
                     Status = g.Key,
                     Count = g.Count(),
-                    TotalAmount = g.Sum(s => s.GrandTotal)
+                    TotalAmount = g.Sum(x => x.Amount)
                 })
-                .ToListAsync(cancellationToken);
+                .ToList();
 
-            decimal grandTotalAll = statusGroups.Sum(g => g.TotalAmount);
-
-            var breakdowns = statusGroups.Select(g => new InvoiceStatusBreakdownDto
+            if (AnalyticsFilterHelper.HasCategory(filter))
             {
-                Status = g.Status,
-                Count = g.Count,
-                TotalAmount = g.TotalAmount,
-                Percentage = grandTotalAll > 0 ? Math.Round((g.TotalAmount / grandTotalAll) * 100m, 1) : 0m
-            }).ToList();
+                var items = await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken);
+                var byInvoice = items.GroupBy(i => i.InvoiceID)
+                    .ToDictionary(g => g.Key, g => g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)));
+                statuses = invoices
+                    .Select(i => new
+                    {
+                        Status = AnalyticsFilterHelper.EffectivePaymentStatus(
+                            i.PaymentStatus,
+                            AnalyticsFilterHelper.InvoiceRemaining(i.GrandTotal, i.PaidAmount, i.ReturnedAmount)),
+                        Amount = byInvoice.TryGetValue(i.InvoiceID, out var a) ? a : 0m
+                    })
+                    .GroupBy(x => x.Status)
+                    .Select(g => new InvoiceStatusBreakdownDto
+                    {
+                        Status = g.Key,
+                        Count = g.Count(),
+                        TotalAmount = g.Sum(x => x.Amount)
+                    })
+                    .ToList();
+            }
+
+            decimal grand = statuses.Sum(s => s.TotalAmount);
+            foreach (var s in statuses)
+                s.Percentage = grand > 0 ? Math.Round((s.TotalAmount / grand) * 100m, 1) : 0m;
 
             return new PaymentAnalyticsDto
             {
                 CustomerPaymentsCollected = custPayments,
                 CompanyPaymentsMade = compPayments,
-                TotalOutstandingReceivables = Math.Max(0m, customerReceivables),
-                TotalOutstandingPayables = Math.Max(0m, companyPayables),
-                InvoiceStatuses = breakdowns
+                TotalOutstandingReceivables = Math.Max(0m, receivables),
+                TotalOutstandingPayables = Math.Max(0m, payables),
+                InvoiceStatuses = statuses
             };
         }
 
         public async Task<InventoryInsightsDto> GetInventoryInsightsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
-            var stockQuery = _context.InventoryStocks.AsNoTracking()
-                .Include(s => s.Product).ThenInclude(p => p.Category)
-                .Where(s => !s.Product.IsDeleted);
-
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                stockQuery = stockQuery.Where(s => s.WarehouseID == filter.WarehouseID.Value);
-            if (filter.CategoryID.HasValue && filter.CategoryID.Value > 0)
-                stockQuery = stockQuery.Where(s => s.Product.CategoryID == filter.CategoryID.Value);
-
-            var stocks = await stockQuery.ToListAsync(cancellationToken);
-
-            var productStockGrouped = stocks
-                .GroupBy(s => new { s.ProductID, s.Product.ProductName, s.Product.ReorderLevel, s.Product.AveragePurchaseCost, CategoryName = s.Product.Category != null ? s.Product.Category.Name : "Uncategorized" })
+            var stocks = await _repository.GetStockRowsAsync(filter, cancellationToken);
+            var productStock = stocks
+                .GroupBy(s => new { s.ProductID, s.ProductName, s.ReorderLevel, s.AveragePurchaseCost, s.CategoryName })
                 .Select(g => new
                 {
-                    g.Key.ProductID,
-                    g.Key.ProductName,
                     g.Key.CategoryName,
                     TotalStock = g.Sum(s => s.Quantity),
                     ReorderLevel = g.Key.ReorderLevel,
@@ -470,198 +266,620 @@ namespace InventorySystem.Services.Implementations
                 })
                 .ToList();
 
-            decimal totalInventoryValue = productStockGrouped.Sum(p => Math.Max(0m, p.StockValue));
-            int totalProducts = productStockGrouped.Count;
-            int lowStockCount = productStockGrouped.Count(p => p.TotalStock > 0 && p.TotalStock <= p.ReorderLevel);
-            int outOfStockCount = productStockGrouped.Count(p => p.TotalStock <= 0);
-
-            var categoryGrouped = productStockGrouped
+            decimal totalValue = productStock.Sum(p => Math.Max(0m, p.StockValue));
+            var categoryGrouped = productStock
                 .GroupBy(p => p.CategoryName)
                 .Select(g => new CategoryInventoryValueDto
                 {
                     CategoryName = g.Key,
                     TotalValue = g.Sum(p => Math.Max(0m, p.StockValue)),
                     ProductCount = g.Count(),
-                    Percentage = totalInventoryValue > 0 ? Math.Round((g.Sum(p => Math.Max(0m, p.StockValue)) / totalInventoryValue) * 100m, 1) : 0m
+                    Percentage = 0m
                 })
                 .OrderByDescending(c => c.TotalValue)
                 .ToList();
 
+            foreach (var c in categoryGrouped)
+                c.Percentage = totalValue > 0 ? Math.Round((c.TotalValue / totalValue) * 100m, 1) : 0m;
+
             return new InventoryInsightsDto
             {
-                TotalInventoryValue = totalInventoryValue,
-                TotalProductCount = totalProducts,
-                LowStockProductCount = lowStockCount,
-                OutOfStockProductCount = outOfStockCount,
+                TotalInventoryValue = totalValue,
+                TotalProductCount = productStock.Count,
+                LowStockProductCount = productStock.Count(p => p.TotalStock > 0 && p.TotalStock <= p.ReorderLevel),
+                OutOfStockProductCount = productStock.Count(p => p.TotalStock <= 0),
                 ValueByCategory = categoryGrouped
             };
         }
 
         public async Task<List<StockRiskItemDto>> GetStockRiskItemsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
-            var stockQuery = _context.InventoryStocks.AsNoTracking()
-                .Include(s => s.Product).ThenInclude(p => p.Category)
-                .Include(s => s.Product).ThenInclude(p => p.BaseUnit)
-                .Where(s => !s.Product.IsDeleted);
-
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                stockQuery = stockQuery.Where(s => s.WarehouseID == filter.WarehouseID.Value);
-            if (filter.CategoryID.HasValue && filter.CategoryID.Value > 0)
-                stockQuery = stockQuery.Where(s => s.Product.CategoryID == filter.CategoryID.Value);
-
-            var stocks = await stockQuery.ToListAsync(cancellationToken);
-
-            var riskItems = stocks
-                .GroupBy(s => new { 
-                    s.ProductID, 
-                    s.Product.ProductName, 
-                    s.Product.ReorderLevel, 
-                    CategoryName = s.Product.Category != null ? s.Product.Category.Name : "Uncategorized",
-                    BaseUnitName = s.Product.BaseUnit != null ? s.Product.BaseUnit.UnitName : "Units"
-                })
-                .Select(g => new
+            var stocks = await _repository.GetStockRowsAsync(filter, cancellationToken);
+            return stocks
+                .GroupBy(s => new { s.ProductID, s.ProductName, s.CategoryName, s.ReorderLevel, s.BaseUnit })
+                .Select(g => new StockRiskItemDto
                 {
-                    g.Key.ProductID,
-                    g.Key.ProductName,
-                    g.Key.CategoryName,
+                    ProductID = g.Key.ProductID,
+                    ProductName = g.Key.ProductName,
+                    CategoryName = g.Key.CategoryName,
                     CurrentStock = g.Sum(s => s.Quantity),
                     ReorderLevel = g.Key.ReorderLevel,
-                    BaseUnit = g.Key.BaseUnitName
+                    BaseUnit = g.Key.BaseUnit,
+                    RiskLevel = g.Sum(s => s.Quantity) <= 0 ? "OUT_OF_STOCK" : "LOW_STOCK"
                 })
                 .Where(p => p.CurrentStock <= p.ReorderLevel)
                 .OrderBy(p => p.CurrentStock)
-                .Select(p => new StockRiskItemDto
-                {
-                    ProductID = p.ProductID,
-                    ProductName = p.ProductName,
-                    CategoryName = p.CategoryName,
-                    CurrentStock = p.CurrentStock,
-                    ReorderLevel = p.ReorderLevel,
-                    BaseUnit = p.BaseUnit,
-                    RiskLevel = p.CurrentStock <= 0 ? "OUT_OF_STOCK" : "LOW_STOCK"
-                })
                 .Take(15)
                 .ToList();
-
-            return riskItems;
         }
 
         public async Task<InventoryMovementDto> GetInventoryMovementAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
-            var (startDate, endDate, _, _) = ResolveDates(filter);
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var grouped = await _repository.GetMovementRowsAsync(filter, start, end, cancellationToken);
 
-            var txQuery = _context.InventoryTransactions.AsNoTracking()
-                .Where(t => t.CreatedAt >= startDate && t.CreatedAt <= endDate);
-
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                txQuery = txQuery.Where(t => t.WarehouseID == filter.WarehouseID.Value);
-
-            var grouped = await txQuery
-                .GroupBy(t => t.TransactionType)
-                .Select(g => new
-                {
-                    Type = g.Key,
-                    Quantity = g.Sum(t => Math.Abs(t.Quantity))
-                })
-                .ToListAsync(cancellationToken);
-
-            // Exact type matches: avoid RETURN_DAMAGED / PURCHASE_RETURN being counted as sellable sales returns,
-            // and avoid PURCHASE_RETURN being counted as purchases.
-            decimal purchased = grouped.Where(g => string.Equals(g.Type, "PURCHASE", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
-            decimal sold = grouped.Where(g => string.Equals(g.Type, "SALE", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
-            decimal returned = grouped.Where(g => string.Equals(g.Type, "RETURN", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
-            decimal adjusted = grouped.Where(g => string.Equals(g.Type, "ADJUSTMENT", StringComparison.OrdinalIgnoreCase)).Sum(g => g.Quantity);
+            decimal SumType(string type) => grouped
+                .Where(g => string.Equals(g.TransactionType, type, StringComparison.OrdinalIgnoreCase))
+                .Sum(g => g.Quantity);
 
             return new InventoryMovementDto
             {
-                PurchasedQuantity = purchased,
-                SoldQuantity = sold,
-                SalesReturnQuantity = returned,
-                AdjustmentQuantity = adjusted
+                PurchasedQuantity = SumType("PURCHASE"),
+                SoldQuantity = SumType("SALE"),
+                SalesReturnQuantity = SumType("RETURN"),
+                AdjustmentQuantity = SumType("ADJUSTMENT")
             };
         }
 
         public async Task<PromotionPerformanceDto> GetPromotionPerformanceAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
-            var (startDate, endDate, _, _) = ResolveDates(filter);
-
-            var salesQuery = _context.SalesInvoices.AsNoTracking()
-                .Where(s => !s.IsDeleted && s.InvoiceDate >= startDate && s.InvoiceDate <= endDate);
-
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                salesQuery = salesQuery.Where(s => s.WarehouseID == filter.WarehouseID.Value);
-            if (filter.CustomerID.HasValue && filter.CustomerID.Value > 0)
-                salesQuery = salesQuery.Where(s => s.CustomerID == filter.CustomerID.Value);
-
-            var invoices = await salesQuery
-                .Select(s => new { s.InvoiceID, s.DiscountTotal, s.GrandTotal })
-                .ToListAsync(cancellationToken);
-
-            decimal totalDiscount = invoices.Sum(i => i.DiscountTotal);
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, start, end, cancellationToken);
+            decimal totalDiscount = AnalyticsFilterHelper.HasCategory(filter)
+                ? (await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken)).Sum(i => i.DiscountAmount)
+                : invoices.Sum(i => i.DiscountTotal);
             int invoicesWithDiscount = invoices.Count(i => i.DiscountTotal > 0);
-
-            var promoInvoices = await _context.InvoicePromotions.AsNoTracking()
-                .Where(p => !p.SalesInvoice.IsDeleted && p.SalesInvoice.InvoiceDate >= startDate && p.SalesInvoice.InvoiceDate <= endDate)
-                .SumAsync(p => (decimal?)p.DiscountAmount, cancellationToken) ?? 0m;
+            decimal promo = await _repository.GetInvoicePromotionAmountAsync(filter, start, end, cancellationToken);
 
             return new PromotionPerformanceDto
             {
                 TotalDiscountAmount = totalDiscount,
                 PromoInvoicesCount = invoicesWithDiscount,
                 RegularDiscountsCount = invoicesWithDiscount,
-                TotalInvoicePromotionsAmount = promoInvoices,
-                TotalRegularDiscountsAmount = Math.Max(0m, totalDiscount - promoInvoices)
+                TotalInvoicePromotionsAmount = promo,
+                TotalRegularDiscountsAmount = Math.Max(0m, totalDiscount - promo)
             };
         }
 
         public async Task<List<TopCompanyDto>> GetTopCompaniesAsync(AnalyticsFilterDto filter, int topCount = 5, CancellationToken cancellationToken = default)
         {
-            var (startDate, endDate, _, _) = ResolveDates(filter);
-
-            var query = _context.PurchaseInvoices.AsNoTracking()
-                .Include(p => p.Company)
-                .Where(p => !p.IsDeleted && p.InvoiceDate >= startDate && p.InvoiceDate <= endDate);
-
-            if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
-                query = query.Where(p => p.WarehouseID == filter.WarehouseID.Value);
-
-            var grouped = await query
-                .GroupBy(p => new { p.CompanyID, p.Company.CompanyName })
-                .Select(g => new
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var purchases = await _repository.GetPurchaseInvoiceRowsAsync(filter, start, end, cancellationToken);
+            var grouped = purchases
+                .GroupBy(p => new { p.CompanyID, p.CompanyName })
+                .Select(g => new TopCompanyDto
                 {
-                    g.Key.CompanyID,
+                    CompanyID = g.Key.CompanyID,
                     CompanyName = g.Key.CompanyName,
                     TotalPurchases = g.Sum(p => p.GrandTotal),
                     InvoiceCount = g.Count()
                 })
                 .OrderByDescending(c => c.TotalPurchases)
                 .Take(topCount)
-                .ToListAsync(cancellationToken);
+                .ToList();
 
-            var companyIds = grouped.Select(c => c.CompanyID).ToList();
-            var payables = await _context.CompanyLedgers.AsNoTracking()
-                .Where(l => companyIds.Contains(l.CompanyID))
-                .GroupBy(l => l.CompanyID)
-                .Select(g => new { CompanyID = g.Key, Balance = g.Sum(l => l.CreditAmount - l.DebitAmount) })
-                .ToDictionaryAsync(x => x.CompanyID, x => x.Balance, cancellationToken);
-
-            return grouped.Select(c => new TopCompanyDto
-            {
-                CompanyID = c.CompanyID,
-                CompanyName = c.CompanyName,
-                TotalPurchases = c.TotalPurchases,
-                InvoiceCount = c.InvoiceCount,
-                OutstandingPayable = Math.Max(0m, payables.ContainsKey(c.CompanyID) ? payables[c.CompanyID] : 0m)
-            }).ToList();
+            var payables = await _repository.GetCompanyLedgerBalancesAsync(grouped.Select(c => c.CompanyID), cancellationToken);
+            foreach (var c in grouped)
+                c.OutstandingPayable = Math.Max(0m, payables.TryGetValue(c.CompanyID, out var b) ? b : 0m);
+            return grouped;
         }
 
         public async Task<List<BusinessInsightDto>> GetBusinessInsightsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
-            var insights = new List<BusinessInsightDto>();
             var kpi = await GetKpiSummaryAsync(filter, cancellationToken);
             var inv = await GetInventoryInsightsAsync(filter, cancellationToken);
+            return BuildInsights(kpi, inv);
+        }
 
-            // 1. Stock Out Emergency
+        public async Task<SalesAnalyticsDto> GetSalesAnalyticsAsync(AnalyticsFilterDto filter, string interval = "Daily", CancellationToken cancellationToken = default)
+        {
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, start, end, cancellationToken);
+            var items = await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken);
+            var returns = await _repository.GetReturnRowsAsync(filter, start, end, cancellationToken);
+            var payments = await GetPaymentAnalyticsAsync(filter, cancellationToken);
+            var trends = await GetSalesTrendAsync(filter, interval, cancellationToken);
+
+            bool byCategory = AnalyticsFilterHelper.HasCategory(filter);
+            decimal totalSales = byCategory
+                ? items.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount))
+                : invoices.Sum(i => i.GrandTotal);
+            decimal discounts = byCategory ? items.Sum(i => i.DiscountAmount) : invoices.Sum(i => i.DiscountTotal);
+            decimal returnsAmt = returns.Sum(r => r.LineRefundAmount);
+            int invoiceCount = invoices.Count;
+
+            var areaGroups = invoices
+                .GroupBy(i => string.IsNullOrWhiteSpace(i.AreaName) ? "Unassigned" : i.AreaName)
+                .Select(g => new NamedAmountDto { Name = g.Key, Amount = byCategory ? 0m : g.Sum(x => x.GrandTotal), Count = g.Count() })
+                .OrderByDescending(a => a.Amount)
+                .ToList();
+
+            var subAreaGroups = invoices
+                .GroupBy(i => string.IsNullOrWhiteSpace(i.SubAreaName) ? "Unassigned" : i.SubAreaName)
+                .Select(g => new NamedAmountDto { Name = g.Key, Amount = byCategory ? 0m : g.Sum(x => x.GrandTotal), Count = g.Count() })
+                .OrderByDescending(a => a.Amount)
+                .ToList();
+
+            if (byCategory)
+            {
+                var byInvoice = items.GroupBy(i => i.InvoiceID)
+                    .ToDictionary(g => g.Key, g => g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)));
+                foreach (var a in areaGroups)
+                {
+                    a.Amount = invoices.Where(i => (string.IsNullOrWhiteSpace(i.AreaName) ? "Unassigned" : i.AreaName) == a.Name)
+                        .Sum(i => byInvoice.TryGetValue(i.InvoiceID, out var v) ? v : 0m);
+                }
+                foreach (var a in subAreaGroups)
+                {
+                    a.Amount = invoices.Where(i => (string.IsNullOrWhiteSpace(i.SubAreaName) ? "Unassigned" : i.SubAreaName) == a.Name)
+                        .Sum(i => byInvoice.TryGetValue(i.InvoiceID, out var v) ? v : 0m);
+                }
+                areaGroups = areaGroups.OrderByDescending(a => a.Amount).ToList();
+                subAreaGroups = subAreaGroups.OrderByDescending(a => a.Amount).ToList();
+            }
+
+            decimal areaTotal = areaGroups.Sum(a => a.Amount);
+            foreach (var a in areaGroups)
+                a.Percentage = areaTotal > 0 ? Math.Round((a.Amount / areaTotal) * 100m, 1) : 0m;
+            decimal subTotal = subAreaGroups.Sum(a => a.Amount);
+            foreach (var a in subAreaGroups)
+                a.Percentage = subTotal > 0 ? Math.Round((a.Amount / subTotal) * 100m, 1) : 0m;
+
+            var agingOrder = new[] { "Current", "1–30 days", "31–60 days", "61–90 days", "90+ days" };
+            var aging = invoices
+                .Select(i => new
+                {
+                    Bucket = AnalyticsFilterHelper.AgingBucket(i.InvoiceDate, DateTime.Today),
+                    Remaining = AnalyticsFilterHelper.InvoiceRemaining(i.GrandTotal, i.PaidAmount, i.ReturnedAmount)
+                })
+                .Where(x => x.Remaining > 0.001m)
+                .GroupBy(x => x.Bucket)
+                .Select(g => new AgingBucketDto
+                {
+                    Bucket = g.Key,
+                    InvoiceCount = g.Count(),
+                    OutstandingAmount = g.Sum(x => x.Remaining)
+                })
+                .ToList();
+
+            var agingFull = agingOrder.Select(name =>
+                aging.FirstOrDefault(a => a.Bucket == name) ?? new AgingBucketDto { Bucket = name }).ToList();
+
+            return new SalesAnalyticsDto
+            {
+                TotalSales = totalSales,
+                NetSales = totalSales - returnsAmt,
+                Returns = returnsAmt,
+                AverageInvoiceValue = invoiceCount > 0 ? totalSales / invoiceCount : 0m,
+                InvoiceCount = invoiceCount,
+                DiscountRate = totalSales > 0 ? Math.Round((discounts / totalSales) * 100m, 1) : 0m,
+                TotalDiscounts = discounts,
+                Trends = trends,
+                SalesByArea = areaGroups,
+                SalesBySubArea = subAreaGroups,
+                PaymentStatuses = payments.InvoiceStatuses,
+                Aging = agingFull,
+                Payments = payments
+            };
+        }
+
+        public async Task<List<InvoiceDrilldownDto>> GetSalesDrilldownAsync(
+            AnalyticsFilterDto filter, DateTime bucketStart, DateTime bucketEnd, CancellationToken cancellationToken = default)
+        {
+            var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, bucketStart, bucketEnd, cancellationToken);
+            return invoices
+                .OrderBy(i => i.InvoiceDate)
+                .Select(i => new InvoiceDrilldownDto
+                {
+                    InvoiceID = i.InvoiceID,
+                    InvoiceNumber = i.InvoiceNumber,
+                    InvoiceDate = i.InvoiceDate,
+                    CustomerName = i.CustomerName,
+                    GrandTotal = i.GrandTotal,
+                    Outstanding = AnalyticsFilterHelper.InvoiceRemaining(i.GrandTotal, i.PaidAmount, i.ReturnedAmount),
+                    PaymentStatus = AnalyticsFilterHelper.EffectivePaymentStatus(
+                        i.PaymentStatus,
+                        AnalyticsFilterHelper.InvoiceRemaining(i.GrandTotal, i.PaidAmount, i.ReturnedAmount))
+                })
+                .ToList();
+        }
+
+        public async Task<CustomerAnalyticsDto> GetCustomerAnalyticsAsync(AnalyticsFilterDto filter, string sortBy = "Revenue", CancellationToken cancellationToken = default)
+        {
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, start, end, cancellationToken);
+            var items = AnalyticsFilterHelper.HasCategory(filter)
+                ? await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken)
+                : new List<AnalyticsSalesItemRow>();
+            var returns = await _repository.GetReturnRowsAsync(filter, start, end, cancellationToken);
+
+            var revenueByInvoice = AnalyticsFilterHelper.HasCategory(filter)
+                ? items.GroupBy(i => i.InvoiceID).ToDictionary(g => g.Key, g => g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)))
+                : invoices.ToDictionary(i => i.InvoiceID, i => i.GrandTotal);
+
+            var ranked = invoices
+                .GroupBy(i => new { i.CustomerID, i.CustomerName })
+                .Select(g => new CustomerRankedDto
+                {
+                    CustomerID = g.Key.CustomerID,
+                    CustomerName = g.Key.CustomerName,
+                    AreaName = g.Select(x => x.AreaName).FirstOrDefault(a => !string.IsNullOrWhiteSpace(a)),
+                    Revenue = g.Sum(x => revenueByInvoice.TryGetValue(x.InvoiceID, out var v) ? v : 0m),
+                    InvoiceCount = g.Count(),
+                    LastSaleDate = g.Max(x => x.InvoiceDate),
+                    HasSalesInPeriod = true
+                })
+                .ToList();
+
+            var returnsByCustomer = returns.GroupBy(r => r.CustomerID).ToDictionary(g => g.Key, g => g.Sum(r => r.LineRefundAmount));
+            foreach (var c in ranked)
+                c.Returns = returnsByCustomer.TryGetValue(c.CustomerID, out var r) ? r : 0m;
+
+            var balances = await _repository.GetCustomerLedgerBalancesAsync(ranked.Select(c => c.CustomerID), cancellationToken);
+            foreach (var c in ranked)
+                c.Outstanding = Math.Max(0m, balances.TryGetValue(c.CustomerID, out var b) ? b : 0m);
+
+            ranked = SortCustomers(ranked, sortBy);
+
+            var allCustomers = await _repository.GetCustomersAsync(cancellationToken);
+            var activeIds = ranked.Select(c => c.CustomerID).ToHashSet();
+            var inactive = allCustomers
+                .Where(c => !activeIds.Contains(c.Id))
+                .Select(c => new CustomerRankedDto
+                {
+                    CustomerID = c.Id,
+                    CustomerName = c.Name,
+                    HasSalesInPeriod = false
+                })
+                .OrderBy(c => c.CustomerName)
+                .ToList();
+
+            return new CustomerAnalyticsDto { Customers = ranked, InactiveCustomers = inactive };
+        }
+
+        public async Task<CustomerDetailDto?> GetCustomerDetailAsync(int customerId, AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            filter.CustomerID = customerId;
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var name = await _repository.GetCustomerNameAsync(customerId, cancellationToken);
+            if (string.IsNullOrEmpty(name))
+                return null;
+
+            var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, start, end, cancellationToken);
+            var items = await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken);
+            var returns = await _repository.GetReturnRowsAsync(filter, start, end, cancellationToken);
+            var payments = await _repository.GetCustomerPaymentsAsync(filter, start, end, cancellationToken);
+            var outstanding = await _repository.GetCustomerReceivablesAsync(customerId, cancellationToken);
+            var trend = await GetSalesTrendAsync(filter, "Daily", cancellationToken);
+
+            bool byCategory = AnalyticsFilterHelper.HasCategory(filter);
+            decimal billed = byCategory
+                ? items.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount))
+                : invoices.Sum(i => i.GrandTotal);
+
+            var productMix = items
+                .Where(i => i.ProductID.HasValue)
+                .GroupBy(i => new { i.ProductID, i.ProductName, i.CategoryName })
+                .Select(g => new TopProductDto
+                {
+                    ProductID = g.Key.ProductID ?? 0,
+                    ProductName = g.Key.ProductName,
+                    CategoryName = g.Key.CategoryName,
+                    QuantitySold = g.Sum(i => i.ConvertedQuantity),
+                    Revenue = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)),
+                    EstimatedProfit = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount) - (i.ConvertedQuantity * i.AveragePurchaseCost))
+                })
+                .OrderByDescending(p => p.Revenue)
+                .Take(10)
+                .ToList();
+
+            return new CustomerDetailDto
+            {
+                CustomerID = customerId,
+                CustomerName = name,
+                AreaName = invoices.Select(i => i.AreaName).FirstOrDefault(a => !string.IsNullOrWhiteSpace(a)),
+                SubAreaName = invoices.Select(i => i.SubAreaName).FirstOrDefault(a => !string.IsNullOrWhiteSpace(a)),
+                Revenue = billed,
+                Returns = returns.Sum(r => r.LineRefundAmount),
+                Outstanding = Math.Max(0m, outstanding),
+                PaymentsCollected = payments,
+                Billed = billed,
+                InvoiceCount = invoices.Count,
+                SalesTrend = trend,
+                ProductMix = productMix
+            };
+        }
+
+        public async Task<ProductAnalyticsDto> GetProductAnalyticsAsync(AnalyticsFilterDto filter, string sortBy = "Quantity", CancellationToken cancellationToken = default)
+        {
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var items = await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken);
+            var stocks = await _repository.GetStockRowsAsync(filter, cancellationToken);
+            var purchased = await _repository.GetPurchaseItemRowsAsync(filter, start, end, cancellationToken);
+            var categoryMix = await GetCategorySalesAsync(filter, cancellationToken);
+            var risk = await GetStockRiskItemsAsync(filter, cancellationToken);
+            var movement = await GetInventoryMovementAsync(filter, cancellationToken);
+            var inventory = await GetInventoryInsightsAsync(filter, cancellationToken);
+
+            var stockByProduct = stocks.GroupBy(s => s.ProductID).ToDictionary(g => g.Key, g => g.Sum(s => s.Quantity));
+
+            var ranked = items
+                .Where(i => i.ProductID.HasValue)
+                .GroupBy(i => new { i.ProductID, i.ProductName, i.CategoryName })
+                .Select(g =>
+                {
+                    decimal qty = g.Sum(i => i.ConvertedQuantity);
+                    decimal revenue = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount));
+                    decimal cost = g.Sum(i => i.ConvertedQuantity * i.AveragePurchaseCost);
+                    decimal stock = stockByProduct.TryGetValue(g.Key.ProductID ?? 0, out var s) ? s : 0m;
+                    return new ProductRankedDto
+                    {
+                        ProductID = g.Key.ProductID ?? 0,
+                        ProductName = g.Key.ProductName,
+                        CategoryName = g.Key.CategoryName,
+                        QuantitySoldBase = qty,
+                        Revenue = revenue,
+                        EstimatedProfit = revenue - cost,
+                        CurrentStock = stock,
+                        Velocity = stock > 0 ? Math.Round(qty / stock, 3) : null
+                    };
+                })
+                .ToList();
+
+            var soldIds = ranked.Select(p => p.ProductID).ToHashSet();
+            var dead = stocks
+                .GroupBy(s => new { s.ProductID, s.ProductName, s.CategoryName, s.ReorderLevel })
+                .Where(g => !soldIds.Contains(g.Key.ProductID) && g.Sum(s => s.Quantity) > 0)
+                .Select(g => new ProductRankedDto
+                {
+                    ProductID = g.Key.ProductID,
+                    ProductName = g.Key.ProductName,
+                    CategoryName = g.Key.CategoryName,
+                    QuantitySoldBase = 0m,
+                    CurrentStock = g.Sum(s => s.Quantity),
+                    MoverClass = "Dead",
+                    RiskLevel = g.Sum(s => s.Quantity) <= g.Key.ReorderLevel ? (g.Sum(s => s.Quantity) <= 0 ? "OUT_OF_STOCK" : "LOW_STOCK") : string.Empty
+                })
+                .ToList();
+
+            var soldOrdered = ranked.OrderByDescending(p => p.QuantitySoldBase).ToList();
+            int fastCount = Math.Max(1, (int)Math.Ceiling(soldOrdered.Count * 0.2));
+            for (int i = 0; i < soldOrdered.Count; i++)
+                soldOrdered[i].MoverClass = i < fastCount ? "Fast" : "Slow";
+
+            ranked = SortProducts(soldOrdered, sortBy);
+            var fast = soldOrdered.Where(p => p.MoverClass == "Fast").Take(10).ToList();
+            var slow = soldOrdered.Where(p => p.MoverClass == "Slow").Take(10).ToList();
+
+            var topPurchased = purchased
+                .GroupBy(p => new { p.ProductID, p.ProductName })
+                .Select(g => new TopPurchasedProductDto
+                {
+                    ProductID = g.Key.ProductID,
+                    ProductName = g.Key.ProductName,
+                    QuantityPurchasedBase = g.Sum(x => x.ConvertedQuantity),
+                    PurchaseCost = g.Sum(x => x.TotalCost)
+                })
+                .OrderByDescending(p => p.QuantityPurchasedBase)
+                .Take(10)
+                .ToList();
+
+            return new ProductAnalyticsDto
+            {
+                Products = ranked,
+                FastMovers = fast,
+                SlowMovers = slow,
+                DeadMovers = dead.Take(20).ToList(),
+                CategoryMix = categoryMix,
+                StockRisk = risk,
+                TopPurchased = topPurchased,
+                Movement = movement,
+                Inventory = inventory
+            };
+        }
+
+        public async Task<ProductDetailDto?> GetProductDetailAsync(int productId, AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            var name = await _repository.GetProductNameAsync(productId, cancellationToken);
+            if (string.IsNullOrEmpty(name))
+                return null;
+
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var items = (await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken))
+                .Where(i => i.ProductID == productId)
+                .ToList();
+            var stocks = (await _repository.GetStockRowsAsync(filter, cancellationToken))
+                .Where(s => s.ProductID == productId)
+                .ToList();
+
+            var buckets = items
+                .GroupBy(i => AnalyticsFilterHelper.Bucket(i.InvoiceDate, "Daily"))
+                .Select(g => new SalesTrendItemDto
+                {
+                    Label = g.Key.Label,
+                    BucketStart = g.Key.BucketStart,
+                    BucketEnd = g.Key.BucketEnd,
+                    SalesAmount = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)),
+                    InvoiceCount = g.Select(i => i.InvoiceID).Distinct().Count()
+                })
+                .OrderBy(b => b.BucketStart)
+                .ToList();
+
+            decimal qty = items.Sum(i => i.ConvertedQuantity);
+            decimal revenue = items.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount));
+            decimal cost = items.Sum(i => i.ConvertedQuantity * i.AveragePurchaseCost);
+            decimal stock = stocks.Sum(s => s.Quantity);
+            decimal reorder = stocks.Select(s => s.ReorderLevel).FirstOrDefault();
+
+            return new ProductDetailDto
+            {
+                ProductID = productId,
+                ProductName = name,
+                CategoryName = items.Select(i => i.CategoryName).FirstOrDefault() ?? stocks.Select(s => s.CategoryName).FirstOrDefault() ?? string.Empty,
+                BaseUnit = stocks.Select(s => s.BaseUnit).FirstOrDefault() ?? "Units",
+                QuantitySoldBase = qty,
+                Revenue = revenue,
+                EstimatedProfit = revenue - cost,
+                CurrentStock = stock,
+                ReorderLevel = reorder,
+                RiskLevel = stock <= 0 ? "OUT_OF_STOCK" : (stock <= reorder ? "LOW_STOCK" : "OK"),
+                SalesTrend = buckets,
+                Customers = items
+                    .GroupBy(i => new { i.CustomerID, i.CustomerName })
+                    .Select(g => new ProductCustomerDto
+                    {
+                        CustomerID = g.Key.CustomerID,
+                        CustomerName = g.Key.CustomerName,
+                        QuantitySoldBase = g.Sum(i => i.ConvertedQuantity),
+                        Revenue = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount))
+                    })
+                    .OrderByDescending(c => c.Revenue)
+                    .ToList(),
+                WarehouseStock = stocks
+                    .GroupBy(s => s.WarehouseName)
+                    .Select(g => new WarehouseStockDto { WarehouseName = g.Key, Quantity = g.Sum(s => s.Quantity) })
+                    .ToList()
+            };
+        }
+
+        public async Task<BrokerAnalyticsDto> GetBrokerAnalyticsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
+            var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, start, end, cancellationToken);
+            var items = AnalyticsFilterHelper.HasCategory(filter)
+                ? await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken)
+                : new List<AnalyticsSalesItemRow>();
+            var returns = await _repository.GetReturnRowsAsync(filter, start, end, cancellationToken);
+
+            bool byCategory = AnalyticsFilterHelper.HasCategory(filter);
+            var revenueByInvoice = byCategory
+                ? items.GroupBy(i => i.InvoiceID).ToDictionary(g => g.Key, g => g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)))
+                : invoices.ToDictionary(i => i.InvoiceID, i => i.GrandTotal);
+
+            var discountByInvoice = byCategory
+                ? items.GroupBy(i => i.InvoiceID).ToDictionary(g => g.Key, g => g.Sum(i => i.DiscountAmount))
+                : invoices.ToDictionary(i => i.InvoiceID, i => i.DiscountTotal);
+
+            var brokers = invoices
+                .GroupBy(i => new { i.BrokerID, Name = string.IsNullOrWhiteSpace(i.BrokerName) ? "Unassigned" : i.BrokerName })
+                .Select(g => new BrokerRankedDto
+                {
+                    BrokerID = g.Key.BrokerID,
+                    BrokerName = g.Key.Name,
+                    InvoiceCount = g.Count(),
+                    Revenue = g.Sum(x => revenueByInvoice.TryGetValue(x.InvoiceID, out var v) ? v : 0m),
+                    Discounts = g.Sum(x => discountByInvoice.TryGetValue(x.InvoiceID, out var d) ? d : 0m),
+                    Outstanding = g.Sum(x => AnalyticsFilterHelper.InvoiceRemaining(x.GrandTotal, x.PaidAmount, x.ReturnedAmount)),
+                    UniqueCustomers = g.Select(x => x.CustomerID).Distinct().Count()
+                })
+                .OrderByDescending(b => b.Revenue)
+                .ToList();
+
+            var returnsByBroker = returns
+                .GroupBy(r => r.BrokerID ?? -1)
+                .ToDictionary(g => g.Key, g => g.Sum(r => r.LineRefundAmount));
+            foreach (var b in brokers)
+            {
+                int key = b.BrokerID ?? -1;
+                b.Returns = returnsByBroker.TryGetValue(key, out var r) ? r : 0m;
+            }
+
+            var topCustomers = invoices
+                .GroupBy(i => new { i.CustomerID, i.CustomerName })
+                .Select(g => new TopCustomerDto
+                {
+                    CustomerID = g.Key.CustomerID,
+                    CustomerName = g.Key.CustomerName,
+                    Revenue = g.Sum(x => revenueByInvoice.TryGetValue(x.InvoiceID, out var v) ? v : 0m),
+                    InvoiceCount = g.Count()
+                })
+                .OrderByDescending(c => c.Revenue)
+                .Take(10)
+                .ToList();
+
+            var topProducts = await GetTopProductsAsync(filter, "Revenue", 10, cancellationToken);
+
+            return new BrokerAnalyticsDto
+            {
+                Revenue = brokers.Sum(b => b.Revenue),
+                InvoiceCount = brokers.Sum(b => b.InvoiceCount),
+                UniqueCustomers = invoices.Select(i => i.CustomerID).Distinct().Count(),
+                Outstanding = brokers.Sum(b => b.Outstanding),
+                Brokers = brokers,
+                TopCustomers = topCustomers,
+                TopProducts = topProducts
+            };
+        }
+
+        public async Task<BrokerDetailDto?> GetBrokerDetailAsync(int? brokerId, AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            filter.BrokerID = brokerId.HasValue && brokerId.Value > 0 ? brokerId : -1;
+            string name = "Unassigned";
+            if (brokerId.HasValue && brokerId.Value > 0)
+            {
+                var found = await _repository.GetBrokerNameAsync(brokerId.Value, cancellationToken);
+                if (string.IsNullOrEmpty(found))
+                    return null;
+                name = found;
+            }
+
+            var summary = await GetBrokerAnalyticsAsync(filter, cancellationToken);
+            var trend = await GetSalesTrendAsync(filter, "Daily", cancellationToken);
+            var customers = await GetCustomerAnalyticsAsync(filter, "Revenue", cancellationToken);
+            var payments = await GetPaymentAnalyticsAsync(filter, cancellationToken);
+            var brokerRow = summary.Brokers.FirstOrDefault();
+
+            return new BrokerDetailDto
+            {
+                BrokerID = brokerId.HasValue && brokerId.Value > 0 ? brokerId : null,
+                BrokerName = name,
+                Revenue = brokerRow?.Revenue ?? 0m,
+                Returns = brokerRow?.Returns ?? 0m,
+                Discounts = brokerRow?.Discounts ?? 0m,
+                Outstanding = brokerRow?.Outstanding ?? 0m,
+                InvoiceCount = brokerRow?.InvoiceCount ?? 0,
+                SalesTrend = trend,
+                Customers = customers.Customers,
+                PaymentMix = payments.InvoiceStatuses,
+                TopProducts = summary.TopProducts
+            };
+        }
+
+        private async Task<(decimal Sales, decimal Purchases, decimal Discounts, decimal Returns, decimal NetSales, decimal Profit)> BuildPeriodFinancialsAsync(
+            AnalyticsFilterDto filter, DateTime start, DateTime end, CancellationToken cancellationToken)
+        {
+            var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, start, end, cancellationToken);
+            var items = await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken);
+            var returns = await _repository.GetReturnRowsAsync(filter, start, end, cancellationToken);
+
+            bool byCategory = AnalyticsFilterHelper.HasCategory(filter);
+            decimal sales = byCategory
+                ? items.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount))
+                : invoices.Sum(i => i.GrandTotal);
+            decimal discounts = byCategory ? items.Sum(i => i.DiscountAmount) : invoices.Sum(i => i.DiscountTotal);
+            decimal returnAmt = returns.Sum(r => r.LineRefundAmount);
+            decimal purchases = byCategory
+                ? (await _repository.GetPurchaseItemRowsAsync(filter, start, end, cancellationToken)).Sum(p => p.TotalCost)
+                : (await _repository.GetPurchaseInvoiceRowsAsync(filter, start, end, cancellationToken)).Sum(p => p.GrandTotal);
+            decimal cogs = items.Sum(i => i.ConvertedQuantity * i.AveragePurchaseCost);
+            decimal netSales = sales - returnAmt;
+            decimal profit = netSales - cogs;
+            return (sales, purchases, discounts, returnAmt, netSales, profit);
+        }
+
+        private static List<BusinessInsightDto> BuildInsights(AnalyticsKpiSummaryDto kpi, InventoryInsightsDto inv)
+        {
+            var insights = new List<BusinessInsightDto>();
             if (inv.OutOfStockProductCount > 0)
             {
                 insights.Add(new BusinessInsightDto
@@ -673,19 +891,17 @@ namespace InventorySystem.Services.Implementations
                 });
             }
 
-            // 2. Low Stock Warning
             if (inv.LowStockProductCount > 0)
             {
                 insights.Add(new BusinessInsightDto
                 {
                     Type = "WARNING",
                     Title = "Reorder Level Alert",
-                    Message = $"{inv.LowStockProductCount} product(s) have fallen below their minimum reorder levels. Check the stock risk table.",
+                    Message = $"{inv.LowStockProductCount} product(s) have fallen below their minimum reorder levels.",
                     Icon = "bi-triangle-fill"
                 });
             }
 
-            // 3. Customer Receivables Collection
             if (kpi.CustomerReceivables.CurrentValue > 0)
             {
                 insights.Add(new BusinessInsightDto
@@ -697,14 +913,13 @@ namespace InventorySystem.Services.Implementations
                 });
             }
 
-            // 4. Sales Growth Trend
             if (kpi.TotalSales.PercentageChange > 10m)
             {
                 insights.Add(new BusinessInsightDto
                 {
                     Type = "SUCCESS",
                     Title = "Sales Surge",
-                    Message = $"Gross sales increased by {kpi.TotalSales.PercentageChange:0.0}% compared to the previous period!",
+                    Message = $"Gross sales increased by {kpi.TotalSales.PercentageChange:0.0}% compared to the previous period.",
                     Icon = "bi-graph-up-arrow"
                 });
             }
@@ -719,17 +934,16 @@ namespace InventorySystem.Services.Implementations
                 });
             }
 
-            // 5. Returns Rate
-            if (kpi.TotalSales.CurrentValue > 0)
+            if (kpi.TotalSales.CurrentValue != 0)
             {
-                decimal returnRate = (kpi.TotalReturns.CurrentValue / kpi.TotalSales.CurrentValue) * 100m;
+                decimal returnRate = kpi.TotalSales.CurrentValue == 0 ? 0 : (kpi.TotalReturns.CurrentValue / Math.Abs(kpi.TotalSales.CurrentValue)) * 100m;
                 if (returnRate > 5m)
                 {
                     insights.Add(new BusinessInsightDto
                     {
                         Type = "WARNING",
                         Title = "High Return Rate",
-                        Message = $"Sales returns equal {returnRate:0.1}% of gross sales for this period. Review product quality and customer feedback.",
+                        Message = $"Sales returns equal {returnRate:0.1}% of gross sales for this period.",
                         Icon = "bi-arrow-return-left"
                     });
                 }
@@ -747,6 +961,57 @@ namespace InventorySystem.Services.Implementations
             }
 
             return insights;
+        }
+
+        private static KpiMetricDto BuildMetric(string title, decimal current, decimal previous)
+        {
+            decimal change = 0m;
+            if (previous != 0)
+                change = Math.Round(((current - previous) / Math.Abs(previous)) * 100m, 1);
+            else if (current != 0)
+                change = 100m;
+
+            return new KpiMetricDto
+            {
+                Title = title,
+                CurrentValue = current,
+                PreviousValue = previous,
+                PercentageChange = change
+            };
+        }
+
+        private static KpiMetricDto SnapshotMetric(string title, decimal value) =>
+            new KpiMetricDto
+            {
+                Title = title,
+                CurrentValue = value,
+                PreviousValue = value,
+                PercentageChange = 0m,
+                IsSnapshot = true
+            };
+
+        private static List<CustomerRankedDto> SortCustomers(List<CustomerRankedDto> ranked, string sortBy)
+        {
+            return (sortBy ?? "Revenue").ToLowerInvariant() switch
+            {
+                "invoicecount" => ranked.OrderByDescending(c => c.InvoiceCount).ThenByDescending(c => c.Revenue).ToList(),
+                "returns" => ranked.OrderByDescending(c => c.Returns).ThenByDescending(c => c.Revenue).ToList(),
+                "outstanding" => ranked.OrderByDescending(c => c.Outstanding).ThenByDescending(c => c.Revenue).ToList(),
+                "lastsaledate" => ranked.OrderByDescending(c => c.LastSaleDate).ThenByDescending(c => c.Revenue).ToList(),
+                _ => ranked.OrderByDescending(c => c.Revenue).ThenByDescending(c => c.InvoiceCount).ToList()
+            };
+        }
+
+        private static List<ProductRankedDto> SortProducts(List<ProductRankedDto> ranked, string sortBy)
+        {
+            return (sortBy ?? "Quantity").ToLowerInvariant() switch
+            {
+                "revenue" => ranked.OrderByDescending(p => p.Revenue).ToList(),
+                "profit" => ranked.OrderByDescending(p => p.EstimatedProfit).ToList(),
+                "stock" => ranked.OrderByDescending(p => p.CurrentStock).ToList(),
+                "velocity" => ranked.OrderByDescending(p => p.Velocity ?? 0m).ToList(),
+                _ => ranked.OrderByDescending(p => p.QuantitySoldBase).ToList()
+            };
         }
     }
 }

@@ -93,9 +93,9 @@ namespace InventorySystem.ViewModels.Sales
         [Display(Name = "Customer")]
         public int CustomerID { get; set; }
 
-        [Required(ErrorMessage = "Broker is required.")]
-        [Range(1, int.MaxValue, ErrorMessage = "Please select a valid Broker.")]
-        [Display(Name = "Broker")]
+        [Required(ErrorMessage = "Bookie is required.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Please select a valid Bookie.")]
+        [Display(Name = "Bookie")]
         public int BrokerID { get; set; }
 
         [Required(ErrorMessage = "Salesperson is required.")]
