@@ -28,6 +28,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 var jwtSettingsSection = builder.Configuration.GetSection("JwtSettings");
 builder.Services.Configure<JwtSettings>(jwtSettingsSection);
 var jwtSettings = jwtSettingsSection.Get<JwtSettings>() ?? new JwtSettings();
+builder.Services.Configure<InvoicePrintSettings>(
+    builder.Configuration.GetSection(InvoicePrintSettings.SectionName));
 
 // ===== AUTHENTICATION & AUTHORIZATION =====
 builder.Services.AddAuthentication(options =>

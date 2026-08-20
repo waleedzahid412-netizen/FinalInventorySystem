@@ -126,10 +126,17 @@ namespace InventorySystem.Repositories.Implementations
                     CustomerID = si.CustomerID,
                     CustomerName = string.IsNullOrWhiteSpace(si.Customer.OwnerName) ? si.Customer.ShopName : $"{si.Customer.ShopName} ({si.Customer.OwnerName})",
                     ShopName = si.Customer.ShopName,
+                    CustomerAddress = si.Customer.Address,
                     CompanyID = si.CompanyID,
                     CompanyName = si.Company != null ? si.Company.CompanyName : null,
                     BrokerID = si.BrokerID,
                     BrokerName = si.Broker != null ? si.Broker.Name : null,
+                    PaymentMode = si.CustomerPayments
+                        .Where(p => !p.IsDeleted)
+                        .OrderBy(p => p.PaymentDate)
+                        .Select(p => p.PaymentMethod)
+                        .FirstOrDefault()
+                        ?? (si.PaidAmount > 0 ? "Cash" : "Credit"),
                     SalespersonID = si.SalespersonID,
                     SalespersonName = si.SalespersonUser != null ? (si.SalespersonUser.FullName ?? si.SalespersonUser.Username) : null,
                     WarehouseID = si.WarehouseID,

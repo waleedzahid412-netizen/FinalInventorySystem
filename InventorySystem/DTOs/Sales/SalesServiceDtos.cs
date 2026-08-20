@@ -86,10 +86,13 @@ namespace InventorySystem.DTOs.Sales
         public int CustomerID { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string? ShopName { get; set; }
+        public string? CustomerAddress { get; set; }
         public int? CompanyID { get; set; }
         public string? CompanyName { get; set; }
         public int? BrokerID { get; set; }
         public string? BrokerName { get; set; }
+        /// <summary>Cash | Bank | Cheque | Credit — from first payment, else Credit when unpaid.</summary>
+        public string PaymentMode { get; set; } = "Credit";
         public int? SalespersonID { get; set; }
         public string? SalespersonName { get; set; }
         public int WarehouseID { get; set; }
