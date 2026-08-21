@@ -325,7 +325,7 @@
 
                     <div class="mb-3">
                         <label for="payMethod" class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
-                        <select class="form-select" id="payMethod" required>
+                        <select class="form-select" id="payMethod" required data-no-select2>
                             <option value="Cash">Cash</option>
                             <option value="Bank">Bank Transfer</option>
                             <option value="Cheque">Cheque</option>
@@ -408,18 +408,29 @@
             const refRequiredHelp = document.getElementById('refRequiredHelp');
             const detailsChequeFields = document.getElementById('detailsChequeFields');
 
-            payMethodSelect.addEventListener('change', function () {
-                if (this.value === 'Cheque') {
+            function toggleChequeFields(method) {
+                if (method === 'Cheque') {
                     detailsChequeFields.classList.remove('d-none');
                     refRequiredHelp.classList.add('d-none');
-                } else if (this.value === 'Bank') {
+                } else if (method === 'Bank') {
                     detailsChequeFields.classList.add('d-none');
                     refRequiredHelp.classList.remove('d-none');
                 } else {
                     detailsChequeFields.classList.add('d-none');
                     refRequiredHelp.classList.add('d-none');
                 }
-            });
+            }
+
+            // jQuery change works with or without Select2 (native addEventListener does not under Select2)
+            if (window.jQuery) {
+                window.jQuery(payMethodSelect).off('change.chequeToggle').on('change.chequeToggle', function () {
+                    toggleChequeFields(window.jQuery(this).val());
+                });
+            } else {
+                payMethodSelect.addEventListener('change', function () {
+                    toggleChequeFields(this.value);
+                });
+            }
 
             // Submit Payment AJAX
             document.getElementById('btnSubmitPayment').addEventListener('click', function () {
