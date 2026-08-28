@@ -1,0 +1,64 @@
+@model InventorySystem.ViewModels.CompanyScope.CompanyScopeSelectViewModel
+@{
+    ViewData["Title"] = "Select Company";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-4">
+        <h1 class="h3 mb-1 fw-bold">
+            <i class="bi bi-building me-2 text-primary"></i> Select Company
+        </h1>
+        <p class="text-muted mb-0">
+            Choose the company you are working under. Products, categories, bookers, and invoices
+            will use this company until you switch.
+        </p>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (Model.Companies.Count == 0)
+    {
+        <div class="alert alert-warning shadow-sm">
+            No companies are available. Create a company under Masters before continuing.
+            <a asp-controller="Companies" asp-action="Create" class="alert-link">Add Company</a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var company in Model.Companies)
+            {
+                <div class="col-12 col-md-6 col-xl-4">
+                    <form asp-controller="CompanyScope" asp-action="Switch" method="post" class="h-100">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="companyId" value="@company.CompanyID" />
+                        <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+                        <button type="submit"
+                                class="btn w-100 h-100 text-start border shadow-sm p-4 @(company.IsCurrent ? "border-primary bg-primary bg-opacity-10" : "btn-light")">
+                            <div class="d-flex align-items-start justify-content-between gap-2">
+                                <div>
+                                    <div class="fw-semibold fs-5">@company.CompanyName</div>
+                                    <div class="text-muted small mt-1">Work under this company</div>
+                                </div>
+                                @if (company.IsCurrent)
+                                {
+                                    <span class="badge text-bg-primary">Current</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-chevron-right text-muted"></i>
+                                }
+                            </div>
+                        </button>
+                    </form>
+                </div>
+            }
+        </div>
+    }
+</div>

@@ -1,0 +1,60 @@
+@model InventorySystem.ViewModels.Roles.CreateRoleViewModel
+@{
+    ViewData["Title"] = "Create Role";
+    var isReadOnlyMatrix = false;
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">
+                <i class="bi bi-shield-plus me-2 text-primary"></i>Create Role
+            </h1>
+            <p class="text-muted small mb-0">Define role details and assign module permissions.</p>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+            <form asp-action="Create" method="post" id="roleForm">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label asp-for="RoleName" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                        <input asp-for="RoleName" class="form-control" placeholder="Role Name" />
+                        <span asp-validation-for="RoleName" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="RoleDescription" class="form-label fw-semibold"></label>
+                        <input asp-for="RoleDescription" class="form-control" placeholder="Role Description" />
+                        <span asp-validation-for="RoleDescription" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input asp-for="IsActive" class="form-check-input" />
+                            <label asp-for="IsActive" class="form-check-label fw-semibold"></label>
+                        </div>
+                    </div>
+                </div>
+
+                <partial name="_RolePermissionMatrix" model="Model" view-data="@(new ViewDataDictionary(ViewData) { { "IsReadOnlyMatrix", isReadOnlyMatrix } })" />
+
+                <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                    <a asp-action="Index" class="btn btn-light border px-4">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                        <i class="bi bi-save me-1"></i>Save Role
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script src="~/js/role-permissions.js" asp-append-version="true"></script>
+}

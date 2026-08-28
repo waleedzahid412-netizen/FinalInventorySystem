@@ -1,7 +1,11 @@
 @model InventorySystem.ViewModels.Sales.SalesDetailsViewModel
+@using InventorySystem.Constants
 @{
     ViewData["Title"] = $"Sales Invoice #{Model.Details.Header.InvoiceNumber}";
     var header = Model.Details.Header;
+    var canProcessReturn = PermCtx.CanView(PageKeys.SalesCreateReturn) || PermCtx.CanAdd(PageKeys.SalesCreateReturn);
+    var canRecordPayment = PermCtx.CanAdd(PageKeys.CustomerPayments);
+    var canEditInvoice = PermCtx.CanEdit(PageKeys.SalesInvoices);
 }
 
 <div class="container-fluid px-4 py-3">
@@ -19,20 +23,23 @@
             </h1>
         </div>
         <div class="d-flex gap-2">
-            <a asp-controller="Returns" asp-action="ProcessSalesReturn" asp-route-invoiceId="@header.InvoiceID" class="btn btn-danger shadow-sm">
-                <i class="bi bi-arrow-return-left me-1"></i> Process Return
-            </a>
-            @if (!Model.IsLocked)
+            @if (canProcessReturn)
+            {
+                <a asp-controller="Returns" asp-action="ProcessSalesReturn" asp-route-invoiceId="@header.InvoiceID" class="btn btn-danger shadow-sm">
+                    <i class="bi bi-arrow-return-left me-1"></i> Process Return
+                </a>
+            }
+            @if (!Model.IsLocked && canEditInvoice)
             {
                 <a asp-action="Edit" asp-route-id="@header.InvoiceID" class="btn btn-warning shadow-sm">
                     <i class="bi bi-pencil-square me-1"></i> Edit Invoice
                 </a>
             }
-            else
+            else if (Model.IsLocked)
             {
                 <span class="badge bg-secondary d-flex align-items-center px-3"><i class="bi bi-lock-fill me-1"></i> Financial Lock</span>
             }
-            @if (header.OutstandingBalance > 0)
+            @if (header.OutstandingBalance > 0 && canRecordPayment)
             {
                 <button type="button" class="btn btn-success shadow-sm" id="btnOpenPaymentModal">
                     <i class="bi bi-cash-stack me-1"></i> Record Customer Payment
@@ -146,8 +153,8 @@
                     <span class="fw-semibold">@header.WarehouseName</span>
                 </div>
                 <div class="col-md-3">
-                    <span class="text-muted d-block small">Delivery Agent:</span>
-                    <span class="fw-semibold">@(header.DeliveryPersonName ?? "Unassigned")</span>
+                    <span class="text-muted d-block small">Supplier:</span>
+                    <span class="fw-semibold">@(header.SupplierName ?? "Unassigned")</span>
                 </div>
                 @if (!string.IsNullOrWhiteSpace(header.CompanyName))
                 {
@@ -158,8 +165,8 @@
                     </div>
                 }
                 <div class="col-md-3">
-                    <span class="text-muted d-block small">Bookie:</span>
-                    <span class="fw-semibold">@(header.BrokerName ?? "—")</span>
+                    <span class="text-muted d-block small">Booker:</span>
+                    <span class="fw-semibold">@(header.BookerName ?? "—")</span>
                 </div>
                 <div class="col-md-3">
                     <span class="text-muted d-block small">Salesperson:</span>
@@ -279,6 +286,8 @@
 </div>
 
 <!-- Record Customer Payment Modal -->
+@if (canRecordPayment)
+{
 <div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-labelledby="recordPaymentModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
@@ -383,6 +392,7 @@
         </div>
     </div>
 </div>
+}
 
 @section Scripts {
     <script>
@@ -391,7 +401,9 @@
             let currentOutstanding = @header.OutstandingBalance;
             let currentPaid = @header.PaidAmount;
             const grandTotal = @header.GrandTotal;
+            const canRecordPayment = @(canRecordPayment ? "true" : "false");
 
+            if (canRecordPayment) {
             const paymentModal = new bootstrap.Modal(document.getElementById('recordPaymentModal'));
             const btnOpenModal = document.getElementById('btnOpenPaymentModal');
 
@@ -511,7 +523,13 @@
                     },
                     body: JSON.stringify(payload)
                 })
-                .then(res => res.json())
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (res.status === 403 || data.success === false) {
+                        throw new Error(data.message || 'You do not have permission to perform this action.');
+                    }
+                    return data;
+                })
                 .then(data => {
                     btn.disabled = false;
                     document.getElementById('paySpinner').classList.add('d-none');
@@ -552,10 +570,16 @@
                     btn.disabled = false;
                     document.getElementById('paySpinner').classList.add('d-none');
                     document.getElementById('payIcon').classList.remove('d-none');
-                    alertBox.textContent = 'An error occurred while saving payment.';
-                    alertBox.classList.remove('d-none');
+                    paymentModal.hide();
+                    if (window.WimsToast) {
+                        window.WimsToast.show(err.message || 'An error occurred while saving payment.', 'danger');
+                    } else {
+                        alertBox.textContent = err.message || 'An error occurred while saving payment.';
+                        alertBox.classList.remove('d-none');
+                    }
                 });
             });
+            }
 
             // Load Payment History Tab
             function loadPaymentHistory(page = 1) {

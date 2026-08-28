@@ -14,17 +14,19 @@ namespace InventorySystem.Services.Implementations
     public class LoadSheetService : ILoadSheetService
     {
         private readonly ApplicationDbContext _context;
+        private readonly ICompanyContext _companyContext;
 
-        public LoadSheetService(ApplicationDbContext context)
+        public LoadSheetService(ApplicationDbContext context, ICompanyContext companyContext)
         {
             _context = context;
+            _companyContext = companyContext;
         }
 
         public async Task<OperationResult<LoadSheetDto>> GenerateLoadSheetAsync(LoadSheetFilterDto filter, CancellationToken cancellationToken = default)
         {
-            if (filter == null || filter.BrokerID <= 0)
+            if (filter == null || filter.BookerID <= 0)
             {
-                return OperationResult<LoadSheetDto>.Fail("Please select a broker.");
+                return OperationResult<LoadSheetDto>.Fail("Please select a booker.");
             }
 
             if (filter.Date == default)
@@ -32,42 +34,57 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult<LoadSheetDto>.Fail("Please select a date.");
             }
 
-            var broker = await _context.Brokers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(b => b.BrokerID == filter.BrokerID && b.IsActive, cancellationToken);
+            await _companyContext.TryResolveAsync(cancellationToken);
+            int? scopedCompanyId = _companyContext.HasCompany ? _companyContext.CompanyID : null;
 
-            if (broker == null)
+            var bookerQuery = _context.Bookers
+                .AsNoTracking()
+                .Where(b => b.BookerID == filter.BookerID && b.IsActive);
+
+            if (scopedCompanyId.HasValue)
             {
-                return OperationResult<LoadSheetDto>.Fail("Selected broker does not exist or is inactive.");
+                bookerQuery = bookerQuery.Where(b => b.CompanyID == scopedCompanyId.Value);
             }
 
-            string? deliveryPersonName = null;
-            if (filter.DeliveryPersonID.HasValue && filter.DeliveryPersonID.Value > 0)
+            var booker = await bookerQuery.FirstOrDefaultAsync(cancellationToken);
+
+            if (booker == null)
             {
-                deliveryPersonName = await _context.DeliveryPersons
+                return OperationResult<LoadSheetDto>.Fail("Selected booker does not exist or is inactive.");
+            }
+
+            string? supplierName = null;
+            if (filter.SupplierID.HasValue && filter.SupplierID.Value > 0)
+            {
+                supplierName = await _context.Suppliers
                     .AsNoTracking()
-                    .Where(dp => dp.DeliveryPersonID == filter.DeliveryPersonID.Value && dp.IsActive)
+                    .Where(dp => dp.SupplierID == filter.SupplierID.Value && dp.IsActive)
                     .Select(dp => dp.Name)
                     .FirstOrDefaultAsync(cancellationToken);
 
-                if (deliveryPersonName == null)
+                if (supplierName == null)
                 {
-                    return OperationResult<LoadSheetDto>.Fail("Selected delivery person does not exist or is inactive.");
+                    return OperationResult<LoadSheetDto>.Fail("Selected supplier does not exist or is inactive.");
                 }
             }
 
             var filterDate = filter.Date.Date;
 
-            // Invoices are matched on Broker + Date. Delivery person is an optional invoice-header
-            // filter (SalesInvoice.DeliveryPersonID) — it never restricts products by supplier.
+            // Invoices are matched on Booker + Date. Supplier is an optional invoice-header
+            // filter (SalesInvoice.SupplierID) — it never restricts products by company.
             var invoiceQuery = _context.SalesInvoices
                 .AsNoTracking()
-                .Where(si => si.BrokerID == filter.BrokerID)
+                .Where(si => si.BookerID == filter.BookerID)
                 .Where(si => si.InvoiceDate.Date == filterDate);
 
-            if (filter.DeliveryPersonID.HasValue && filter.DeliveryPersonID.Value > 0)
+            if (scopedCompanyId.HasValue)
             {
-                invoiceQuery = invoiceQuery.Where(si => si.DeliveryPersonID == filter.DeliveryPersonID.Value);
+                invoiceQuery = invoiceQuery.Where(si => si.CompanyID == scopedCompanyId.Value);
+            }
+
+            if (filter.SupplierID.HasValue && filter.SupplierID.Value > 0)
+            {
+                invoiceQuery = invoiceQuery.Where(si => si.SupplierID == filter.SupplierID.Value);
             }
 
             var invoices = await invoiceQuery
@@ -91,17 +108,17 @@ namespace InventorySystem.Services.Implementations
 
             var result = new LoadSheetDto
             {
-                BrokerName = broker.Name,
+                BookerName = booker.Name,
                 FilterDate = filterDate,
-                DeliveryPersonDisplay = deliveryPersonName ?? "All Delivery Persons",
+                SupplierDisplay = supplierName ?? "All Suppliers",
                 HasInvoices = invoices.Any()
             };
 
             if (!invoices.Any())
             {
-                result.EmptyMessage = deliveryPersonName == null
-                    ? "No sales invoices found for the selected broker and date."
-                    : $"No sales invoices found for broker {broker.Name} on the selected date assigned to {deliveryPersonName}.";
+                result.EmptyMessage = supplierName == null
+                    ? "No sales invoices found for the selected booker and date."
+                    : $"No sales invoices found for booker {booker.Name} on the selected date assigned to {supplierName}.";
                 result.SalespersonDisplay = "—";
                 return OperationResult<LoadSheetDto>.Ok(result, result.EmptyMessage);
             }
@@ -148,11 +165,14 @@ namespace InventorySystem.Services.Implementations
                 {
                     i.InvoiceItemID,
                     i.ProductID,
+                    i.Quantity,
                     i.ConvertedQuantity,
+                    i.UnitPrice,
+                    i.ItemType,
                     ProductName = i.Product!.ProductName,
                     SKU = i.Product.SKU,
-                    Description = i.Product.Description,
-                    BaseUnitName = i.Product.BaseUnit != null ? i.Product.BaseUnit.UnitName : string.Empty
+                    BaseUnitName = i.Product.BaseUnit != null ? i.Product.BaseUnit.UnitName : string.Empty,
+                    ConversionToBaseUnit = i.ProductUnit != null ? i.ProductUnit.ConversionToBaseUnit : 1m
                 })
                 .ToListAsync(cancellationToken);
 
@@ -164,33 +184,55 @@ namespace InventorySystem.Services.Implementations
                 .Select(g => new { InvoiceItemID = g.Key, ReturnedBase = g.Sum(x => x.ConvertedQuantity) })
                 .ToDictionaryAsync(x => x.InvoiceItemID, x => x.ReturnedBase, cancellationToken);
 
+            // Aggregate in base units by product, but keep FREE lines on their own rows (not merged with paid).
+            // Base unit price = historical packaging UnitPrice ÷ ConversionToBaseUnit (weighted by net base qty).
             var productGroups = items
                 .Select(i =>
                 {
                     decimal returned = returnedByItem.TryGetValue(i.InvoiceItemID, out var r) ? r : 0m;
-                    decimal net = Math.Max(0m, i.ConvertedQuantity - returned);
+                    decimal netBase = Math.Max(0m, i.ConvertedQuantity - returned);
+                    decimal conversion = i.ConversionToBaseUnit > 0m ? i.ConversionToBaseUnit : 1m;
+                    bool isFree = string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase);
+                    decimal baseUnitPrice = !isFree && i.UnitPrice > 0m ? i.UnitPrice / conversion : 0m;
                     return new
                     {
                         i.ProductID,
                         i.ProductName,
                         i.SKU,
-                        i.Description,
                         i.BaseUnitName,
-                        NetBaseQty = net
+                        IsFree = isFree,
+                        NetBaseQty = netBase,
+                        BaseUnitPrice = baseUnitPrice
                     };
                 })
                 .Where(x => x.NetBaseQty > 0m)
-                .GroupBy(x => x.ProductID!.Value)
-                .Select(g => new LoadSheetProductRowDto
+                .GroupBy(x => new { ProductID = x.ProductID!.Value, x.IsFree })
+                .Select(g =>
                 {
-                    ProductID = g.Key,
-                    ProductIdDisplay = !string.IsNullOrWhiteSpace(g.First().SKU) ? g.First().SKU! : g.Key.ToString(),
-                    ProductName = g.First().ProductName,
-                    Description = string.IsNullOrWhiteSpace(g.First().Description) ? "—" : g.First().Description,
-                    TotalQuantity = g.Sum(x => x.NetBaseQty),
-                    BaseUnitName = g.First().BaseUnitName
+                    var first = g.First();
+                    var priced = g.Where(x => x.BaseUnitPrice > 0m).ToList();
+                    decimal weightedBasePrice = 0m;
+                    if (priced.Count > 0)
+                    {
+                        decimal pricedBaseQty = priced.Sum(x => x.NetBaseQty);
+                        weightedBasePrice = pricedBaseQty > 0m
+                            ? priced.Sum(x => x.BaseUnitPrice * x.NetBaseQty) / pricedBaseQty
+                            : priced.First().BaseUnitPrice;
+                    }
+
+                    return new LoadSheetProductRowDto
+                    {
+                        ProductID = g.Key.ProductID,
+                        IsFree = g.Key.IsFree,
+                        ProductIdDisplay = !string.IsNullOrWhiteSpace(first.SKU) ? first.SKU! : g.Key.ProductID.ToString(),
+                        ProductName = g.Key.IsFree ? $"{first.ProductName} (Free)" : first.ProductName,
+                        UnitPrice = Math.Round(weightedBasePrice, 4, MidpointRounding.AwayFromZero),
+                        TotalQuantity = g.Sum(x => x.NetBaseQty),
+                        BaseUnitName = first.BaseUnitName
+                    };
                 })
                 .OrderBy(r => r.ProductName)
+                .ThenBy(r => r.IsFree)
                 .ToList();
 
             result.ProductRows = productGroups;
@@ -199,7 +241,7 @@ namespace InventorySystem.Services.Implementations
             if (!productGroups.Any())
             {
                 result.HasInvoices = false;
-                result.EmptyMessage = "The sales invoices for the selected broker and date contain no loadable product quantities.";
+                result.EmptyMessage = "The sales invoices for the selected booker and date contain no loadable product quantities.";
                 return OperationResult<LoadSheetDto>.Ok(result, result.EmptyMessage);
             }
 

@@ -34,6 +34,13 @@ namespace InventorySystem.Models.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal CreditLimit { get; set; } = 0;
 
+        /// <summary>
+        /// Optional company percentage (e.g. commission / share). Null when not set.
+        /// </summary>
+        [Column(TypeName = "decimal(5,2)")]
+        [Range(0, 100)]
+        public decimal? CompanyPercentage { get; set; }
+
         // ===== AUDIT FIELDS =====
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -48,10 +55,14 @@ namespace InventorySystem.Models.Entities
         public DateTime? DeletedAt { get; set; }
 
         // ===== RELATIONSHIPS =====
+        public virtual ICollection<UserCompany> UserCompanies { get; set; } = new List<UserCompany>();
         public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
         public virtual ICollection<Product> Products { get; set; } = new List<Product>();
+        public virtual ICollection<Booker> Bookers { get; set; } = new List<Booker>();
         public virtual ICollection<PurchaseInvoice> PurchaseInvoices { get; set; } = new List<PurchaseInvoice>();
         public virtual ICollection<SalesInvoice> SalesInvoices { get; set; } = new List<SalesInvoice>();
+        public virtual ICollection<PromotionCampaign> PromotionCampaigns { get; set; } = new List<PromotionCampaign>();
+        public virtual ICollection<DiscountRule> DiscountRules { get; set; } = new List<DiscountRule>();
         public virtual ICollection<CompanyPayment> CompanyPayments { get; set; } = new List<CompanyPayment>();
         public virtual ICollection<CompanyLedger> CompanyLedgerEntries { get; set; } = new List<CompanyLedger>();
     }

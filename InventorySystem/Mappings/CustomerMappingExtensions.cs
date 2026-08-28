@@ -17,6 +17,7 @@ namespace InventorySystem.Mappings
                 SubAreaID = model.SubAreaID,
                 TaxID = model.TaxID,
                 CreditLimit = model.CreditLimit,
+                PreferredDiscountPercent = NormalizePreferredDiscount(model.PreferredDiscountPercent),
                 IsActive = model.IsActive
             };
         }
@@ -34,6 +35,7 @@ namespace InventorySystem.Mappings
                 SubAreaID = model.SubAreaID,
                 TaxID = model.TaxID,
                 CreditLimit = model.CreditLimit,
+                PreferredDiscountPercent = NormalizePreferredDiscount(model.PreferredDiscountPercent),
                 IsActive = model.IsActive
             };
         }
@@ -51,8 +53,20 @@ namespace InventorySystem.Mappings
                 SubAreaID = dto.SubAreaID,
                 TaxID = dto.TaxID,
                 CreditLimit = dto.CreditLimit,
+                PreferredDiscountPercent = dto.PreferredDiscountPercent,
                 IsActive = dto.IsActive
             };
+        }
+
+        /// <summary>Empty/0 preferred discount is stored as null (unset).</summary>
+        private static decimal? NormalizePreferredDiscount(decimal? value)
+        {
+            if (!value.HasValue || value.Value <= 0m)
+            {
+                return null;
+            }
+
+            return value.Value;
         }
 
         public static CustomerDetailsViewModel ToViewModel(this CustomerDetailsDto dto)

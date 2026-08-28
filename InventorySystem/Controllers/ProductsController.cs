@@ -6,9 +6,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
 using InventorySystem.DTOs.Products;
+using InventorySystem.Filters;
+using InventorySystem.Helpers;
 using InventorySystem.Mappings;
 using InventorySystem.Services.Interfaces;
 using InventorySystem.Validators.Products;
@@ -17,64 +18,88 @@ using InventorySystem.ViewModels.Products;
 namespace InventorySystem.Controllers
 {
     [Authorize]
+    [RequireCompanyScope]
     public class ProductsController : Controller
     {
         private readonly IProductService _productService;
         private readonly ILookupService _lookupService;
+        private readonly ICompanyContext _companyContext;
         private readonly ILogger<ProductsController> _logger;
 
         public ProductsController(
             IProductService productService,
             ILookupService lookupService,
+            ICompanyContext companyContext,
             ILogger<ProductsController> logger)
         {
             _productService = productService;
             _lookupService = lookupService;
+            _companyContext = companyContext;
             _logger = logger;
         }
 
-        // GET: Products
         [HttpGet]
         public async Task<IActionResult> Index([FromQuery] ProductFilterDto filter, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
+            if (_companyContext.HasCompany)
+            {
+                filter.CompanyID = _companyContext.CompanyID;
+            }
+            else
+            {
+                filter.CompanyID = null;
+            }
+
             var pagedProducts = await _productService.GetPagedProductsAsync(filter, cancellationToken);
-            var categories = filter.CompanyID.HasValue && filter.CompanyID.Value > 0
-                ? await _lookupService.GetCategoriesAsync(filter.CompanyID, cancellationToken)
-                : await _lookupService.GetCategoriesAsync(null, cancellationToken);
-            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
+            var categories = await _lookupService.GetCategoriesAsync(
+                _companyContext.HasCompany ? _companyContext.CompanyID : null,
+                cancellationToken);
 
             var viewModel = new ProductListViewModel
             {
                 Filter = filter,
                 Products = pagedProducts,
                 Categories = categories.ToSelectList(filter.CategoryID),
-                Companies = companies.ToSelectList(filter.CompanyID)
+                Companies = Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>(),
+                CompanyName = CompanyScopeGuards.DisplayName(_companyContext)
             };
 
             return View(viewModel);
         }
 
-        // GET: Products/Create
         [HttpGet]
         public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
-            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(null, cancellationToken);
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
+            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(_companyContext.CompanyID, cancellationToken);
 
             var viewModel = new CreateProductViewModel
             {
+                CompanyID = _companyContext.CompanyID,
+                CompanyName = _companyContext.CompanyName,
                 Categories = dropdowns.Categories.ToSelectList(),
-                Companies = dropdowns.Companies.ToSelectList(),
                 AvailableUnits = dropdowns.Units.ToSelectList()
             };
 
             return View(viewModel);
         }
 
-        // POST: Products/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateProductViewModel model, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
+            model.CompanyID = _companyContext.CompanyID;
+            model.CompanyName = _companyContext.CompanyName;
+
             var customErrors = ProductValidationRules.ValidateCreateViewModel(model);
             foreach (var err in customErrors)
             {
@@ -89,6 +114,7 @@ namespace InventorySystem.Controllers
 
             int currentUserId = GetCurrentUserId();
             var dto = model.ToDto();
+            dto.CompanyID = _companyContext.CompanyID;
             var result = await _productService.CreateProductAsync(dto, currentUserId, cancellationToken);
 
             if (!result.Success)
@@ -105,23 +131,27 @@ namespace InventorySystem.Controllers
             return RedirectToAction(nameof(Details), new { id = result.Data });
         }
 
-        // GET: Products/Edit/5
         [HttpGet]
         public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var editDto = await _productService.GetProductForEditAsync(id, cancellationToken);
-            if (editDto == null)
+            if (editDto == null || CompanyScopeGuards.IsOutOfScope(_companyContext, editDto.CompanyID))
             {
                 return NotFound();
             }
 
             var dropdowns = await _lookupService.GetProductFormDropdownsAsync(editDto.CompanyID, cancellationToken);
             var viewModel = editDto.ToViewModel(dropdowns.Categories, dropdowns.Companies, dropdowns.Units);
+            viewModel.CompanyName = _companyContext.HasCompany
+                ? _companyContext.CompanyName
+                : (dropdowns.Companies.FirstOrDefault(c => c.Id == editDto.CompanyID)?.Name ?? CompanyScopeGuards.DisplayName(_companyContext));
+            viewModel.Companies = Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
 
             return View(viewModel);
         }
 
-        // POST: Products/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, EditProductViewModel model, CancellationToken cancellationToken)
@@ -129,6 +159,20 @@ namespace InventorySystem.Controllers
             if (id != model.ProductID)
             {
                 return BadRequest();
+            }
+
+            await _companyContext.TryResolveAsync(cancellationToken);
+
+            var existing = await _productService.GetProductForEditAsync(id, cancellationToken);
+            if (existing == null || CompanyScopeGuards.IsOutOfScope(_companyContext, existing.CompanyID))
+            {
+                return NotFound();
+            }
+
+            model.CompanyID = existing.CompanyID;
+            if (_companyContext.HasCompany)
+            {
+                model.CompanyName = _companyContext.CompanyName;
             }
 
             var customErrors = ProductValidationRules.ValidateEditViewModel(model);
@@ -139,12 +183,13 @@ namespace InventorySystem.Controllers
 
             if (!ModelState.IsValid)
             {
-                await PopulateFormDropdownsAsync(model, cancellationToken);
+                await PopulateFormDropdownsAsync(model, existing.CompanyID, cancellationToken);
                 return View(model);
             }
 
             int currentUserId = GetCurrentUserId();
             var dto = model.ToDto();
+            dto.CompanyID = existing.CompanyID; // immutable
             var result = await _productService.UpdateProductAsync(dto, currentUserId, cancellationToken);
 
             if (!result.Success)
@@ -153,7 +198,7 @@ namespace InventorySystem.Controllers
                 {
                     ModelState.AddModelError("", err);
                 }
-                await PopulateFormDropdownsAsync(model, cancellationToken);
+                await PopulateFormDropdownsAsync(model, existing.CompanyID, cancellationToken);
                 return View(model);
             }
 
@@ -161,12 +206,13 @@ namespace InventorySystem.Controllers
             return RedirectToAction(nameof(Details), new { id = model.ProductID });
         }
 
-        // GET: Products/Details/5
         [HttpGet]
         public async Task<IActionResult> Details(int id, [FromQuery] string activeTab = "inventory", [FromQuery] int page = 1, CancellationToken cancellationToken = default)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var detailsDto = await _productService.GetProductDetailsAsync(id, cancellationToken);
-            if (detailsDto == null)
+            if (detailsDto == null || CompanyScopeGuards.IsOutOfScope(_companyContext, detailsDto.CompanyID))
             {
                 return NotFound();
             }
@@ -191,11 +237,17 @@ namespace InventorySystem.Controllers
             return View(viewModel);
         }
 
-        // POST: Products/Delete/5
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var existing = await _productService.GetProductForEditAsync(id, cancellationToken);
+            if (existing == null || CompanyScopeGuards.IsOutOfScope(_companyContext, existing.CompanyID))
+            {
+                return NotFound();
+            }
+
             int currentUserId = GetCurrentUserId();
             var result = await _productService.SoftDeleteProductAsync(id, currentUserId, cancellationToken);
 
@@ -211,20 +263,19 @@ namespace InventorySystem.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // GET: Products/GetCategories
         [HttpGet]
         public async Task<IActionResult> GetCategories(int? companyId, CancellationToken cancellationToken)
         {
-            if (!companyId.HasValue || companyId.Value <= 0)
+            await _companyContext.TryResolveAsync(cancellationToken);
+            if (!_companyContext.HasCompany)
             {
-                return Json(new List<object>());
+                return BadRequest(new { message = CompanyScopeGuards.SelectSpecificCompanyMessage });
             }
 
-            var categories = await _lookupService.GetCategoriesAsync(companyId, cancellationToken);
+            var categories = await _lookupService.GetCategoriesAsync(_companyContext.CompanyID, cancellationToken);
             return Json(categories);
         }
 
-        // GET: Products/CheckSku
         [HttpGet]
         public async Task<IActionResult> CheckSku([FromQuery] string sku, [FromQuery] int? excludeProductId, CancellationToken cancellationToken)
         {
@@ -232,7 +283,6 @@ namespace InventorySystem.Controllers
             return Json(new { isUnique });
         }
 
-        // GET: Products/CheckBarcode
         [HttpGet]
         public async Task<IActionResult> CheckBarcode([FromQuery] string barcode, [FromQuery] int? excludeProductId, CancellationToken cancellationToken)
         {
@@ -242,18 +292,19 @@ namespace InventorySystem.Controllers
 
         private async Task PopulateFormDropdownsAsync(CreateProductViewModel model, CancellationToken cancellationToken)
         {
-            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(model.CompanyID > 0 ? model.CompanyID : null, cancellationToken);
+            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(_companyContext.CompanyID, cancellationToken);
             model.Categories = dropdowns.Categories.ToSelectList(model.CategoryID);
-            model.Companies = dropdowns.Companies.ToSelectList(model.CompanyID);
             model.AvailableUnits = dropdowns.Units.ToSelectList(model.BaseUnitID);
+            model.CompanyID = _companyContext.CompanyID;
+            model.CompanyName = _companyContext.CompanyName;
         }
 
-        private async Task PopulateFormDropdownsAsync(EditProductViewModel model, CancellationToken cancellationToken)
+        private async Task PopulateFormDropdownsAsync(EditProductViewModel model, int companyId, CancellationToken cancellationToken)
         {
-            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(model.CompanyID > 0 ? model.CompanyID : null, cancellationToken);
+            var dropdowns = await _lookupService.GetProductFormDropdownsAsync(companyId, cancellationToken);
             model.Categories = dropdowns.Categories.ToSelectList(model.CategoryID);
-            model.Companies = dropdowns.Companies.ToSelectList(model.CompanyID);
             model.AvailableUnits = dropdowns.Units.ToSelectList(model.BaseUnitID);
+            model.CompanyID = companyId;
         }
 
         private int GetCurrentUserId()
@@ -263,7 +314,7 @@ namespace InventorySystem.Controllers
             {
                 return userId;
             }
-            return 1; // Default System/Admin User ID fallback
+            return 1;
         }
     }
 }

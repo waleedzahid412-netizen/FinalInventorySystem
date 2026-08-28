@@ -31,11 +31,14 @@ namespace InventorySystem.ViewModels.Discounts
         public bool IsActive { get; set; }
         public int Priority { get; set; }
         public string CreatedByName { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
     }
 
     public class CreateDiscountViewModel : IValidatableObject
     {
+        public string CompanyName { get; set; } = string.Empty;
+
         [Required(ErrorMessage = "Rule name is required.")]
         [StringLength(100, ErrorMessage = "Rule name cannot exceed 100 characters.")]
         public string RuleName { get; set; } = string.Empty;
@@ -85,6 +88,8 @@ namespace InventorySystem.ViewModels.Discounts
     public class EditDiscountViewModel : IValidatableObject
     {
         public int DiscountRuleID { get; set; }
+
+        public string CompanyName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Rule name is required.")]
         [StringLength(100, ErrorMessage = "Rule name cannot exceed 100 characters.")]

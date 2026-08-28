@@ -16,6 +16,11 @@ namespace InventorySystem.Models.Entities
         [MaxLength(50)]
         public string RoleName { get; set; } = string.Empty;
 
+        [MaxLength(255)]
+        public string? RoleDescription { get; set; }
+
+        public bool IsSystemRole { get; set; } = false;
+
         public bool IsActive { get; set; } = true;
 
         // ===== AUDIT FIELDS =====
@@ -37,5 +42,6 @@ namespace InventorySystem.Models.Entities
 
         // ===== RELATIONSHIPS =====
         public virtual ICollection<User> Users { get; set; } = new List<User>();
+        public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
     }
 }

@@ -13,6 +13,7 @@ namespace InventorySystem.ViewModels.Purchases
         public PurchaseFilterViewModel Filter { get; set; } = new PurchaseFilterViewModel();
         public SelectList Companies { get; set; } = new SelectList(new List<SelectListItem>());
         public SelectList Warehouses { get; set; } = new SelectList(new List<SelectListItem>());
+        public string CompanyName { get; set; } = string.Empty;
     }
 
     public class PurchaseFilterViewModel
@@ -47,13 +48,15 @@ namespace InventorySystem.ViewModels.Purchases
         [Display(Name = "Company *")]
         public int CompanyID { get; set; }
 
+        public string CompanyName { get; set; } = string.Empty;
+
         [Required(ErrorMessage = "Please select a Warehouse.")]
         [Display(Name = "Warehouse *")]
         public int WarehouseID { get; set; }
 
         [Display(Name = "Supplier Invoice Number")]
-        [MaxLength(50, ErrorMessage = "Invoice number cannot exceed 50 characters.")]
-        public string? InvoiceNumber { get; set; }
+        [MaxLength(50, ErrorMessage = "Supplier invoice number cannot exceed 50 characters.")]
+        public string? SupplierInvoiceNumber { get; set; }
 
         [Required(ErrorMessage = "Please select a Purchase Date.")]
         [Display(Name = "Purchase Date *")]

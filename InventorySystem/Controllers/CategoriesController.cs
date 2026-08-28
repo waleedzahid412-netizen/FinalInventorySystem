@@ -4,9 +4,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
 using InventorySystem.DTOs.Categories;
+using InventorySystem.Filters;
+using InventorySystem.Helpers;
 using InventorySystem.Mappings;
 using InventorySystem.Services.Interfaces;
 using InventorySystem.ViewModels.Categories;
@@ -14,38 +15,48 @@ using InventorySystem.ViewModels.Categories;
 namespace InventorySystem.Controllers
 {
     [Authorize]
+    [RequireCompanyScope]
     public class CategoriesController : Controller
     {
         private readonly ICategoryService _categoryService;
         private readonly ILookupService _lookupService;
+        private readonly ICompanyContext _companyContext;
         private readonly ILogger<CategoriesController> _logger;
 
         public CategoriesController(
             ICategoryService categoryService,
             ILookupService lookupService,
+            ICompanyContext companyContext,
             ILogger<CategoriesController> logger)
         {
             _categoryService = categoryService;
             _lookupService = lookupService;
+            _companyContext = companyContext;
             _logger = logger;
         }
 
         [HttpGet]
         public async Task<IActionResult> Index([FromQuery] CategoryFilterDto filter, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
+            if (_companyContext.HasCompany)
+            {
+                filter.CompanyID = _companyContext.CompanyID;
+            }
+            else
+            {
+                filter.CompanyID = null;
+            }
+
             var pagedCategories = await _categoryService.GetPagedCategoriesAsync(filter, cancellationToken);
-            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
 
             var viewModel = new CategoryListViewModel
             {
                 Filter = filter,
                 Categories = pagedCategories,
-                Companies = companies.Select(c => new SelectListItem
-                {
-                    Value = c.Id.ToString(),
-                    Text = c.Name,
-                    Selected = c.Id == filter.CompanyID
-                }).ToList()
+                Companies = new(),
+                CompanyName = CompanyScopeGuards.DisplayName(_companyContext)
             };
 
             return View(viewModel);
@@ -54,23 +65,37 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
-            var model = new CreateCategoryViewModel();
-            await PopulateCompaniesAsync(model, cancellationToken);
-            return View(model);
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
+            return View(new CreateCategoryViewModel
+            {
+                CompanyID = _companyContext.CompanyID,
+                CompanyName = _companyContext.CompanyName
+            });
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateCategoryViewModel model, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
+            model.CompanyID = _companyContext.CompanyID;
+            model.CompanyName = _companyContext.CompanyName;
+
             if (!ModelState.IsValid)
             {
-                await PopulateCompaniesAsync(model, cancellationToken);
                 return View(model);
             }
 
             int userId = GetCurrentUserId();
-            var result = await _categoryService.CreateCategoryAsync(model.ToDto(), userId, cancellationToken);
+            var dto = model.ToDto();
+            dto.CompanyID = _companyContext.CompanyID;
+            var result = await _categoryService.CreateCategoryAsync(dto, userId, cancellationToken);
 
             if (!result.Success)
             {
@@ -78,7 +103,6 @@ namespace InventorySystem.Controllers
                 {
                     ModelState.AddModelError(string.Empty, error);
                 }
-                await PopulateCompaniesAsync(model, cancellationToken);
                 return View(model);
             }
 
@@ -89,8 +113,10 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var editDto = await _categoryService.GetCategoryForEditAsync(id, cancellationToken);
-            if (editDto == null)
+            if (editDto == null || CompanyScopeGuards.IsOutOfScope(_companyContext, editDto.CompanyID))
             {
                 TempData["ErrorMessage"] = "Category not found.";
                 return RedirectToAction(nameof(Index));
@@ -98,7 +124,16 @@ namespace InventorySystem.Controllers
 
             bool hasProducts = await _categoryService.HasProductsAsync(id, cancellationToken);
             var model = editDto.ToViewModel(hasProducts);
-            await PopulateCompaniesAsync(model, cancellationToken);
+            if (_companyContext.HasCompany)
+            {
+                model.CompanyName = _companyContext.CompanyName;
+            }
+            else
+            {
+                var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
+                model.CompanyName = companies.FirstOrDefault(c => c.Id == editDto.CompanyID)?.Name
+                    ?? CompanyScopeGuards.DisplayName(_companyContext);
+            }
             return View(model);
         }
 
@@ -111,17 +146,31 @@ namespace InventorySystem.Controllers
                 return BadRequest();
             }
 
+            await _companyContext.TryResolveAsync(cancellationToken);
+
+            var existing = await _categoryService.GetCategoryForEditAsync(id, cancellationToken);
+            if (existing == null || CompanyScopeGuards.IsOutOfScope(_companyContext, existing.CompanyID))
+            {
+                return NotFound();
+            }
+
+            model.CompanyID = existing.CompanyID;
+            if (_companyContext.HasCompany)
+            {
+                model.CompanyName = _companyContext.CompanyName;
+            }
             bool hasProducts = await _categoryService.HasProductsAsync(id, cancellationToken);
             model.HasProducts = hasProducts;
 
             if (!ModelState.IsValid)
             {
-                await PopulateCompaniesAsync(model, cancellationToken);
                 return View(model);
             }
 
             int userId = GetCurrentUserId();
-            var result = await _categoryService.UpdateCategoryAsync(model.ToDto(), userId, cancellationToken);
+            var dto = model.ToDto();
+            dto.CompanyID = existing.CompanyID;
+            var result = await _categoryService.UpdateCategoryAsync(dto, userId, cancellationToken);
 
             if (!result.Success)
             {
@@ -129,7 +178,6 @@ namespace InventorySystem.Controllers
                 {
                     ModelState.AddModelError(string.Empty, error);
                 }
-                await PopulateCompaniesAsync(model, cancellationToken);
                 return View(model);
             }
 
@@ -141,6 +189,17 @@ namespace InventorySystem.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var existing = await _categoryService.GetCategoryForEditAsync(id, cancellationToken);
+            if (existing == null || CompanyScopeGuards.IsOutOfScope(_companyContext, existing.CompanyID))
+            {
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                {
+                    return Json(new { success = false, message = "Category not found." });
+                }
+                return NotFound();
+            }
+
             int userId = GetCurrentUserId();
             var result = await _categoryService.SoftDeleteCategoryAsync(id, userId, cancellationToken);
 
@@ -159,28 +218,6 @@ namespace InventorySystem.Controllers
             }
 
             return RedirectToAction(nameof(Index));
-        }
-
-        private async Task PopulateCompaniesAsync(CreateCategoryViewModel model, CancellationToken cancellationToken)
-        {
-            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
-            model.Companies = companies.Select(c => new SelectListItem
-            {
-                Value = c.Id.ToString(),
-                Text = c.Name,
-                Selected = c.Id == model.CompanyID
-            }).ToList();
-        }
-
-        private async Task PopulateCompaniesAsync(EditCategoryViewModel model, CancellationToken cancellationToken)
-        {
-            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
-            model.Companies = companies.Select(c => new SelectListItem
-            {
-                Value = c.Id.ToString(),
-                Text = c.Name,
-                Selected = c.Id == model.CompanyID
-            }).ToList();
         }
 
         private int GetCurrentUserId()

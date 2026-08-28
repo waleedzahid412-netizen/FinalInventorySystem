@@ -135,7 +135,7 @@
                 const f = buildFilterPayload();
                 window.open('/Analytics/ExportPdf?' + $.param({
                     preset: f.Preset, startDate: f.StartDate, endDate: f.EndDate,
-                    warehouseId: f.WarehouseID, customerId: f.CustomerID, categoryId: f.CategoryID, brokerId: f.BrokerID
+                    warehouseId: f.WarehouseID, customerId: f.CustomerID, categoryId: f.CategoryID, bookerId: f.BookerID, companyId: f.CompanyID
                 }), '_blank');
             });
         });
@@ -145,10 +145,10 @@
                 Preset: currentPreset,
                 StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null,
                 EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
-                WarehouseID: parseInt($('#warehouseId').val()) || null,
+                CompanyID: parseInt($('#companyId').val()) || null, WarehouseID: parseInt($('#warehouseId').val()) || null,
                 CustomerID: parseInt($('#customerId').val()) || null,
                 CategoryID: parseInt($('#categoryId').val()) || null,
-                BrokerID: parseInt($('#brokerId').val()) || ($('#brokerId').val() === '-1' ? -1 : null)
+                BookerID: parseInt($('#bookerId').val()) || ($('#bookerId').val() === '-1' ? -1 : null)
             };
         }
 

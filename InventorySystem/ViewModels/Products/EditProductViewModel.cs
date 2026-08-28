@@ -38,6 +38,8 @@ namespace InventorySystem.ViewModels.Products
         [Display(Name = "Company (Supplier)")]
         public int CompanyID { get; set; }
 
+        public string CompanyName { get; set; } = string.Empty;
+
         [Required(ErrorMessage = "Base Unit is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "Please select a valid Base Unit.")]
         [Display(Name = "Base Inventory Unit")]

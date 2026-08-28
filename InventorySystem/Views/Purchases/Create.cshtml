@@ -4,155 +4,137 @@
     ViewData["Title"] = "Create Purchase Invoice";
 }
 
-<div class="container-fluid py-3">
-    <!-- Breadcrumb & Title -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="purchase-create">
+    <div class="pc-page-head">
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-1">
                     <li class="breadcrumb-item"><a asp-action="Index">Purchasing</a></li>
-                    <li class="breadcrumb-item active">Create Purchase Invoice</li>
+                    <li class="breadcrumb-item active" aria-current="page">New invoice</li>
                 </ol>
             </nav>
-            <h2 class="fw-bold mb-0"><i class="bi bi-cart-plus-fill text-primary me-2"></i>Create Purchase Invoice</h2>
+            <h1 class="pc-title">Create purchase invoice</h1>
+            <p class="pc-subtitle">Receive stock into a warehouse. Totals finalize in base units.</p>
         </div>
-        <a asp-action="Index" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i> Back to Invoices
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Back
         </a>
     </div>
 
-    <!-- Error Summary -->
     <div asp-validation-summary="All" class="alert alert-danger @(ViewData.ModelState.IsValid ? "d-none" : "")" role="alert"></div>
 
-    <form id="createPurchaseForm" method="post" asp-action="Create">
+    <form id="createPurchaseForm" method="post" asp-action="Create" data-unsaved-company-sensitive>
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="ItemsJson" id="ItemsJson" />
+        <input type="hidden" asp-for="CompanyID" id="CompanyID" />
 
-        <!-- Header Card -->
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white py-3">
-                <h5 class="card-title mb-0 text-primary fw-semibold"><i class="bi bi-info-circle me-2"></i>Header Information</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label asp-for="CompanyID" class="form-label fw-semibold"></label>
-                        <select asp-for="CompanyID" asp-items="Model.Companies" class="form-select" id="CompanyID">
-                            <option value="">-- Select Company --</option>
-                        </select>
-                        <span asp-validation-for="CompanyID" class="text-danger small"></span>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="WarehouseID" class="form-label fw-semibold"></label>
-                        <select asp-for="WarehouseID" asp-items="Model.Warehouses" class="form-select" id="WarehouseID">
-                            <option value="">-- Select Warehouse --</option>
-                        </select>
-                        <span asp-validation-for="WarehouseID" class="text-danger small"></span>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="InvoiceDate" class="form-label fw-semibold"></label>
-                        <input asp-for="InvoiceDate" type="date" class="form-control" />
-                        <span asp-validation-for="InvoiceDate" class="text-danger small"></span>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="InvoiceNumber" class="form-label fw-semibold"></label>
-                        <input asp-for="InvoiceNumber" class="form-control" placeholder="Optional supplier invoice ref #" />
-                        <span asp-validation-for="InvoiceNumber" class="text-danger small"></span>
-                    </div>
-
-                    <div class="col-md-8">
-                        <label asp-for="Notes" class="form-label fw-semibold"></label>
-                        <input asp-for="Notes" class="form-control" placeholder="Optional notes or reference instructions..." />
-                        <span asp-validation-for="Notes" class="text-danger small"></span>
+        <section class="pc-panel" aria-label="Invoice details">
+            <div class="pc-company-bar">
+                <div class="pc-company-chip">
+                    <i class="bi bi-building" aria-hidden="true"></i>
+                    <div>
+                        <span class="pc-company-label">Company</span>
+                        <strong>@Model.CompanyName</strong>
                     </div>
                 </div>
+                <p class="pc-hint mb-0">Uses the company selected in the top bar.</p>
             </div>
-        </div>
+            <span asp-validation-for="CompanyID" class="text-danger small"></span>
 
-        <!-- Line Items Card -->
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0 text-primary fw-semibold"><i class="bi bi-box-seam me-2"></i>Purchase Items</h5>
-                <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddRow">
-                    <i class="bi bi-plus-circle me-1"></i> Add Product Line
+            <div class="pc-fields">
+                <div class="pc-field">
+                    <label asp-for="WarehouseID" class="form-label"></label>
+                    <select asp-for="WarehouseID" asp-items="Model.Warehouses" class="form-select" id="WarehouseID">
+                        <option value="">Select warehouse</option>
+                    </select>
+                    <span asp-validation-for="WarehouseID" class="text-danger small"></span>
+                </div>
+
+                <div class="pc-field">
+                    <label asp-for="InvoiceDate" class="form-label"></label>
+                    <input asp-for="InvoiceDate" type="date" class="form-control" />
+                    <span asp-validation-for="InvoiceDate" class="text-danger small"></span>
+                </div>
+
+                <div class="pc-field pc-field-wide">
+                    <label asp-for="SupplierInvoiceNumber" class="form-label"></label>
+                    <input asp-for="SupplierInvoiceNumber" class="form-control" placeholder="Supplier bill / invoice #" autocomplete="off" />
+                    <span asp-validation-for="SupplierInvoiceNumber" class="text-danger small"></span>
+                </div>
+            </div>
+        </section>
+
+        <section class="pc-panel" aria-label="Purchase items">
+            <div class="pc-panel-head">
+                <div>
+                    <h2 class="pc-panel-title">Line items</h2>
+                    <p class="pc-panel-desc">Add products, packaging, quantity, and cost.</p>
+                </div>
+                <button type="button" class="btn btn-sm btn-primary" id="btnAddRow">
+                    <i class="bi bi-plus-lg me-1"></i> Add line
                 </button>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0" id="itemsTable">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 30%;">Product *</th>
-                                <th style="width: 20%;">Packaging Unit *</th>
-                                <th style="width: 15%;">Quantity *</th>
-                                <th style="width: 15%;">Unit Cost (PKR) *</th>
-                                <th style="width: 15%;" class="text-end">Line Total (PKR)</th>
-                                <th style="width: 5%;" class="text-center">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="itemsTableBody">
-                            <!-- Rows dynamically populated by JS -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
 
-        <!-- Totals & Submit Card -->
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-md-6">
-                        <div class="alert alert-info mb-0 py-2 small">
-                            <i class="bi bi-info-circle-fill me-1"></i>
-                            Purchasing items increases warehouse stock in <strong>Base Units</strong> immediately upon finalization.
-                        </div>
-                    </div>
-                    <div class="col-md-6 text-end">
-                        <div class="fs-4 fw-bold mb-2">
-                            Grand Total: <span class="text-primary" id="lblGrandTotal">PKR 0.00</span>
-                        </div>
-                        <button type="button" class="btn btn-success btn-lg px-4" id="btnOpenConfirmModal">
-                            <i class="bi bi-check-circle-fill me-2"></i> Finalize Purchase
-                        </button>
-                    </div>
+            <div class="table-responsive pc-table-wrap">
+                <table class="table align-middle mb-0" id="itemsTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 28%;">Product</th>
+                            <th style="width: 22%;">Packaging</th>
+                            <th style="width: 14%;">Qty</th>
+                            <th style="width: 16%;">Unit cost</th>
+                            <th style="width: 14%;" class="text-end">Line total</th>
+                            <th style="width: 6%;" class="text-center"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="pc-footer-bar">
+            <p class="pc-footer-note mb-0">
+                <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+                Finalizing increases warehouse stock in base units immediately. Invoice cannot be edited after finalize.
+            </p>
+            <div class="pc-footer-actions">
+                <div class="pc-grand-total">
+                    <span>Grand total</span>
+                    <strong id="lblGrandTotal">PKR 0.00</strong>
                 </div>
+                <button type="button" class="btn btn-primary px-4" id="btnOpenConfirmModal">
+                    <i class="bi bi-check2 me-1"></i> Finalize purchase
+                </button>
             </div>
         </div>
     </form>
 </div>
 
-<!-- Confirmation Modal -->
 <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title fw-bold" id="confirmModalLabel"><i class="bi bi-shield-check me-2"></i>Finalize Purchase Invoice</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="modal-content border-0 shadow pc-modal">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="confirmModalLabel">Finalize purchase invoice</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body py-4">
-                <p class="fs-6 mb-3">Are you sure you want to finalize this Purchase Invoice?</p>
-                <div class="card bg-light border-0 p-3 mb-3">
-                    <ul class="list-unstyled mb-0 small text-dark">
-                        <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i><strong>Inventory Stock:</strong> Increased in Base Units immediately.</li>
-                        <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i><strong>Audit Ledger:</strong> Recorded in <code>InventoryTransactions</code>.</li>
-                        <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i><strong>Company Ledger:</strong> Credit posted to Company liability account.</li>
-                        <li><i class="bi bi-lock-fill text-warning me-2"></i><strong>Immutability:</strong> Invoice cannot be edited once finalized.</li>
-                    </ul>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="fw-bold">Grand Total:</span>
-                    <span class="fs-5 fw-bold text-success" id="modalGrandTotal">PKR 0.00</span>
+            <div class="modal-body">
+                <p class="mb-3">Confirm finalizing this purchase? This cannot be undone.</p>
+                <ul class="pc-confirm-list">
+                    <li>Stock increases in base units immediately</li>
+                    <li>Ledger and inventory transactions are recorded</li>
+                    <li>Invoice becomes immutable</li>
+                </ul>
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                    <span class="text-muted">Grand total</span>
+                    <span class="fs-5 fw-bold" id="modalGrandTotal">PKR 0.00</span>
                 </div>
             </div>
-            <div class="modal-footer bg-light">
+            <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success px-4" id="btnConfirmFinalize">
+                <button type="button" class="btn btn-primary px-4" id="btnConfirmFinalize">
                     <span id="btnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-                    <i id="btnIcon" class="bi bi-check-lg me-1"></i> Finalize Now
+                    <i id="btnIcon" class="bi bi-check-lg me-1"></i> Finalize now
                 </button>
             </div>
         </div>
@@ -166,12 +148,10 @@
             let companyProductsList = [];
             const companySelect = document.getElementById('CompanyID');
 
-            // Add initial empty row
             addRow();
 
-            // When Company changes, fetch its products via AJAX
-            $(companySelect).on('change', function () {
-                const companyId = this.value;
+            function loadCompanyProducts() {
+                const companyId = companySelect ? companySelect.value : '';
                 if (!companyId) {
                     companyProductsList = [];
                     updateAllRowProducts();
@@ -189,12 +169,9 @@
                         companyProductsList = [];
                         updateAllRowProducts();
                     });
-            });
-
-            // Trigger initial load if company is pre-selected
-            if (companySelect.value) {
-                $(companySelect).trigger('change');
             }
+
+            loadCompanyProducts();
 
             document.getElementById('btnAddRow').addEventListener('click', function () {
                 addRow();
@@ -216,8 +193,8 @@
             }
 
             function getProductOptionsHtml() {
-                if (!companySelect.value) {
-                    return '<option value="">-- Select Company First --</option>';
+                if (!companySelect || !companySelect.value) {
+                    return '<option value="">-- Select company in navbar --</option>';
                 }
                 if (companyProductsList.length === 0) {
                     return '<option value="">-- No products found for this company --</option>';
@@ -245,7 +222,7 @@
                             <select class="form-select form-select-sm unit-select" data-row-id="${rowId}">
                                 <option value="">-- Select Unit --</option>
                             </select>
-                            <div class="form-text small text-info conversion-preview mt-1" id="preview_${rowId}"></div>
+                            <div class="form-text small conversion-preview mt-1" id="preview_${rowId}"></div>
                         </td>
                         <td>
                             <input type="number" class="form-control form-control-sm qty-input" data-row-id="${rowId}" min="0.001" step="any" value="1" />
@@ -253,11 +230,11 @@
                         <td>
                             <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" />
                         </td>
-                        <td class="text-end fw-bold line-total" id="total_${rowId}">
+                        <td class="text-end fw-semibold line-total" id="total_${rowId}">
                             0.00
                         </td>
                         <td class="text-center">
-                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove" data-row-id="${rowId}">
+                            <button type="button" class="btn btn-sm btn-outline-secondary btn-remove" data-row-id="${rowId}" title="Remove line" aria-label="Remove line">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>
@@ -364,7 +341,7 @@
                     const conversionFactor = parseFloat(selectedOption.getAttribute('data-conversion')) || 1;
                     const unitName = selectedOption.getAttribute('data-unitname') || '';
                     const convertedQty = (qty * conversionFactor).toFixed(3);
-                    previewDiv.textContent = `⚡ Converts to ${convertedQty} Base Units`;
+                    previewDiv.textContent = `Converts to ${convertedQty} base units`;
                 } else {
                     previewDiv.textContent = '';
                 }
@@ -397,7 +374,6 @@
                 document.getElementById('modalGrandTotal').textContent = formatted;
             }
 
-            // Modal & Form Submit Handling
             const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
 
             document.getElementById('btnOpenConfirmModal').addEventListener('click', function () {
@@ -413,7 +389,6 @@
                     return;
                 }
 
-                // Collect & validate items
                 const items = [];
                 const rows = document.querySelectorAll('#itemsTableBody tr');
                 let valid = true;

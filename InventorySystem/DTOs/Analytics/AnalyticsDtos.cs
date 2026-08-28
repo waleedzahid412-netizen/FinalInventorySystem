@@ -11,8 +11,10 @@ namespace InventorySystem.DTOs.Analytics
         public int? WarehouseID { get; set; }
         public int? CustomerID { get; set; }
         public int? CategoryID { get; set; }
-        /// <summary>Null/0 = all brokers. -1 = unassigned only. Positive = specific broker.</summary>
-        public int? BrokerID { get; set; }
+        /// <summary>Null/0 = all bookers. -1 = unassigned only. Positive = specific booker.</summary>
+        public int? BookerID { get; set; }
+        /// <summary>Null/0 = all companies. Positive = filter to that company.</summary>
+        public int? CompanyID { get; set; }
     }
 
     public class KpiMetricDto
@@ -313,10 +315,10 @@ namespace InventorySystem.DTOs.Analytics
         public List<WarehouseStockDto> WarehouseStock { get; set; } = new List<WarehouseStockDto>();
     }
 
-    public class BrokerRankedDto
+    public class BookerRankedDto
     {
-        public int? BrokerID { get; set; }
-        public string BrokerName { get; set; } = "Unassigned";
+        public int? BookerID { get; set; }
+        public string BookerName { get; set; } = "Unassigned";
         public int InvoiceCount { get; set; }
         public decimal Revenue { get; set; }
         public decimal Discounts { get; set; }
@@ -325,21 +327,21 @@ namespace InventorySystem.DTOs.Analytics
         public int UniqueCustomers { get; set; }
     }
 
-    public class BrokerAnalyticsDto
+    public class BookerAnalyticsDto
     {
         public decimal Revenue { get; set; }
         public int InvoiceCount { get; set; }
         public int UniqueCustomers { get; set; }
         public decimal Outstanding { get; set; }
-        public List<BrokerRankedDto> Brokers { get; set; } = new List<BrokerRankedDto>();
+        public List<BookerRankedDto> Bookers { get; set; } = new List<BookerRankedDto>();
         public List<TopCustomerDto> TopCustomers { get; set; } = new List<TopCustomerDto>();
         public List<TopProductDto> TopProducts { get; set; } = new List<TopProductDto>();
     }
 
-    public class BrokerDetailDto
+    public class BookerDetailDto
     {
-        public int? BrokerID { get; set; }
-        public string BrokerName { get; set; } = "Unassigned";
+        public int? BookerID { get; set; }
+        public string BookerName { get; set; } = "Unassigned";
         public decimal Revenue { get; set; }
         public decimal Returns { get; set; }
         public decimal Discounts { get; set; }

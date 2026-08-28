@@ -28,6 +28,7 @@ namespace InventorySystem.DTOs.Customers
         public string? SubAreaName { get; set; }
         public string? TaxID { get; set; }
         public decimal CreditLimit { get; set; }
+        public decimal? PreferredDiscountPercent { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

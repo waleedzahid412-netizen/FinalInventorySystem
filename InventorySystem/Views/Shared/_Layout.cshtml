@@ -1,12 +1,69 @@
+@inject ICompanyContext CompanyContext
+@inject IUserPermissionContext PermCtx
+@using InventorySystem.Constants
+@using InventorySystem.Services.Interfaces
 @{
     bool isAuthenticated = User.Identity != null && User.Identity.IsAuthenticated;
+    bool isAdmin = isAuthenticated && User.IsInRole(RoleNames.Admin);
+    bool canManageCompanies = false;
+    bool hasSpecificCompany = false;
+    int? scopedCompanyId = null;
+    bool showCore = false;
+    bool showCommercial = false;
+    bool showPromotions = false;
+    bool showPurchasing = false;
+    bool showInventory = false;
+    bool showReturns = false;
+    bool showAccounting = false;
+    bool showAnalytics = false;
+    bool showSettings = false;
+    if (isAuthenticated)
+    {
+        await CompanyContext.TryResolveAsync();
+        await PermCtx.EnsureLoadedAsync();
+        canManageCompanies = CompanyScopeGuards.CanManageCompanies(CompanyContext);
+        hasSpecificCompany = CompanyContext.HasCompany;
+        if (hasSpecificCompany)
+        {
+            scopedCompanyId = CompanyContext.CompanyID;
+        }
+
+        showCore = PermCtx.CanView(PageKeys.Dashboard);
+        showCommercial = PermCtx.CanView(PageKeys.SalesInvoices)
+            || PermCtx.CanView(PageKeys.SalesCreate)
+            || PermCtx.CanView(PageKeys.LoadSheets)
+            || PermCtx.CanView(PageKeys.Customers)
+            || PermCtx.CanView(PageKeys.CustomerPayments);
+        showPromotions = PermCtx.CanView(PageKeys.Promotions)
+            || PermCtx.CanView(PageKeys.DiscountRules);
+        showPurchasing = PermCtx.CanView(PageKeys.PurchaseInvoices)
+            || PermCtx.CanView(PageKeys.PurchaseCreate)
+            || (canManageCompanies && PermCtx.CanView(PageKeys.Companies))
+            || PermCtx.CanView(PageKeys.Bookers)
+            || PermCtx.CanView(PageKeys.Suppliers)
+            || PermCtx.CanView(PageKeys.CompanyPayments);
+        showInventory = PermCtx.CanView(PageKeys.Products)
+            || PermCtx.CanView(PageKeys.CompanyStockReport)
+            || PermCtx.CanView(PageKeys.Categories);
+        showReturns = PermCtx.CanView(PageKeys.SalesReturns)
+            || PermCtx.CanView(PageKeys.SalesCreateReturn)
+            || PermCtx.CanView(PageKeys.PurchaseReturns);
+        showAccounting = PermCtx.CanView(PageKeys.CustomerLedger)
+            || PermCtx.CanView(PageKeys.CompanyLedger)
+            || PermCtx.CanView(PageKeys.Cheques);
+        showAnalytics = PermCtx.CanView(PageKeys.Analytics);
+        showSettings = PermCtx.CanView(PageKeys.Users) || PermCtx.CanView(PageKeys.Roles);
+    }
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Wholesale ERP (WIMS)</title>
+    <title>@ViewData["Title"] - WIMS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
@@ -21,171 +78,290 @@
             <!-- SIDEBAR NAVIGATION -->
             <aside id="sidebar">
                 <a class="sidebar-brand" asp-controller="Home" asp-action="Index">
-                    <i class="bi bi-box-seam-fill me-2"></i> WIMS ERP
+                    <span class="brand-mark" aria-hidden="true"><i class="bi bi-box-seam-fill"></i></span>
+                    <span>WIMS</span>
                 </a>
 
                 <div class="sidebar-menu">
-                    <div class="sidebar-heading">Core</div>
-                    <ul class="sidebar-nav-item">
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Home" asp-action="Index">
-                                <i class="bi bi-speedometer2"></i> Dashboard
-                            </a>
-                        </li>
-                    </ul>
+                    @if (showCore)
+                    {
+                        <div class="sidebar-heading">Core</div>
+                        <ul class="sidebar-nav-item">
+                            @if (PermCtx.CanView(PageKeys.Dashboard))
+                            {
+                                <li>
+                                    <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Home" asp-action="Index">
+                                        <i class="bi bi-speedometer2"></i> Dashboard
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    }
 
-                    <div class="sidebar-heading">Commercial</div>
-                    <ul class="sidebar-nav-item">
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Sales" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Sales" asp-action="Index">
-                                <i class="bi bi-receipt"></i> Sales Invoices
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Sales" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : "")" asp-controller="Sales" asp-action="Create">
-                                <i class="bi bi-plus-circle"></i> Create Sale
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "LoadSheets" ? "active" : "")" asp-controller="LoadSheets" asp-action="Index">
-                                <i class="bi bi-truck"></i> Load Sheet
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Customers" ? "active" : "")" asp-controller="Customers" asp-action="Index">
-                                <i class="bi bi-people"></i> Customers
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "CustomerPayments" ? "active" : "")" asp-controller="Payments" asp-action="CustomerPayments">
-                                <i class="bi bi-wallet2"></i> Customer Payments
-                            </a>
-                        </li>
+                    @if (showCommercial)
+                    {
+                        <div class="sidebar-heading">Commercial</div>
+                        <ul class="sidebar-nav-item">
+                        @if (PermCtx.CanView(PageKeys.SalesInvoices))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Sales" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Sales" asp-action="Index">
+                                    <i class="bi bi-receipt"></i> Sales Invoices
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.SalesCreate))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Sales" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : "")" asp-controller="Sales" asp-action="Create">
+                                    <i class="bi bi-plus-circle"></i> Create Sale
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.LoadSheets))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "LoadSheets" ? "active" : "")" asp-controller="LoadSheets" asp-action="Index">
+                                    <i class="bi bi-truck"></i> Load Sheet
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.Customers))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Customers" ? "active" : "")" asp-controller="Customers" asp-action="Index">
+                                    <i class="bi bi-people"></i> Customers
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.CustomerPayments))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "CustomerPayments" ? "active" : "")" asp-controller="Payments" asp-action="CustomerPayments">
+                                    <i class="bi bi-wallet2"></i> Customer Payments
+                                </a>
+                            </li>
+                        }
                     </ul>
+                    }
 
-                    <div class="sidebar-heading">Promotions & Discounts</div>
-                    <ul class="sidebar-nav-item">
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Promotions" ? "active" : "")" asp-controller="Promotions" asp-action="Index">
-                                <i class="bi bi-tags"></i> Promotions
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Discounts" ? "active" : "")" asp-controller="Discounts" asp-action="Index">
-                                <i class="bi bi-percent"></i> Discount Rules
-                            </a>
-                        </li>
+                    @if (showPromotions)
+                    {
+                        <div class="sidebar-heading">Promotions & Discounts</div>
+                        <ul class="sidebar-nav-item">
+                        @if (PermCtx.CanView(PageKeys.Promotions))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Promotions" ? "active" : "")" asp-controller="Promotions" asp-action="Index">
+                                    <i class="bi bi-tags"></i> Promotions
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.DiscountRules))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Discounts" ? "active" : "")" asp-controller="Discounts" asp-action="Index">
+                                    <i class="bi bi-percent"></i> Discount Rules
+                                </a>
+                            </li>
+                        }
                     </ul>
+                    }
 
-                    <div class="sidebar-heading">Purchasing</div>
-                    <ul class="sidebar-nav-item">
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Purchases" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Purchases" asp-action="Index">
-                                <i class="bi bi-cart-check"></i> Purchase Invoices
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Purchases" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : "")" asp-controller="Purchases" asp-action="Create">
-                                <i class="bi bi-cart-plus"></i> Create Purchase
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Companies" ? "active" : "")" asp-controller="Companies" asp-action="Index">
-                                <i class="bi bi-building"></i> Companies
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Brokers" ? "active" : "")" asp-controller="Brokers" asp-action="Index">
-                                <i class="bi bi-person-badge"></i> Bookies
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "CompanyPayments" ? "active" : "")" asp-controller="Payments" asp-action="CompanyPayments">
-                                <i class="bi bi-credit-card"></i> Company Payments
-                            </a>
-                        </li>
+                    @if (showPurchasing)
+                    {
+                        <div class="sidebar-heading">Purchasing</div>
+                        <ul class="sidebar-nav-item">
+                        @if (PermCtx.CanView(PageKeys.PurchaseInvoices))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Purchases" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Purchases" asp-action="Index">
+                                    <i class="bi bi-cart-check"></i> Purchase Invoices
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.PurchaseCreate))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Purchases" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : "")" asp-controller="Purchases" asp-action="Create">
+                                    <i class="bi bi-cart-plus"></i> Create Purchase
+                                </a>
+                            </li>
+                        }
+                        @if (canManageCompanies && PermCtx.CanView(PageKeys.Companies))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Companies" && ViewContext.RouteData.Values["action"]?.ToString() != "Details" ? "active" : "")" asp-controller="Companies" asp-action="Index">
+                                    <i class="bi bi-building"></i> Companies
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.Bookers))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Bookers" ? "active" : "")" asp-controller="Bookers" asp-action="Index">
+                                    <i class="bi bi-person-badge"></i> Bookers
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.Suppliers))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Suppliers" ? "active" : "")" asp-controller="Suppliers" asp-action="Index">
+                                    <i class="bi bi-truck"></i> Suppliers
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.CompanyPayments))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "CompanyPayments" ? "active" : "")" asp-controller="Payments" asp-action="CompanyPayments">
+                                    <i class="bi bi-credit-card"></i> Company Payments
+                                </a>
+                            </li>
+                        }
                     </ul>
+                    }
 
-                    <div class="sidebar-heading">Inventory</div>
-                    <ul class="sidebar-nav-item">
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Products" ? "active" : "")" asp-controller="Products" asp-action="Index">
-                                <i class="bi bi-box"></i> Products Catalog
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Categories" ? "active" : "")" asp-controller="Categories" asp-action="Index">
-                                <i class="bi bi-tags"></i> Categories
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link" asp-controller="Products" asp-action="Index">
-                                <i class="bi bi-arrow-left-right"></i> Stock Movements
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link" asp-controller="Products" asp-action="Index">
-                                <i class="bi bi-houses"></i> Warehouses
-                            </a>
-                        </li>
+                    @if (showInventory)
+                    {
+                        <div class="sidebar-heading">Inventory</div>
+                        <ul class="sidebar-nav-item">
+                        @if (PermCtx.CanView(PageKeys.Products))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Products" ? "active" : "")" asp-controller="Products" asp-action="Index">
+                                    <i class="bi bi-box"></i> Products Catalog
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.CompanyStockReport))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "CompanyStockReport" ? "active" : "")" asp-controller="CompanyStockReport" asp-action="Index">
+                                    <i class="bi bi-clipboard-data"></i> Company Stock Report
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.Categories))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Categories" ? "active" : "")" asp-controller="Categories" asp-action="Index">
+                                    <i class="bi bi-tags"></i> Categories
+                                </a>
+                            </li>
+                        }
                     </ul>
+                    }
 
-                    <div class="sidebar-heading">Returns Engine</div>
-                    <ul class="sidebar-nav-item">
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CustomerReturns" ? "active" : "")" asp-controller="Returns" asp-action="CustomerReturns">
-                                <i class="bi bi-arrow-return-left"></i> Sales Returns
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CreateReturn" ? "active" : "")" asp-controller="Returns" asp-action="CreateReturn">
-                                <i class="bi bi-pencil-square"></i> Create Return
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CompanyReturns" ? "active" : "")" asp-controller="Returns" asp-action="CompanyReturns">
-                                <i class="bi bi-box-arrow-left"></i> Purchase Returns
-                            </a>
-                        </li>
+                    @if (showReturns)
+                    {
+                        <div class="sidebar-heading">Returns Engine</div>
+                        <ul class="sidebar-nav-item">
+                        @if (PermCtx.CanView(PageKeys.SalesReturns))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CustomerReturns" ? "active" : "")" asp-controller="Returns" asp-action="CustomerReturns">
+                                    <i class="bi bi-arrow-return-left"></i> Sales Returns
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.SalesCreateReturn))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CreateReturn" ? "active" : "")" asp-controller="Returns" asp-action="CreateReturn">
+                                    <i class="bi bi-pencil-square"></i> Create Return
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.PurchaseReturns))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Returns" && ViewContext.RouteData.Values["action"]?.ToString() == "CompanyReturns" ? "active" : "")" asp-controller="Returns" asp-action="CompanyReturns">
+                                    <i class="bi bi-box-arrow-left"></i> Purchase Returns
+                                </a>
+                            </li>
+                        }
                     </ul>
+                    }
 
-                    <div class="sidebar-heading">Accounting & Finance</div>
-                    <ul class="sidebar-nav-item">
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Customers" ? "active" : "")" asp-controller="Customers" asp-action="Index">
-                                <i class="bi bi-journal-bookmark"></i> Customer Ledger
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Companies" ? "active" : "")" asp-controller="Companies" asp-action="Index">
-                                <i class="bi bi-journal-text"></i> Supplier Ledger
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "Cheques" ? "active" : "")" asp-controller="Payments" asp-action="Cheques">
-                                <i class="bi bi-card-heading"></i> Cheque Management
-                            </a>
-                        </li>
+                    @if (showAccounting)
+                    {
+                        <div class="sidebar-heading">Accounting & Finance</div>
+                        <ul class="sidebar-nav-item">
+                        @if (PermCtx.CanView(PageKeys.CustomerLedger))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Customers" ? "active" : "")" asp-controller="Customers" asp-action="Index">
+                                    <i class="bi bi-journal-bookmark"></i> Customer Ledger
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.CompanyLedger))
+                        {
+                            <li>
+                                @if (hasSpecificCompany && scopedCompanyId.HasValue)
+                                {
+                                    <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Companies" && ViewContext.RouteData.Values["action"]?.ToString() == "Details" ? "active" : "")" asp-controller="Companies" asp-action="Details" asp-route-id="@scopedCompanyId.Value">
+                                        <i class="bi bi-journal-text"></i> Company Ledger
+                                    </a>
+                                }
+                                else
+                                {
+                                    <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Companies" && ViewContext.RouteData.Values["action"]?.ToString() == "Details" ? "active" : "")" asp-controller="Companies" asp-action="Index">
+                                        <i class="bi bi-journal-text"></i> Company Ledger
+                                    </a>
+                                }
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.Cheques))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Payments" && ViewContext.RouteData.Values["action"]?.ToString() == "Cheques" ? "active" : "")" asp-controller="Payments" asp-action="Cheques">
+                                    <i class="bi bi-card-heading"></i> Cheque Management
+                                </a>
+                            </li>
+                        }
                     </ul>
+                    }
 
-                    <div class="sidebar-heading">Analytics & System</div>
-                    <ul class="sidebar-nav-item">
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Analytics" ? "active" : "")" asp-controller="Analytics" asp-action="Index">
-                                <i class="bi bi-graph-up-arrow"></i> Analytics & Insights
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Privacy" ? "active" : "")" asp-controller="Home" asp-action="Privacy">
-                                <i class="bi bi-graph-up"></i> Reports
-                            </a>
-                        </li>
-                        <li>
-                            <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Privacy" ? "active" : "")" asp-controller="Home" asp-action="Privacy">
-                                <i class="bi bi-gear"></i> Settings
-                            </a>
-                        </li>
+                    @if (showAnalytics)
+                    {
+                        <div class="sidebar-heading">Analytics</div>
+                        <ul class="sidebar-nav-item">
+                        @if (PermCtx.CanView(PageKeys.Analytics))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Analytics" ? "active" : "")" asp-controller="Analytics" asp-action="Index">
+                                    <i class="bi bi-graph-up-arrow"></i> Analytics & Insights
+                                </a>
+                            </li>
+                        }
                     </ul>
+                    }
+
+                    @if (showSettings)
+                    {
+                        <div class="sidebar-heading">Settings</div>
+                        <ul class="sidebar-nav-item">
+                            @if (PermCtx.CanView(PageKeys.Users))
+                            {
+                                <li>
+                                    <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "UserManagement" ? "active" : "")" asp-controller="UserManagement" asp-action="Index">
+                                        <i class="bi bi-person-gear"></i> User Management
+                                    </a>
+                                </li>
+                            }
+                            @if (PermCtx.CanView(PageKeys.Roles))
+                            {
+                                <li>
+                                    <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "RoleManagement" ? "active" : "")" asp-controller="RoleManagement" asp-action="Index">
+                                        <i class="bi bi-shield-lock"></i> Roles
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    }
                 </div>
             </aside>
         }
@@ -202,34 +378,18 @@
                         </button>
                         <div class="topbar-search position-relative">
                             <i class="bi bi-search topbar-search-icon"></i>
-                            <input type="text" class="form-control form-control-sm" placeholder="Global ERP Search (Invoice #, Customer, Product)..." />
+                            <input type="search" class="form-control form-control-sm" placeholder="Search invoices, customers, products…" aria-label="Global search" />
                         </div>
                     </div>
 
                     <div class="d-flex align-items-center gap-3">
-                        <!-- QUICK ACTIONS DROPDOWN -->
-                        <div class="dropdown">
-                            <button class="btn btn-sm quick-action-btn dropdown-toggle" type="button" id="quickActionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-plus-lg me-1"></i> Quick Actions
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="quickActionsDropdown">
-                                <li><h6 class="dropdown-header text-uppercase small fw-bold">New Operation</h6></li>
-                                <li><a class="dropdown-item py-2" asp-controller="Sales" asp-action="CreateQuick"><i class="bi bi-receipt text-primary me-2"></i> Create Quick Sale</a></li>
-                                <li><a class="dropdown-item py-2" asp-controller="Purchases" asp-action="Create"><i class="bi bi-cart-plus text-success me-2"></i> Create Purchase</a></li>
-                                <li><a class="dropdown-item py-2" asp-controller="Returns" asp-action="CreateReturn"><i class="bi bi-pencil-square text-warning me-2"></i> Create Return</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header text-uppercase small fw-bold">Accounting & Master Data</h6></li>
-                                <li><a class="dropdown-item py-2" asp-controller="Payments" asp-action="CustomerPaymentQuick"><i class="bi bi-wallet2 text-info me-2"></i> Receive Customer Payment</a></li>
-                                <li><a class="dropdown-item py-2" asp-controller="Payments" asp-action="CompanyPaymentQuick"><i class="bi bi-credit-card text-success me-2"></i> Pay Company</a></li>
-                                <li><a class="dropdown-item py-2" asp-controller="Customers" asp-action="Create"><i class="bi bi-person-plus text-secondary me-2"></i> Add Customer</a></li>
-                                <li><a class="dropdown-item py-2" asp-controller="Products" asp-action="Create"><i class="bi bi-box-seam text-dark me-2"></i> Add Product</a></li>
-                            </ul>
-                        </div>
+                        <!-- COMPANY SCOPE -->
+                        <partial name="_CompanyScopePicker" />
 
                         <!-- USER PROFILE -->
                         <div class="dropdown">
                             <button class="btn btn-sm btn-light border dropdown-toggle fw-semibold" type="button" id="userMenuDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-person-circle text-primary me-1"></i> Administrator
+                                <i class="bi bi-person-circle text-primary me-1"></i> @(User.Identity?.Name ?? "User")
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="userMenuDropdown">
                                 <li><a class="dropdown-item" asp-controller="Home" asp-action="Privacy"><i class="bi bi-shield-check me-2"></i> System Privacy</a></li>
@@ -250,14 +410,15 @@
 
             @if (isAuthenticated)
             {
-                <!-- FOOTER -->
-                <footer class="bg-white border-top py-2 px-4 text-muted small d-flex justify-content-between align-items-center">
-                    <div>&copy; 2026 Wholesale Inventory Management System (WIMS)</div>
-                    <div><a asp-controller="Home" asp-action="Privacy" class="text-decoration-none text-muted">Privacy Policy</a></div>
+                <footer class="app-footer py-2 px-4 small d-flex justify-content-between align-items-center">
+                    <div>&copy; 2026 WIMS</div>
+                    <div><a asp-controller="Home" asp-action="Privacy" class="text-decoration-none">Privacy</a></div>
                 </footer>
             }
         </div>
     </div>
+
+    <div id="wimsToastContainer" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1090;"></div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
@@ -268,6 +429,15 @@
             $('#sidebarToggle').on('click', function () {
                 $('#sidebar').toggleClass('d-none');
             });
+
+            @if (TempData["ToastError"] != null)
+            {
+                <text>
+                if (window.WimsToast) {
+                    window.WimsToast.show(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["ToastError"]?.ToString())), 'danger');
+                }
+                </text>
+            }
         });
     </script>
     @await RenderSectionAsync("Scripts", required: false)

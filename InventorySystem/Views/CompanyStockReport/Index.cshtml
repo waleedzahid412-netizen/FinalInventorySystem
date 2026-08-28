@@ -1,0 +1,210 @@
+@model InventorySystem.ViewModels.Reports.CompanyStockReportViewModel
+
+@{
+    ViewData["Title"] = "Company Stock Report";
+    var colSpan = Model.IsAllCompanies ? 7 : 6;
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">Company Stock Report</h1>
+            <p class="text-muted small mb-0">
+                Base-unit stock by product.
+                Showing stock for: <span class="fw-semibold text-dark">@Model.ScopeLabel</span>
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="ExportExcel"
+               asp-route-SearchTerm="@Model.Filter.SearchTerm"
+               asp-route-CategoryID="@Model.Filter.CategoryID"
+               asp-route-StockStatus="@Model.Filter.StockStatus"
+               class="btn btn-outline-success shadow-sm">
+                <i class="bi bi-file-earmark-excel me-1"></i> Excel
+            </a>
+            <a asp-action="ExportPdf"
+               asp-route-SearchTerm="@Model.Filter.SearchTerm"
+               asp-route-CategoryID="@Model.Filter.CategoryID"
+               asp-route-StockStatus="@Model.Filter.StockStatus"
+               class="btn btn-outline-danger shadow-sm">
+                <i class="bi bi-file-earmark-pdf me-1"></i> PDF
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase fw-semibold">Products</div>
+                    <div class="fs-4 fw-bold">@Model.Summary.TotalProducts.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase fw-semibold">Total Stock (Base Units)</div>
+                    <div class="fs-4 fw-bold text-info">@Model.Summary.TotalStockQuantity.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase fw-semibold">Low Stock</div>
+                    <div class="fs-4 fw-bold text-warning">@Model.Summary.LowStockCount.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase fw-semibold">Out of Stock</div>
+                    <div class="fs-4 fw-bold text-danger">@Model.Summary.OutOfStockCount.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <form method="get" asp-action="Index" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold text-secondary">Search</label>
+                    <input type="text" asp-for="Filter.SearchTerm" name="SearchTerm" class="form-control form-control-sm" placeholder="Product name or SKU..." />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold text-secondary">Category</label>
+                    <select asp-for="Filter.CategoryID" name="CategoryID" asp-items="Model.Categories" class="form-select form-select-sm">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold text-secondary">Stock Status</label>
+                    <select asp-for="Filter.StockStatus" name="StockStatus" asp-items="Model.StockStatusOptions" class="form-select form-select-sm" data-no-select2></select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-sm btn-primary flex-fill">
+                        <i class="bi bi-search me-1"></i> Filter
+                    </button>
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted small text-uppercase">
+                        <tr>
+                            @if (Model.IsAllCompanies)
+                            {
+                                <th class="ps-3">Company</th>
+                            }
+                            <th class="@(Model.IsAllCompanies ? "" : "ps-3")">Product Name</th>
+                            <th>SKU</th>
+                            <th>Base Unit</th>
+                            <th class="text-end">Current Stock</th>
+                            <th class="text-end">Reorder Level</th>
+                            <th class="text-center pe-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Rows.Items != null && Model.Rows.Items.Any())
+                        {
+                            foreach (var row in Model.Rows.Items)
+                            {
+                                <tr>
+                                    @if (Model.IsAllCompanies)
+                                    {
+                                        <td class="ps-3">
+                                            <span class="badge bg-light text-dark border">@row.CompanyName</span>
+                                        </td>
+                                    }
+                                    <td class="@(Model.IsAllCompanies ? "" : "ps-3") fw-semibold">
+                                        <a asp-controller="Products" asp-action="Details" asp-route-id="@row.ProductID" class="text-decoration-none text-dark">
+                                            @row.ProductName
+                                        </a>
+                                    </td>
+                                    <td><code class="text-muted">@(row.SKU ?? "-")</code></td>
+                                    <td class="text-muted">@row.BaseUnitName</td>
+                                    <td class="text-end fw-semibold">@row.CurrentStock.ToString("N0")</td>
+                                    <td class="text-end text-muted">@row.ReorderLevel.ToString("N0")</td>
+                                    <td class="text-center pe-3">
+                                        @if (row.Status == "Out of Stock")
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Out of Stock</span>
+                                        }
+                                        else if (row.Status == "Low Stock")
+                                        {
+                                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1">Low Stock</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">In Stock</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="@colSpan" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                    No stock rows found for the current company scope and filters.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (Model.Rows.TotalPages > 1)
+        {
+            <div class="card-footer bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                <span class="small text-muted">
+                    Showing Page @Model.Rows.PageNumber of @Model.Rows.TotalPages (@Model.Rows.TotalCount Total Products)
+                </span>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(Model.Rows.HasPreviousPage ? "" : "disabled")">
+                            <a class="page-link"
+                               asp-action="Index"
+                               asp-route-PageNumber="@(Model.Rows.PageNumber - 1)"
+                               asp-route-SearchTerm="@Model.Filter.SearchTerm"
+                               asp-route-CategoryID="@Model.Filter.CategoryID"
+                               asp-route-StockStatus="@Model.Filter.StockStatus">Previous</a>
+                        </li>
+                        @for (int i = 1; i <= Model.Rows.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == Model.Rows.PageNumber ? "active" : "")">
+                                <a class="page-link"
+                                   asp-action="Index"
+                                   asp-route-PageNumber="@i"
+                                   asp-route-SearchTerm="@Model.Filter.SearchTerm"
+                                   asp-route-CategoryID="@Model.Filter.CategoryID"
+                                   asp-route-StockStatus="@Model.Filter.StockStatus">@i</a>
+                            </li>
+                        }
+                        <li class="page-item @(Model.Rows.HasNextPage ? "" : "disabled")">
+                            <a class="page-link"
+                               asp-action="Index"
+                               asp-route-PageNumber="@(Model.Rows.PageNumber + 1)"
+                               asp-route-SearchTerm="@Model.Filter.SearchTerm"
+                               asp-route-CategoryID="@Model.Filter.CategoryID"
+                               asp-route-StockStatus="@Model.Filter.StockStatus">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>

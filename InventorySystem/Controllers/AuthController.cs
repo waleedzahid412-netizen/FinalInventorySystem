@@ -1,12 +1,14 @@
 using System;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using InventorySystem.Configuration;
 using InventorySystem.DTOs;
 using InventorySystem.Services.Interfaces;
 
 namespace InventorySystem.Controllers
 {
+    [AllowAnonymous]
     public class AuthController : Controller
     {
         private readonly IAuthService _authService;
@@ -17,18 +19,23 @@ namespace InventorySystem.Controllers
         }
 
         [HttpGet]
-        public IActionResult Login()
+        public IActionResult Login(string? returnUrl = null, bool expired = false)
         {
             if (User.Identity != null && User.Identity.IsAuthenticated)
             {
-                return RedirectToAction("Index", "Home");
+                return RedirectToLocal(returnUrl);
             }
+
+            ViewBag.ReturnUrl = returnUrl;
+            ViewBag.SessionExpired = expired;
             return View();
         }
 
         [HttpPost]
-        public async Task<IActionResult> Login(LoginRequestDTO request)
+        public async Task<IActionResult> Login(LoginRequestDTO request, string? returnUrl = null)
         {
+            ViewBag.ReturnUrl = returnUrl;
+
             if (!ModelState.IsValid)
             {
                 return View(request);
@@ -42,35 +49,32 @@ namespace InventorySystem.Controllers
                 return View(request);
             }
 
-            // Set JWT token in HTTP-only cookie
-            var cookieOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Expires = request.RememberMe 
+            var cookieOptions = JwtCookieHelper.CreateCookieOptions(
+                request.RememberMe
                     ? DateTimeOffset.UtcNow.AddDays(7)
-                    : DateTimeOffset.UtcNow.AddHours(1)
-            };
+                    : DateTimeOffset.UtcNow.AddHours(1));
 
-            Response.Cookies.Append("jwt_token", result.Token, cookieOptions);
+            Response.Cookies.Append(JwtCookieHelper.CookieName, result.Token, cookieOptions);
 
-            return RedirectToAction("Index", "Home");
+            return RedirectToLocal(returnUrl);
         }
 
         [HttpGet]
         [HttpPost]
         public IActionResult Logout()
         {
-            Response.Cookies.Delete("jwt_token");
-            Response.Cookies.Append("jwt_token", "", new CookieOptions
-            {
-                Expires = DateTimeOffset.UtcNow.AddDays(-1),
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict
-            });
+            JwtCookieHelper.DeleteToken(Response);
             return RedirectToAction("Login");
+        }
+
+        private IActionResult RedirectToLocal(string? returnUrl)
+        {
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
+
+            return RedirectToAction("Index", "Home");
         }
     }
 }

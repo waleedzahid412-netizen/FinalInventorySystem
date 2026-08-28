@@ -41,6 +41,13 @@ namespace InventorySystem.Models.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal CreditLimit { get; set; } = 0;
 
+        /// <summary>
+        /// Optional customer-level preferred invoice discount percentage (0–100).
+        /// Null means no preferred discount. Seller must explicitly Apply on the invoice.
+        /// </summary>
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal? PreferredDiscountPercent { get; set; }
+
         public bool IsActive { get; set; } = true;
 
         // ===== AUDIT FIELDS =====

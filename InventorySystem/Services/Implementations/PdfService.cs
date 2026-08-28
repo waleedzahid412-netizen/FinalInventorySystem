@@ -5,6 +5,7 @@ using InventorySystem.Configuration;
 using InventorySystem.DTOs.Analytics;
 using InventorySystem.DTOs.LoadSheets;
 using InventorySystem.DTOs.Purchases;
+using InventorySystem.DTOs.Reports;
 using InventorySystem.DTOs.Sales;
 using InventorySystem.Services.Interfaces;
 using Microsoft.Extensions.Options;
@@ -39,183 +40,182 @@ namespace InventorySystem.Services.Implementations
             var address = !string.IsNullOrWhiteSpace(header.CustomerAddress)
                 ? header.CustomerAddress!
                 : string.Join(" / ", new[] { header.AreaName, header.SubAreaName }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            var customerPhone = string.IsNullOrWhiteSpace(header.CustomerPhone) ? null : header.CustomerPhone.Trim();
             var businessName = string.IsNullOrWhiteSpace(_printSettings.BusinessName)
                 ? "Wholesale Distributor"
                 : _printSettings.BusinessName;
-            var phone = string.IsNullOrWhiteSpace(_printSettings.Phone) ? "" : _printSettings.Phone;
-            var terms = _printSettings.TermsUrdu ?? new List<string>();
+            var businessPhone = string.IsNullOrWhiteSpace(_printSettings.Phone) ? "" : _printSettings.Phone;
+            var terms = (_printSettings.TermsUrdu ?? new List<string>())
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
             var termsTitle = string.IsNullOrWhiteSpace(_printSettings.TermsTitleUrdu)
                 ? "اہم ہدایات برائے صارفین"
                 : _printSettings.TermsTitleUrdu;
+            var supplierDisplay = !string.IsNullOrWhiteSpace(header.SupplierName)
+                ? header.SupplierName!
+                : "-";
 
             var document = Document.Create(container =>
             {
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4);
-                    page.MarginHorizontal(18);
-                    page.MarginVertical(16);
+                    page.MarginHorizontal(14);
+                    page.MarginVertical(12);
                     page.PageColor(Colors.White);
-                    page.DefaultTextStyle(x => x.FontFamily("Segoe UI").FontSize(9).FontColor(Colors.Black));
+                    page.DefaultTextStyle(x => x.FontFamily("Segoe UI").FontSize(8.5f).FontColor(Colors.Black));
 
-                    page.Content().Column(pageBody =>
+                    page.Content().Column(col =>
                     {
-                        // Column.Item sizes to content — avoids stretching the bordered boxes to full A4 height
-                        pageBody.Item().Row(root =>
+                        // ===== HEADER: distributor identity =====
+                        col.Item().AlignCenter().Text(businessName).FontSize(15).Bold();
+                        if (!string.IsNullOrWhiteSpace(businessPhone))
                         {
-                            // Left: Urdu terms + signature
-                            root.ConstantItem(155).Border(1).BorderColor(Colors.Black).Padding(6).Column(left =>
+                            col.Item().AlignCenter().PaddingTop(1).Text($"Phone : {businessPhone}").FontSize(9);
+                        }
+
+                        // ===== META + BILL TO boxes =====
+                        col.Item().PaddingTop(6).Row(boxes =>
+                        {
+                            boxes.RelativeItem().Border(1).BorderColor(Colors.Black).Padding(5).Column(meta =>
                             {
-                                left.Item().AlignRight().Text(termsTitle).FontSize(10).Bold();
-                                left.Item().PaddingVertical(4).LineHorizontal(0.5f).LineColor(Colors.Black);
+                                MetaRow(meta, "Invoice No. :", header.InvoiceNumber, boldValue: true);
+                                meta.Item().PaddingTop(1);
+                                MetaRow(meta, "Date :", header.InvoiceDate.ToString("ddd, dd/MM/yyyy"));
+                                meta.Item().PaddingTop(1);
+                                // Printed invoices always show Cash (business requirement for customer-facing PDF).
+                                MetaRow(meta, "Payment Mode :", "Cash");
+                            });
+
+                            boxes.ConstantItem(6);
+
+                            boxes.RelativeItem().Border(1).BorderColor(Colors.Black).Padding(5).Column(bill =>
+                            {
+                                MetaRow(bill, "Bill To :", billTo, boldValue: true);
+                                bill.Item().PaddingTop(1);
+                                MetaRow(bill, "Address :", string.IsNullOrWhiteSpace(address) ? "-" : address);
+                                bill.Item().PaddingTop(1);
+                                MetaRow(bill, "Phone :", customerPhone ?? "-");
+                                bill.Item().PaddingTop(1);
+                                MetaRow(bill, "Booker :", string.IsNullOrWhiteSpace(header.BookerName) ? "-" : header.BookerName!);
+                                bill.Item().PaddingTop(1);
+                                MetaRow(bill, "Supplier :", supplierDisplay);
+                            });
+                        });
+
+                        col.Item().PaddingTop(5).AlignCenter().Text("SALES INVOICE").FontSize(11).Bold()
+                            .FontColor(Colors.Black);
+
+                        // ===== LINE ITEMS =====
+                        col.Item().PaddingTop(4).Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.ConstantColumn(52);   // Product Code
+                                columns.RelativeColumn(2.4f); // Product Name
+                                columns.ConstantColumn(36);   // Qty
+                                columns.ConstantColumn(42);   // Free Qty
+                                columns.RelativeColumn(1.6f); // Free Product
+                                columns.ConstantColumn(55);   // Unit Price
+                                columns.ConstantColumn(60);   // Amount
+                            });
+
+                            table.Header(h =>
+                            {
+                                void Head(string text, bool rightAlign = false)
+                                {
+                                    var cell = h.Cell().Border(0.75f).BorderColor(Colors.Black)
+                                        .Background(Colors.Grey.Lighten3).PaddingVertical(2).PaddingHorizontal(2);
+                                    if (rightAlign)
+                                        cell.AlignRight().Text(text).FontSize(7.5f).Bold();
+                                    else
+                                        cell.Text(text).FontSize(7.5f).Bold();
+                                }
+
+                                Head("Product Code");
+                                Head("ProductName");
+                                Head("Qty", true);
+                                Head("Free Qty", true);
+                                Head("Free Product");
+                                Head("Unit Price", true);
+                                Head("Amount", true);
+                            });
+
+                            foreach (var row in lineRows)
+                            {
+                                table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
+                                    .Text(row.ProductCode).FontSize(7.5f);
+                                table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
+                                    .Text(row.ProductName).FontSize(7.5f);
+                                table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
+                                    .AlignRight().Text(FormatQty(row.Qty)).FontSize(7.5f);
+                                table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
+                                    .AlignRight().Text(FormatQty(row.FreeQty)).FontSize(7.5f);
+                                table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
+                                    .Text(string.IsNullOrWhiteSpace(row.FreeProductName) ? "-" : row.FreeProductName).FontSize(7);
+                                table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
+                                    .AlignRight().Text(row.UnitPrice.ToString("N2")).FontSize(7.5f);
+                                table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
+                                    .AlignRight().Text(row.Amount.ToString("N2")).FontSize(7.5f).Bold();
+                            }
+                        });
+
+                        // ===== FOOTER: Urdu terms + totals / signature =====
+                        col.Item().PaddingTop(6).Row(footer =>
+                        {
+                            footer.RelativeItem().Border(1).BorderColor(Colors.Black).Padding(5).Column(left =>
+                            {
+                                left.Item().AlignRight().Text(termsTitle).FontSize(9).Bold();
+                                left.Item().PaddingVertical(2).LineHorizontal(0.5f).LineColor(Colors.Black);
 
                                 int termIndex = 1;
                                 foreach (var term in terms)
                                 {
-                                    left.Item().PaddingBottom(5).AlignRight().Text($"{termIndex}. {term}")
-                                        .FontSize(7.5f)
-                                        .FontFamily("Segoe UI");
+                                    // Number on the right = start of RTL sentence (not after the Urdu text).
+                                    var index = termIndex;
+                                    left.Item().PaddingBottom(2).Row(r =>
+                                    {
+                                        r.RelativeItem().AlignRight().Text(term)
+                                            .FontSize(7)
+                                            .FontFamily("Segoe UI");
+                                        r.ConstantItem(18).AlignRight().Text($"{index}.")
+                                            .FontSize(7)
+                                            .FontFamily("Segoe UI")
+                                            .Bold();
+                                    });
                                     termIndex++;
                                 }
-
-                                left.Item().AlignCenter().PaddingTop(12).Column(sig =>
-                                {
-                                    sig.Item().Height(20);
-                                    sig.Item().AlignCenter().Text("______________________").FontSize(8);
-                                    sig.Item().AlignCenter().Text("Customer Signature").FontSize(8).Bold();
-                                });
                             });
 
-                            root.ConstantItem(8);
+                            footer.ConstantItem(8);
 
-                            // Right: invoice body
-                            root.RelativeItem().Column(right =>
+                            footer.ConstantItem(200).Column(right =>
                             {
-                                right.Item().Row(top =>
-                                {
-                                    top.RelativeItem().Column(titleCol =>
-                                    {
-                                        titleCol.Item().Text(businessName).FontSize(14).Bold();
-                                        if (!string.IsNullOrWhiteSpace(phone))
-                                        {
-                                            titleCol.Item().Text($"Phone: {phone}").FontSize(9);
-                                        }
-                                        titleCol.Item().PaddingTop(4).Text("SALES INVOICE").FontSize(16).Bold();
-                                    });
-
-                                    top.ConstantItem(170).Border(1).BorderColor(Colors.Black).Padding(6).Column(meta =>
-                                    {
-                                        meta.Item().Row(r =>
-                                        {
-                                            r.ConstantItem(72).Text("Invoice No.:").FontSize(8).Bold();
-                                            r.RelativeItem().Text(header.InvoiceNumber).FontSize(9).Bold();
-                                        });
-                                        meta.Item().PaddingTop(2).Row(r =>
-                                        {
-                                            r.ConstantItem(72).Text("Date:").FontSize(8).Bold();
-                                            r.RelativeItem().Text(header.InvoiceDate.ToString("ddd, dd/MM/yyyy")).FontSize(9);
-                                        });
-                                        meta.Item().PaddingTop(2).Row(r =>
-                                        {
-                                            r.ConstantItem(72).Text("Payment Mode:").FontSize(8).Bold();
-                                            r.RelativeItem().Text(header.PaymentMode).FontSize(9);
-                                        });
-                                    });
-                                });
-
-                                right.Item().PaddingTop(8).Border(1).BorderColor(Colors.Black).Padding(6).Column(bill =>
-                                {
-                                    bill.Item().Row(r =>
-                                    {
-                                        r.ConstantItem(70).Text("Bill To:").FontSize(8).Bold();
-                                        r.RelativeItem().Text(billTo).FontSize(10).Bold();
-                                    });
-                                    bill.Item().PaddingTop(2).Row(r =>
-                                    {
-                                        r.ConstantItem(70).Text("Address:").FontSize(8).Bold();
-                                        r.RelativeItem().Text(string.IsNullOrWhiteSpace(address) ? "-" : address).FontSize(9);
-                                    });
-                                    bill.Item().PaddingTop(2).Row(r =>
-                                    {
-                                        r.ConstantItem(70).Text("Booker:").FontSize(8).Bold();
-                                        r.RelativeItem().Text(string.IsNullOrWhiteSpace(header.BrokerName) ? "-" : header.BrokerName!).FontSize(9);
-                                    });
-                                    bill.Item().PaddingTop(2).Row(r =>
-                                    {
-                                        r.ConstantItem(70).Text("Supplier:").FontSize(8).Bold();
-                                        r.RelativeItem().Text(string.IsNullOrWhiteSpace(header.CompanyName) ? "-" : header.CompanyName!).FontSize(9);
-                                    });
-                                });
-
-                                right.Item().PaddingTop(8).Table(table =>
-                                {
-                                    table.ColumnsDefinition(columns =>
-                                    {
-                                        columns.ConstantColumn(55);
-                                        columns.RelativeColumn(3.2f);
-                                        columns.ConstantColumn(40);
-                                        columns.ConstantColumn(48);
-                                        columns.ConstantColumn(60);
-                                        columns.ConstantColumn(65);
-                                    });
-
-                                    table.Header(h =>
-                                    {
-                                        void Head(string text, bool rightAlign = false)
-                                        {
-                                            var cell = h.Cell().Border(0.75f).BorderColor(Colors.Black).Background(Colors.Grey.Lighten3).Padding(3);
-                                            if (rightAlign)
-                                            {
-                                                cell.AlignRight().Text(text).FontSize(8).Bold();
-                                            }
-                                            else
-                                            {
-                                                cell.Text(text).FontSize(8).Bold();
-                                            }
-                                        }
-
-                                        Head("Product Code");
-                                        Head("ProductName");
-                                        Head("Qty", true);
-                                        Head("Free Qty", true);
-                                        Head("Unit Price", true);
-                                        Head("Amount", true);
-                                    });
-
-                                    foreach (var row in lineRows)
-                                    {
-                                        table.Cell().Border(0.5f).BorderColor(Colors.Black).Padding(3)
-                                            .Text(row.ProductCode).FontSize(8);
-                                        table.Cell().Border(0.5f).BorderColor(Colors.Black).Padding(3)
-                                            .Text(row.ProductName).FontSize(8);
-                                        table.Cell().Border(0.5f).BorderColor(Colors.Black).Padding(3)
-                                            .AlignRight().Text(FormatQty(row.Qty)).FontSize(8);
-                                        table.Cell().Border(0.5f).BorderColor(Colors.Black).Padding(3)
-                                            .AlignRight().Text(FormatQty(row.FreeQty)).FontSize(8);
-                                        table.Cell().Border(0.5f).BorderColor(Colors.Black).Padding(3)
-                                            .AlignRight().Text(row.UnitPrice.ToString("N2")).FontSize(8);
-                                        table.Cell().Border(0.5f).BorderColor(Colors.Black).Padding(3)
-                                            .AlignRight().Text(row.Amount.ToString("N2")).FontSize(8).Bold();
-                                    }
-                                });
-
-                                right.Item().PaddingTop(8).AlignRight().Width(200).Border(1).BorderColor(Colors.Black).Padding(6).Column(tot =>
+                                right.Item().Border(1).BorderColor(Colors.Black).Padding(5).Column(tot =>
                                 {
                                     tot.Item().Row(r =>
                                     {
-                                        r.RelativeItem().Text("Total Amount:").FontSize(9).Bold();
-                                        r.ConstantItem(80).AlignRight().Text(financial.SubTotal.ToString("N2")).FontSize(9);
+                                        r.RelativeItem().Text("Total Amount :").FontSize(8.5f).Bold();
+                                        r.ConstantItem(80).AlignRight().Text(financial.SubTotal.ToString("N2")).FontSize(8.5f);
                                     });
-                                    tot.Item().PaddingTop(3).Row(r =>
+                                    tot.Item().PaddingTop(2).Row(r =>
                                     {
-                                        r.RelativeItem().Text("Discount:").FontSize(9).Bold();
-                                        r.ConstantItem(80).AlignRight().Text(financial.DiscountTotal.ToString("N2")).FontSize(9);
+                                        r.RelativeItem().Text("Discount :").FontSize(8.5f).Bold();
+                                        r.ConstantItem(80).AlignRight().Text(financial.DiscountTotal.ToString("N2")).FontSize(8.5f);
                                     });
-                                    tot.Item().PaddingTop(3).BorderTop(1).BorderColor(Colors.Black).PaddingTop(3).Row(r =>
+                                    tot.Item().PaddingTop(2).BorderTop(1).BorderColor(Colors.Black).PaddingTop(2).Row(r =>
                                     {
-                                        r.RelativeItem().Text("Net Amount:").FontSize(10).Bold();
-                                        r.ConstantItem(80).AlignRight().Text(financial.GrandTotal.ToString("N2")).FontSize(10).Bold();
+                                        r.RelativeItem().Text("Net Amount :").FontSize(9).Bold();
+                                        r.ConstantItem(80).AlignRight().Text(financial.GrandTotal.ToString("N2")).FontSize(9).Bold();
                                     });
+                                });
+
+                                right.Item().PaddingTop(14).AlignCenter().Column(sig =>
+                                {
+                                    sig.Item().AlignCenter().Text("______________________").FontSize(8);
+                                    sig.Item().AlignCenter().PaddingTop(1).Text("Customer Signature").FontSize(8).Bold();
                                 });
                             });
                         });
@@ -226,23 +226,100 @@ namespace InventorySystem.Services.Implementations
             return document.GeneratePdf();
         }
 
+        private static void MetaRow(ColumnDescriptor col, string label, string value, bool boldValue = false)
+        {
+            col.Item().Row(r =>
+            {
+                r.ConstantItem(82).Text(label).FontSize(7.5f).Bold();
+                var text = r.RelativeItem().Text(value).FontSize(8);
+                if (boldValue)
+                {
+                    text.Bold();
+                }
+            });
+        }
+
         private static List<SalesPrintRow> BuildSalesPrintRows(List<SalesItemDto> items)
         {
-            var freeByKey = items
+            var freeItems = items
                 .Where(i => string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase))
-                .GroupBy(i => PrintLineKey(i))
-                .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+                .ToList();
+
+            var freeByProduct = freeItems
+                .Where(i => i.ProductID.HasValue && i.ProductID.Value > 0)
+                .GroupBy(i => i.ProductID!.Value)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (
+                        Qty: g.Sum(x => x.Quantity),
+                        Name: FirstFreeDisplayName(g.First())
+                    ));
+
+            var freeByCustom = freeItems
+                .Where(i => !i.ProductID.HasValue || i.ProductID.Value <= 0)
+                .GroupBy(i => (i.CustomItemName ?? i.ProductName ?? string.Empty).Trim())
+                .Where(g => !string.IsNullOrWhiteSpace(g.Key))
+                .ToDictionary(
+                    g => g.Key,
+                    g => (
+                        Qty: g.Sum(x => x.Quantity),
+                        Name: FirstFreeDisplayName(g.First())
+                    ));
 
             var rows = new List<SalesPrintRow>();
-            var consumedFreeKeys = new HashSet<string>();
+            var consumedFreeProductIds = new HashSet<int>();
+            var consumedFreeCustomKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var item in items.Where(i => !string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase)))
             {
-                var key = PrintLineKey(item);
-                freeByKey.TryGetValue(key, out var freeQty);
-                if (freeQty > 0)
+                decimal freeQty = 0;
+                string? freeProductName = null;
+
+                if (item.ProductID.HasValue && item.ProductID.Value > 0
+                    && freeByProduct.TryGetValue(item.ProductID.Value, out var sameProductFree))
                 {
-                    consumedFreeKeys.Add(key);
+                    freeQty = sameProductFree.Qty;
+                    freeProductName = sameProductFree.Name;
+                    consumedFreeProductIds.Add(item.ProductID.Value);
+                }
+                else if (item.PromotionID.HasValue)
+                {
+                    // Different free reward linked by the same promotion (buy X get Y free).
+                    var promoFrees = freeItems
+                        .Where(f => f.PromotionID == item.PromotionID)
+                        .ToList();
+
+                    foreach (var promoFree in promoFrees)
+                    {
+                        if (promoFree.ProductID.HasValue && promoFree.ProductID.Value > 0)
+                        {
+                            if (consumedFreeProductIds.Contains(promoFree.ProductID.Value))
+                                continue;
+                            if (!freeByProduct.TryGetValue(promoFree.ProductID.Value, out var linked))
+                                continue;
+
+                            freeQty = linked.Qty;
+                            freeProductName = linked.Name;
+                            consumedFreeProductIds.Add(promoFree.ProductID.Value);
+                            break;
+                        }
+
+                        var customKey = (promoFree.CustomItemName ?? promoFree.ProductName ?? string.Empty).Trim();
+                        if (string.IsNullOrWhiteSpace(customKey) || consumedFreeCustomKeys.Contains(customKey))
+                            continue;
+                        if (!freeByCustom.TryGetValue(customKey, out var customFree))
+                            continue;
+
+                        freeQty = customFree.Qty;
+                        freeProductName = customFree.Name;
+                        consumedFreeCustomKeys.Add(customKey);
+                        break;
+                    }
+                }
+
+                if (freeQty > 0 && string.IsNullOrWhiteSpace(freeProductName))
+                {
+                    freeProductName = item.ProductName;
                 }
 
                 rows.Add(new SalesPrintRow
@@ -251,52 +328,66 @@ namespace InventorySystem.Services.Implementations
                     ProductName = item.ProductName,
                     Qty = item.Quantity,
                     FreeQty = freeQty,
+                    FreeProductName = freeQty > 0 ? freeProductName : null,
                     UnitPrice = item.UnitPrice,
                     Amount = item.LineTotal
                 });
             }
 
-            foreach (var free in items.Where(i => string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase)))
+            foreach (var free in freeItems)
             {
-                var key = PrintLineKey(free);
-                if (consumedFreeKeys.Contains(key))
+                if (free.ProductID.HasValue && free.ProductID.Value > 0)
                 {
-                    continue;
+                    if (consumedFreeProductIds.Contains(free.ProductID.Value))
+                        continue;
+                    consumedFreeProductIds.Add(free.ProductID.Value);
+                }
+                else
+                {
+                    var key = (free.CustomItemName ?? free.ProductName ?? string.Empty).Trim();
+                    if (consumedFreeCustomKeys.Contains(key))
+                        continue;
+                    consumedFreeCustomKeys.Add(key);
                 }
 
+                var freeName = FirstFreeDisplayName(free);
                 rows.Add(new SalesPrintRow
                 {
                     ProductCode = FormatProductCode(free),
-                    ProductName = free.ProductName,
+                    ProductName = freeName,
                     Qty = 0,
                     FreeQty = free.Quantity,
+                    FreeProductName = freeName,
                     UnitPrice = 0,
                     Amount = 0
                 });
-                consumedFreeKeys.Add(key);
             }
 
             return rows;
         }
 
-        private static string PrintLineKey(SalesItemDto item)
+        private static string FirstFreeDisplayName(SalesItemDto free)
         {
-            if (item.ProductID.HasValue && item.ProductID.Value > 0)
-            {
-                return $"P:{item.ProductID.Value}";
-            }
-
-            return $"C:{item.CustomItemName ?? item.ProductName}";
+            if (!string.IsNullOrWhiteSpace(free.CustomItemName))
+                return free.CustomItemName.Trim();
+            if (!string.IsNullOrWhiteSpace(free.ProductName))
+                return free.ProductName.Trim();
+            return "Free Item";
         }
 
         private static string FormatProductCode(SalesItemDto item)
         {
+            if (!string.IsNullOrWhiteSpace(item.SKU))
+            {
+                return item.SKU!;
+            }
+
             if (item.ProductID.HasValue && item.ProductID.Value > 0)
             {
                 return item.ProductID.Value.ToString("D6");
             }
 
-            return string.IsNullOrWhiteSpace(item.SKU) ? "-" : item.SKU!;
+            return "-";
         }
 
         private static string FormatQty(decimal qty)
@@ -310,6 +401,7 @@ namespace InventorySystem.Services.Implementations
             public string ProductName { get; set; } = string.Empty;
             public decimal Qty { get; set; }
             public decimal FreeQty { get; set; }
+            public string? FreeProductName { get; set; }
             public decimal UnitPrice { get; set; }
             public decimal Amount { get; set; }
         }
@@ -633,6 +725,126 @@ namespace InventorySystem.Services.Implementations
             return document.GeneratePdf();
         }
 
+        public byte[] GenerateCompanyStockReportPdf(
+            IReadOnlyList<CompanyStockReportRowDto> rows,
+            CompanyStockReportSummaryDto summary,
+            string scopeLabel,
+            bool includeCompanyColumn)
+        {
+            rows ??= Array.Empty<CompanyStockReportRowDto>();
+            summary ??= new CompanyStockReportSummaryDto();
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(28);
+                    page.PageColor(Colors.White);
+                    page.DefaultTextStyle(x => x.FontSize(9).FontColor(Colors.Grey.Darken3));
+
+                    page.Header().Column(col =>
+                    {
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text("WHOLESALE DISTRIBUTOR").FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
+                                c.Item().Text("Company Stock Report").FontSize(11).SemiBold().FontColor(Colors.Grey.Medium);
+                            });
+
+                            row.ConstantItem(200).Column(c =>
+                            {
+                                c.Item().Text($"Scope: {scopeLabel}").FontSize(10).Bold().AlignRight();
+                                c.Item().Text($"Date: {DateTime.Now:dd MMM yyyy HH:mm}").FontSize(9).AlignRight();
+                            });
+                        });
+
+                        col.Item().PaddingVertical(6).LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
+                    });
+
+                    page.Content().Column(col =>
+                    {
+                        col.Item().PaddingBottom(10).Row(r =>
+                        {
+                            r.RelativeItem().Text($"Products: {summary.TotalProducts:N0}").Bold();
+                            r.RelativeItem().Text($"Total Stock: {summary.TotalStockQuantity:N0}").Bold();
+                            r.RelativeItem().Text($"Low Stock: {summary.LowStockCount:N0}").Bold().FontColor(Colors.Orange.Darken2);
+                            r.RelativeItem().Text($"Out of Stock: {summary.OutOfStockCount:N0}").Bold().FontColor(Colors.Red.Darken2);
+                        });
+
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                if (includeCompanyColumn)
+                                    columns.RelativeColumn(2.2f);
+                                columns.RelativeColumn(2.8f);
+                                columns.RelativeColumn(1.4f);
+                                columns.RelativeColumn(1.1f);
+                                columns.RelativeColumn(1.1f);
+                                columns.RelativeColumn(1.1f);
+                                columns.RelativeColumn(1.2f);
+                            });
+
+                            table.Header(header =>
+                            {
+                                void H(string text, bool right = false)
+                                {
+                                    var cell = header.Cell().Background(Colors.Grey.Lighten3).Padding(4);
+                                    if (right) cell.AlignRight().Text(text).Bold();
+                                    else cell.Text(text).Bold();
+                                }
+
+                                if (includeCompanyColumn) H("Company");
+                                H("Product");
+                                H("SKU");
+                                H("Base Unit");
+                                H("Stock", true);
+                                H("Reorder", true);
+                                H("Status");
+                            });
+
+                            foreach (var item in rows)
+                            {
+                                void C(string text, bool right = false)
+                                {
+                                    var cell = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(3);
+                                    if (right) cell.AlignRight().Text(text);
+                                    else cell.Text(text);
+                                }
+
+                                if (includeCompanyColumn) C(item.CompanyName);
+                                C(item.ProductName);
+                                C(item.SKU ?? "-");
+                                C(item.BaseUnitName);
+                                C(item.CurrentStock.ToString("N0"), true);
+                                C(item.ReorderLevel.ToString("N0"), true);
+                                C(item.Status);
+                            }
+
+                            if (rows.Count == 0)
+                            {
+                                var span = includeCompanyColumn ? 7 : 6;
+                                table.Cell().ColumnSpan((uint)span).Padding(8).AlignCenter()
+                                    .Text("No stock rows for current filters.").FontColor(Colors.Grey.Medium);
+                            }
+                        });
+                    });
+
+                    page.Footer().AlignCenter().Text(x =>
+                    {
+                        x.Span("Page ");
+                        x.CurrentPageNumber();
+                        x.Span(" of ");
+                        x.TotalPages();
+                    });
+                });
+            });
+
+            return document.GeneratePdf();
+        }
+
         public byte[] GenerateAnalyticsReportPdf(AnalyticsKpiSummaryDto kpi, InventoryInsightsDto inventory, System.Collections.Generic.List<BusinessInsightDto> insights, System.Collections.Generic.List<StockRiskItemDto> stockRisk, string preset)
         {
             var document = Document.Create(container =>
@@ -784,88 +996,86 @@ namespace InventorySystem.Services.Implementations
             }
 
             var productRows = loadSheet.ProductRows ?? new System.Collections.Generic.List<LoadSheetProductRowDto>();
-            var navy = Color.FromHex("#1B365D");
-            var navySoft = Color.FromHex("#E8EEF4");
-            var line = Color.FromHex("#D5DEE8");
-            var ink = Color.FromHex("#243447");
+            var black = Colors.Black;
+            var softGray = Color.FromHex("#F2F2F2");
+            var line = Color.FromHex("#BDBDBD");
 
             var document = Document.Create(container =>
             {
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4);
-                    page.Margin(28);
+                    page.Margin(16);
                     page.PageColor(Colors.White);
-                    page.DefaultTextStyle(x => x.FontSize(9).FontColor(ink));
+                    page.DefaultTextStyle(x => x.FontSize(8).FontColor(black));
 
                     page.Header().Element(header => ComposeLoadSheetHeader(
-                        header, loadSheet, "LOAD SHEET", "Product Load Summary", navy, navySoft));
+                        header, loadSheet, "LOAD SHEET", "Product Load Summary"));
 
-                    page.Content().PaddingTop(8).Column(col =>
+                    page.Content().PaddingTop(4).Column(col =>
                     {
                         col.Item().Table(table =>
                         {
                             table.ColumnsDefinition(columns =>
                             {
-                                columns.ConstantColumn(28);
-                                columns.RelativeColumn(1.3f);
-                                columns.RelativeColumn(2.2f);
-                                columns.RelativeColumn(2.6f);
-                                columns.ConstantColumn(78);
+                                columns.ConstantColumn(22);
+                                columns.RelativeColumn(1.2f);
+                                columns.RelativeColumn(2.8f);
+                                columns.RelativeColumn(1.1f);
+                                columns.ConstantColumn(70);
                             });
 
                             table.Header(h =>
                             {
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "#"));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Product ID"));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Product Name"));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Description"));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Total Count", alignRight: true));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "#"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Product ID"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Product Name"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Base Unit Price", alignRight: true));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Total Count", alignRight: true));
                             });
 
                             int index = 1;
                             foreach (var row in productRows)
                             {
-                                var bg = index % 2 == 0 ? navySoft : Colors.White;
+                                var bg = index % 2 == 0 ? softGray : Colors.White;
                                 table.Cell().Element(c => LoadSheetBodyCell(c, bg, index.ToString()));
                                 table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.ProductIdDisplay));
                                 table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.ProductName));
-                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.Description ?? "—"));
+                                table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.UnitPrice.ToString("N2"), alignRight: true));
                                 table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.TotalQuantity.ToString("0.##"), alignRight: true));
                                 index++;
                             }
 
                             if (!productRows.Any())
                             {
-                                table.Cell().ColumnSpan(5).Padding(14).AlignCenter()
+                                table.Cell().ColumnSpan(5).Padding(8).AlignCenter()
                                     .Text("No products to load.").Italic().FontColor(Colors.Grey.Medium);
                             }
                             else
                             {
-                                table.Cell().ColumnSpan(4).Background(navy).Padding(6)
-                                    .Text("TOTAL COUNT").FontColor(Colors.White).Bold().FontSize(8);
-                                table.Cell().Background(navy).Padding(6).AlignRight()
-                                    .Text(loadSheet.TotalCountSum.ToString("0.##")).FontColor(Colors.White).Bold();
+                                table.Cell().ColumnSpan(4).Background(black).PaddingVertical(3).PaddingHorizontal(4)
+                                    .Text("TOTAL COUNT").FontColor(Colors.White).Bold().FontSize(7);
+                                table.Cell().Background(black).PaddingVertical(3).PaddingHorizontal(4).AlignRight()
+                                    .Text(loadSheet.TotalCountSum.ToString("0.##")).FontColor(Colors.White).Bold().FontSize(8);
                             }
                         });
 
-                        col.Item().PaddingTop(28).Row(row =>
+                        col.Item().PaddingTop(12).Row(row =>
                         {
-                            row.RelativeItem().Height(58).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            row.RelativeItem().Height(36).Border(1).BorderColor(line).Padding(5).Column(c =>
                             {
-                                c.Item().Text("Warehouse / Loading Notes").FontSize(8).SemiBold().FontColor(navy);
-                                c.Item().PaddingTop(4).Text(" ").FontSize(8);
+                                c.Item().Text("Warehouse / Loading Notes").FontSize(7).SemiBold();
                             });
-                            row.ConstantItem(12);
-                            row.RelativeItem().Height(58).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            row.ConstantItem(8);
+                            row.RelativeItem().Height(36).Border(1).BorderColor(line).Padding(5).Column(c =>
                             {
-                                c.Item().Text("Checked By").FontSize(8).SemiBold().FontColor(navy);
-                                c.Item().PaddingTop(18).LineHorizontal(0.5f).LineColor(line);
+                                c.Item().Text("Checked By").FontSize(7).SemiBold();
+                                c.Item().PaddingTop(10).LineHorizontal(0.5f).LineColor(line);
                             });
                         });
                     });
 
-                    page.Footer().Element(footer => ComposeLoadSheetFooter(footer, "Product Load Summary", navy));
+                    page.Footer().Element(footer => ComposeLoadSheetFooter(footer, "Product Load Summary"));
                 });
             });
 
@@ -880,24 +1090,23 @@ namespace InventorySystem.Services.Implementations
             }
 
             var invoiceRows = loadSheet.InvoiceRows ?? new System.Collections.Generic.List<LoadSheetInvoiceRowDto>();
-            var navy = Color.FromHex("#1B365D");
-            var navySoft = Color.FromHex("#E8EEF4");
-            var line = Color.FromHex("#D5DEE8");
-            var ink = Color.FromHex("#243447");
+            var black = Colors.Black;
+            var softGray = Color.FromHex("#F2F2F2");
+            var line = Color.FromHex("#BDBDBD");
 
             var document = Document.Create(container =>
             {
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4);
-                    page.Margin(28);
+                    page.Margin(16);
                     page.PageColor(Colors.White);
-                    page.DefaultTextStyle(x => x.FontSize(9).FontColor(ink));
+                    page.DefaultTextStyle(x => x.FontSize(8).FontColor(black));
 
                     page.Header().Element(header => ComposeLoadSheetHeader(
-                        header, loadSheet, "LOAD SHEET", "Party Invoice Report", navy, navySoft));
+                        header, loadSheet, "LOAD SHEET", "Party Invoice Report"));
 
-                    page.Content().PaddingTop(8).Column(col =>
+                    page.Content().PaddingTop(4).Column(col =>
                     {
                         col.Item().Table(table =>
                         {
@@ -914,19 +1123,19 @@ namespace InventorySystem.Services.Implementations
 
                             table.Header(h =>
                             {
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Bill No"));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Order Date"));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Party Name"));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Address"));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Amount", alignRight: true));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Discount", alignRight: true));
-                                h.Cell().Element(c => LoadSheetHeaderCell(c, navy, "Total Amount", alignRight: true));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Bill No"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Order Date"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Party Name"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Address"));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Amount", alignRight: true));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Discount", alignRight: true));
+                                h.Cell().Element(c => LoadSheetHeaderCell(c, "Total Amount", alignRight: true));
                             });
 
                             int index = 0;
                             foreach (var row in invoiceRows)
                             {
-                                var bg = index % 2 == 0 ? navySoft : Colors.White;
+                                var bg = index % 2 == 0 ? softGray : Colors.White;
                                 table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.InvoiceNumber));
                                 table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.InvoiceDate.ToString("dd-MMM-yyyy")));
                                 table.Cell().Element(c => LoadSheetBodyCell(c, bg, row.PartyName));
@@ -939,38 +1148,38 @@ namespace InventorySystem.Services.Implementations
 
                             if (invoiceRows.Any())
                             {
-                                table.Cell().ColumnSpan(4).Background(navy).Padding(6)
-                                    .Text($"TOTAL  ·  {invoiceRows.Count} invoice{(invoiceRows.Count == 1 ? "" : "s")}").FontColor(Colors.White).Bold().FontSize(8);
-                                table.Cell().Background(navy).Padding(6).AlignRight()
-                                    .Text(loadSheet.TotalAmountSum.ToString("N2")).FontColor(Colors.White).Bold();
-                                table.Cell().Background(navy).Padding(6).AlignRight()
-                                    .Text(loadSheet.TotalDiscountSum.ToString("N2")).FontColor(Colors.White).Bold();
-                                table.Cell().Background(navy).Padding(6).AlignRight()
-                                    .Text(loadSheet.TotalGrandSum.ToString("N2")).FontColor(Colors.White).Bold();
+                                table.Cell().ColumnSpan(4).Background(black).PaddingVertical(3).PaddingHorizontal(4)
+                                    .Text($"TOTAL  ·  {invoiceRows.Count} invoice{(invoiceRows.Count == 1 ? "" : "s")}").FontColor(Colors.White).Bold().FontSize(7);
+                                table.Cell().Background(black).PaddingVertical(3).PaddingHorizontal(4).AlignRight()
+                                    .Text(loadSheet.TotalAmountSum.ToString("N2")).FontColor(Colors.White).Bold().FontSize(8);
+                                table.Cell().Background(black).PaddingVertical(3).PaddingHorizontal(4).AlignRight()
+                                    .Text(loadSheet.TotalDiscountSum.ToString("N2")).FontColor(Colors.White).Bold().FontSize(8);
+                                table.Cell().Background(black).PaddingVertical(3).PaddingHorizontal(4).AlignRight()
+                                    .Text(loadSheet.TotalGrandSum.ToString("N2")).FontColor(Colors.White).Bold().FontSize(8);
                             }
                         });
 
-                        col.Item().PaddingTop(22).Row(row =>
+                        col.Item().PaddingTop(10).Row(row =>
                         {
-                            row.RelativeItem().Height(54).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            row.RelativeItem().Height(34).Border(1).BorderColor(line).Padding(5).Column(c =>
                             {
-                                c.Item().Text("Cash / Return").FontSize(8).SemiBold().FontColor(navy);
+                                c.Item().Text("Cash / Return").FontSize(7).SemiBold();
                             });
-                            row.ConstantItem(10);
-                            row.RelativeItem().Height(54).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            row.ConstantItem(6);
+                            row.RelativeItem().Height(34).Border(1).BorderColor(line).Padding(5).Column(c =>
                             {
-                                c.Item().Text("Return Stock Notes").FontSize(8).SemiBold().FontColor(navy);
+                                c.Item().Text("Return Stock Notes").FontSize(7).SemiBold();
                             });
-                            row.ConstantItem(10);
-                            row.RelativeItem().Height(54).Border(1).BorderColor(line).Padding(8).Column(c =>
+                            row.ConstantItem(6);
+                            row.RelativeItem().Height(34).Border(1).BorderColor(line).Padding(5).Column(c =>
                             {
-                                c.Item().Text("Received By").FontSize(8).SemiBold().FontColor(navy);
-                                c.Item().PaddingTop(16).LineHorizontal(0.5f).LineColor(line);
+                                c.Item().Text("Received By").FontSize(7).SemiBold();
+                                c.Item().PaddingTop(10).LineHorizontal(0.5f).LineColor(line);
                             });
                         });
                     });
 
-                    page.Footer().Element(footer => ComposeLoadSheetFooter(footer, "Party Invoice Report", navy));
+                    page.Footer().Element(footer => ComposeLoadSheetFooter(footer, "Party Invoice Report"));
                 });
             });
 
@@ -981,80 +1190,78 @@ namespace InventorySystem.Services.Implementations
             IContainer container,
             LoadSheetDto loadSheet,
             string title,
-            string subtitle,
-            Color navy,
-            Color navySoft)
+            string subtitle)
         {
             container.Column(col =>
             {
-                col.Item().Background(navy).PaddingVertical(12).PaddingHorizontal(14).Row(row =>
+                col.Item().BorderBottom(1).BorderColor(Colors.Black).PaddingBottom(4).Row(row =>
                 {
                     row.RelativeItem().Column(c =>
                     {
-                        c.Item().Text("WIMS").FontSize(8).FontColor(Colors.White);
-                        c.Item().Text(title).FontSize(16).Bold().FontColor(Colors.White);
-                        c.Item().Text(subtitle).FontSize(9).FontColor(Color.FromHex("#C5D4E4"));
+                        c.Item().Text("WIMS").FontSize(7).FontColor(Colors.Grey.Darken2);
+                        c.Item().Text(title).FontSize(13).Bold();
+                        c.Item().Text(subtitle).FontSize(8).FontColor(Colors.Grey.Darken2);
                     });
-                    row.ConstantItem(210).AlignRight().AlignMiddle().Column(c =>
+                    row.ConstantItem(180).AlignRight().AlignMiddle().Column(c =>
                     {
-                        c.Item().Text(loadSheet.FilterDate.ToString("dd MMMM yyyy")).FontSize(11).Bold().FontColor(Colors.White).AlignRight();
-                        c.Item().Text($"{loadSheet.InvoiceRows.Count} invoice{(loadSheet.InvoiceRows.Count == 1 ? "" : "s")}").FontSize(8).FontColor(Color.FromHex("#C5D4E4")).AlignRight();
+                        c.Item().Text(loadSheet.FilterDate.ToString("dd MMMM yyyy")).FontSize(9).Bold().AlignRight();
+                        c.Item().Text($"{loadSheet.InvoiceRows.Count} invoice{(loadSheet.InvoiceRows.Count == 1 ? "" : "s")}").FontSize(7).FontColor(Colors.Grey.Darken2).AlignRight();
                     });
                 });
 
-                col.Item().Background(navySoft).PaddingVertical(8).PaddingHorizontal(12).Row(row =>
+                col.Item().PaddingTop(4).PaddingBottom(2).Row(row =>
                 {
                     row.RelativeItem().Column(c =>
                     {
-                        c.Item().Text("BROKER").FontSize(7).FontColor(navy).SemiBold();
-                        c.Item().Text(loadSheet.BrokerName).FontSize(10).Bold();
+                        c.Item().Text("BOOKER").FontSize(6).FontColor(Colors.Grey.Darken2).SemiBold();
+                        c.Item().Text(loadSheet.BookerName).FontSize(9).Bold();
                     });
                     row.RelativeItem().Column(c =>
                     {
-                        c.Item().Text("DELIVERY PERSON").FontSize(7).FontColor(navy).SemiBold();
-                        c.Item().Text(loadSheet.DeliveryPersonDisplay).FontSize(10).Bold();
+                        c.Item().Text("SUPPLIER").FontSize(6).FontColor(Colors.Grey.Darken2).SemiBold();
+                        c.Item().Text(loadSheet.SupplierDisplay).FontSize(9).Bold();
                     });
                     row.RelativeItem().Column(c =>
                     {
-                        c.Item().Text("SALESPERSON").FontSize(7).FontColor(navy).SemiBold();
-                        c.Item().Text(string.IsNullOrWhiteSpace(loadSheet.SalespersonDisplay) ? "—" : loadSheet.SalespersonDisplay).FontSize(10).Bold();
+                        c.Item().Text("SALESPERSON").FontSize(6).FontColor(Colors.Grey.Darken2).SemiBold();
+                        c.Item().Text(string.IsNullOrWhiteSpace(loadSheet.SalespersonDisplay) ? "—" : loadSheet.SalespersonDisplay).FontSize(9).Bold();
                     });
                 });
             });
         }
 
-        private static void ComposeLoadSheetFooter(IContainer container, string documentLabel, Color navy)
+        private static void ComposeLoadSheetFooter(IContainer container, string documentLabel)
         {
-            container.PaddingTop(8).Row(row =>
+            container.PaddingTop(4).BorderTop(0.5f).BorderColor(Color.FromHex("#BDBDBD")).PaddingTop(3).Row(row =>
             {
-                row.RelativeItem().Text($"WIMS  ·  {documentLabel}").FontSize(8).FontColor(navy);
-                row.RelativeItem().AlignCenter().Text($"Generated {DateTime.Now:dd-MMM-yyyy HH:mm}").FontSize(8).FontColor(Colors.Grey.Medium);
+                row.RelativeItem().Text($"WIMS  ·  {documentLabel}").FontSize(7).FontColor(Colors.Grey.Darken2);
+                row.RelativeItem().AlignCenter().Text($"Generated {DateTime.Now:dd-MMM-yyyy HH:mm}").FontSize(7).FontColor(Colors.Grey.Medium);
                 row.RelativeItem().AlignRight().Text(x =>
                 {
-                    x.Span("Page ").FontSize(8).FontColor(Colors.Grey.Medium);
-                    x.CurrentPageNumber().FontSize(8).FontColor(Colors.Grey.Medium);
-                    x.Span(" of ").FontSize(8).FontColor(Colors.Grey.Medium);
-                    x.TotalPages().FontSize(8).FontColor(Colors.Grey.Medium);
+                    x.Span("Page ").FontSize(7).FontColor(Colors.Grey.Medium);
+                    x.CurrentPageNumber().FontSize(7).FontColor(Colors.Grey.Medium);
+                    x.Span(" of ").FontSize(7).FontColor(Colors.Grey.Medium);
+                    x.TotalPages().FontSize(7).FontColor(Colors.Grey.Medium);
                 });
             });
         }
 
-        private static void LoadSheetHeaderCell(IContainer container, Color navy, string text, bool alignRight = false)
+        private static void LoadSheetHeaderCell(IContainer container, string text, bool alignRight = false)
         {
-            var cell = container.Background(navy).PaddingVertical(6).PaddingHorizontal(6);
+            var cell = container.Background(Colors.Black).PaddingVertical(3).PaddingHorizontal(4);
             if (alignRight)
             {
-                cell.AlignRight().Text(text).FontColor(Colors.White).SemiBold().FontSize(8);
+                cell.AlignRight().Text(text).FontColor(Colors.White).SemiBold().FontSize(7);
             }
             else
             {
-                cell.Text(text).FontColor(Colors.White).SemiBold().FontSize(8);
+                cell.Text(text).FontColor(Colors.White).SemiBold().FontSize(7);
             }
         }
 
         private static void LoadSheetBodyCell(IContainer container, string background, string text, bool alignRight = false)
         {
-            var cell = container.Background(background).BorderBottom(0.5f).BorderColor(Color.FromHex("#D5DEE8")).PaddingVertical(5).PaddingHorizontal(6);
+            var cell = container.Background(background).BorderBottom(0.5f).BorderColor(Color.FromHex("#BDBDBD")).PaddingVertical(2).PaddingHorizontal(4);
             if (alignRight)
             {
                 cell.AlignRight().Text(text).FontSize(8);

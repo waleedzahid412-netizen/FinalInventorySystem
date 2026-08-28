@@ -1,0 +1,85 @@
+@model InventorySystem.ViewModels.Roles.CreateRoleViewModel
+@{
+    var isReadOnly = ViewData["IsReadOnlyMatrix"] as bool? ?? false;
+}
+
+<div class="border rounded p-3 bg-light-subtle">
+    <h2 class="h6 fw-bold mb-3">Role Permissions</h2>
+
+    <ul class="nav nav-tabs" id="permissionModuleTabs" role="tablist">
+        @for (var mi = 0; mi < Model.Modules.Count; mi++)
+        {
+            var module = Model.Modules[mi];
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(mi == 0 ? "active" : "")" id="tab-@module.ModuleKey" data-bs-toggle="tab"
+                        data-bs-target="#panel-@module.ModuleKey" type="button" role="tab">
+                    @module.ModuleName
+                </button>
+            </li>
+        }
+    </ul>
+
+    <div class="tab-content border border-top-0 bg-white p-3" id="permissionModulePanels">
+        @for (var mi = 0; mi < Model.Modules.Count; mi++)
+        {
+            var module = Model.Modules[mi];
+            <div class="tab-pane fade @(mi == 0 ? "show active" : "")" id="panel-@module.ModuleKey" role="tabpanel">
+                <input type="hidden" asp-for="Modules[mi].ApplicationModuleID" />
+                <input type="hidden" asp-for="Modules[mi].ModuleKey" />
+                <input type="hidden" asp-for="Modules[mi].ModuleName" />
+
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0 permission-matrix" data-module-index="@mi">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">
+                                    @if (!isReadOnly)
+                                    {
+                                        <input type="checkbox" class="form-check-input select-all-module" title="Select all in tab" />
+                                    }
+                                </th>
+                                <th>Page Name</th>
+                                <th class="text-center">View</th>
+                                <th class="text-center">Add</th>
+                                <th class="text-center">Edit</th>
+                                <th class="text-center">Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var pi = 0; pi < module.Pages.Count; pi++)
+                            {
+                                var pageRow = module.Pages[pi];
+                                <tr data-row-index="@pi">
+                                    <td>
+                                        @if (!isReadOnly)
+                                        {
+                                            <input type="checkbox" class="form-check-input select-all-row" title="Select all actions" />
+                                        }
+                                    </td>
+                                    <td class="fw-semibold">
+                                        @pageRow.PageName
+                                        <input type="hidden" asp-for="Modules[mi].Pages[pi].ApplicationPageID" />
+                                        <input type="hidden" asp-for="Modules[mi].Pages[pi].PageKey" />
+                                        <input type="hidden" asp-for="Modules[mi].Pages[pi].PageName" />
+                                    </td>
+                                    <td class="text-center">
+                                        <input asp-for="Modules[mi].Pages[pi].CanView" class="form-check-input perm-view" disabled="@isReadOnly" />
+                                    </td>
+                                    <td class="text-center">
+                                        <input asp-for="Modules[mi].Pages[pi].CanAdd" class="form-check-input perm-add" disabled="@isReadOnly" />
+                                    </td>
+                                    <td class="text-center">
+                                        <input asp-for="Modules[mi].Pages[pi].CanEdit" class="form-check-input perm-edit" disabled="@isReadOnly" />
+                                    </td>
+                                    <td class="text-center">
+                                        <input asp-for="Modules[mi].Pages[pi].CanDelete" class="form-check-input perm-delete" disabled="@isReadOnly" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+</div>

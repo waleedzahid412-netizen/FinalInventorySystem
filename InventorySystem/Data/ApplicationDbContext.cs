@@ -18,6 +18,10 @@ namespace InventorySystem.Data
         // =========================================================
         public DbSet<Role> Roles { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<UserCompany> UserCompanies { get; set; }
+        public DbSet<ApplicationModule> ApplicationModules { get; set; }
+        public DbSet<ApplicationPage> ApplicationPages { get; set; }
+        public DbSet<RolePermission> RolePermissions { get; set; }
         public DbSet<Company> Companies { get; set; }
         public DbSet<Area> Areas { get; set; }
         public DbSet<SubArea> SubAreas { get; set; }
@@ -27,8 +31,8 @@ namespace InventorySystem.Data
         public DbSet<Unit> Units { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<ProductUnit> ProductUnits { get; set; }
-        public DbSet<DeliveryPerson> DeliveryPersons { get; set; }
-        public DbSet<Broker> Brokers { get; set; }
+        public DbSet<Supplier> Suppliers { get; set; }
+        public DbSet<Booker> Bookers { get; set; }
 
         // =========================================================
         // INVENTORY
@@ -128,6 +132,39 @@ namespace InventorySystem.Data
             });
 
             // =============================================================
+            // PERMISSION MODULES & PAGES
+            // =============================================================
+            modelBuilder.Entity<ApplicationModule>(entity =>
+            {
+                entity.HasIndex(m => m.ModuleKey).IsUnique();
+            });
+
+            modelBuilder.Entity<ApplicationPage>(entity =>
+            {
+                entity.HasIndex(p => p.PageKey).IsUnique();
+
+                entity.HasOne(p => p.Module)
+                    .WithMany(m => m.Pages)
+                    .HasForeignKey(p => p.ApplicationModuleID)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<RolePermission>(entity =>
+            {
+                entity.HasIndex(rp => new { rp.RoleID, rp.ApplicationPageID }).IsUnique();
+
+                entity.HasOne(rp => rp.Role)
+                    .WithMany(r => r.RolePermissions)
+                    .HasForeignKey(rp => rp.RoleID)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(rp => rp.Page)
+                    .WithMany(p => p.RolePermissions)
+                    .HasForeignKey(rp => rp.ApplicationPageID)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // =============================================================
             // USERS
             // =============================================================
             modelBuilder.Entity<User>(entity =>
@@ -149,6 +186,34 @@ namespace InventorySystem.Data
                 entity.HasOne(u => u.UpdatedByUser)
                     .WithMany()
                     .HasForeignKey(u => u.UpdatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            // =============================================================
+            // USER COMPANIES (company access allow-list)
+            // =============================================================
+            modelBuilder.Entity<UserCompany>(entity =>
+            {
+                entity.HasIndex(uc => new { uc.UserID, uc.CompanyID }).IsUnique();
+
+                entity.HasOne(uc => uc.User)
+                    .WithMany(u => u.UserCompanies)
+                    .HasForeignKey(uc => uc.UserID)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(uc => uc.Company)
+                    .WithMany(c => c.UserCompanies)
+                    .HasForeignKey(uc => uc.CompanyID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(uc => uc.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(uc => uc.CreatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(uc => uc.UpdatedByUser)
+                    .WithMany()
+                    .HasForeignKey(uc => uc.UpdatedBy)
                     .OnDelete(DeleteBehavior.NoAction);
             });
 
@@ -208,6 +273,8 @@ namespace InventorySystem.Data
             // =============================================================
             modelBuilder.Entity<Customer>(entity =>
             {
+                entity.Property(c => c.PreferredDiscountPercent).HasPrecision(5, 2);
+
                 entity.HasOne(c => c.Area)
                     .WithMany(a => a.Customers)
                     .HasForeignKey(c => c.AreaID)
@@ -268,6 +335,40 @@ namespace InventorySystem.Data
                 entity.HasOne(c => c.UpdatedByUser)
                     .WithMany()
                     .HasForeignKey(c => c.UpdatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            // =============================================================
+            // BOOKERS
+            // =============================================================
+            modelBuilder.Entity<Booker>(entity =>
+            {
+                entity.HasIndex(b => b.CompanyID)
+                    .HasDatabaseName("IX_Bookers_CompanyID");
+
+                entity.HasIndex(b => new { b.CompanyID, b.Name })
+                    .IsUnique()
+                    .HasFilter("[IsDeleted] = 0")
+                    .HasDatabaseName("UX_Bookers_CompanyID_Name");
+
+                entity.HasIndex(b => b.CNIC)
+                    .IsUnique()
+                    .HasFilter("[IsDeleted] = 0 AND [CNIC] IS NOT NULL")
+                    .HasDatabaseName("UX_Bookers_CNIC");
+
+                entity.HasOne(b => b.Company)
+                    .WithMany(c => c.Bookers)
+                    .HasForeignKey(b => b.CompanyID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(b => b.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(b => b.CreatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(b => b.UpdatedByUser)
+                    .WithMany()
+                    .HasForeignKey(b => b.UpdatedBy)
                     .OnDelete(DeleteBehavior.NoAction);
             });
 
@@ -544,9 +645,9 @@ namespace InventorySystem.Data
                     .HasForeignKey(si => si.CompanyID)
                     .OnDelete(DeleteBehavior.NoAction);
 
-                entity.HasOne(si => si.Broker)
+                entity.HasOne(si => si.Booker)
                     .WithMany(b => b.SalesInvoices)
-                    .HasForeignKey(si => si.BrokerID)
+                    .HasForeignKey(si => si.BookerID)
                     .OnDelete(DeleteBehavior.NoAction);
 
                 entity.HasOne(si => si.SalespersonUser)
@@ -555,7 +656,7 @@ namespace InventorySystem.Data
                     .OnDelete(DeleteBehavior.NoAction);
 
                 entity.HasIndex(si => si.CompanyID);
-                entity.HasIndex(si => si.BrokerID);
+                entity.HasIndex(si => si.BookerID);
                 entity.HasIndex(si => si.SalespersonID);
 
                 entity.HasOne(si => si.Warehouse)
@@ -573,9 +674,9 @@ namespace InventorySystem.Data
                     .HasForeignKey(si => si.SubAreaID)
                     .OnDelete(DeleteBehavior.NoAction);
 
-                entity.HasOne(si => si.DeliveryPerson)
-                    .WithMany(dp => dp.SalesInvoices)
-                    .HasForeignKey(si => si.DeliveryPersonID)
+                entity.HasOne(si => si.Supplier)
+                    .WithMany(s => s.SalesInvoices)
+                    .HasForeignKey(si => si.SupplierID)
                     .OnDelete(DeleteBehavior.NoAction);
 
                 entity.HasOne(si => si.Quotation)
@@ -639,6 +740,13 @@ namespace InventorySystem.Data
             // =============================================================
             modelBuilder.Entity<PromotionCampaign>(entity =>
             {
+                entity.HasOne(pc => pc.Company)
+                    .WithMany(c => c.PromotionCampaigns)
+                    .HasForeignKey(pc => pc.CompanyID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(pc => pc.CompanyID);
+
                 entity.HasOne(pc => pc.CreatedByUser)
                     .WithMany()
                     .HasForeignKey(pc => pc.CreatedBy)
@@ -884,6 +992,13 @@ namespace InventorySystem.Data
             // =============================================================
             modelBuilder.Entity<DiscountRule>(entity =>
             {
+                entity.HasOne(dr => dr.Company)
+                    .WithMany(c => c.DiscountRules)
+                    .HasForeignKey(dr => dr.CompanyID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(dr => dr.CompanyID);
+
                 entity.HasOne(dr => dr.CreatedByUser)
                     .WithMany()
                     .HasForeignKey(dr => dr.CreatedBy)

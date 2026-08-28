@@ -22,10 +22,10 @@ namespace InventorySystem.DTOs.Sales
     public class CreateSalesInvoiceDto
     {
         public int CustomerID { get; set; }
-        public int BrokerID { get; set; }
+        public int BookerID { get; set; }
         public int SalespersonID { get; set; }
         public int WarehouseID { get; set; }
-        public int? DeliveryPersonID { get; set; }
+        public int? SupplierID { get; set; }
         public string? InvoiceNumber { get; set; }
         public DateTime InvoiceDate { get; set; } = DateTime.UtcNow;
         public string? Remarks { get; set; }
@@ -52,10 +52,10 @@ namespace InventorySystem.DTOs.Sales
     public class UpdateSalesInvoiceDto
     {
         public int InvoiceID { get; set; }
-        public int BrokerID { get; set; }
+        public int BookerID { get; set; }
         public int SalespersonID { get; set; }
         public DateTime InvoiceDate { get; set; } = DateTime.UtcNow;
-        public int? DeliveryPersonID { get; set; }
+        public int? SupplierID { get; set; }
         public string? Remarks { get; set; }
         public int? AppliedDiscountRuleID { get; set; }
         public string EditReason { get; set; } = string.Empty;
@@ -87,18 +87,19 @@ namespace InventorySystem.DTOs.Sales
         public string CustomerName { get; set; } = string.Empty;
         public string? ShopName { get; set; }
         public string? CustomerAddress { get; set; }
+        public string? CustomerPhone { get; set; }
         public int? CompanyID { get; set; }
         public string? CompanyName { get; set; }
-        public int? BrokerID { get; set; }
-        public string? BrokerName { get; set; }
-        /// <summary>Cash | Bank | Cheque | Credit — from first payment, else Credit when unpaid.</summary>
-        public string PaymentMode { get; set; } = "Credit";
+        public int? BookerID { get; set; }
+        public string? BookerName { get; set; }
+        /// <summary>First recorded payment method, else Cash/Credit inferred from PaidAmount.</summary>
+        public string PaymentMode { get; set; } = string.Empty;
         public int? SalespersonID { get; set; }
         public string? SalespersonName { get; set; }
         public int WarehouseID { get; set; }
         public string WarehouseName { get; set; } = string.Empty;
-        public int? DeliveryPersonID { get; set; }
-        public string? DeliveryPersonName { get; set; }
+        public int? SupplierID { get; set; }
+        public string? SupplierName { get; set; }
         public int? AreaID { get; set; }
         public string? AreaName { get; set; }
         public int? SubAreaID { get; set; }

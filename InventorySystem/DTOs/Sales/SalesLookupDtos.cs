@@ -11,6 +11,8 @@ namespace InventorySystem.DTOs.Sales
         public string? AreaName { get; set; }
         public int? SubAreaID { get; set; }
         public string? SubAreaName { get; set; }
+        /// <summary>Optional preferred invoice discount % from customer master. Null = unset.</summary>
+        public decimal? PreferredDiscountPercent { get; set; }
         public bool ExceedsCreditLimit => CreditLimit > 0 && CurrentOutstanding > CreditLimit;
     }
 }

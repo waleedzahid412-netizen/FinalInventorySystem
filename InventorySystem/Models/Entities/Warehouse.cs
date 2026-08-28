@@ -21,6 +21,9 @@ namespace InventorySystem.Models.Entities
 
         public bool IsActive { get; set; } = true;
 
+        /// <summary>Exactly one non-deleted warehouse should be marked main; used as create-form default.</summary>
+        public bool IsMain { get; set; } = false;
+
         // ===== AUDIT FIELDS =====
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

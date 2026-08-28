@@ -33,8 +33,11 @@
         <p class="text-muted small mb-0">Select items and enter return quantities against Sales Invoice #<strong>@eligibility.InvoiceNumber</strong></p>
     </div>
     <div>
-        <a asp-controller="Sales" asp-action="Details" asp-route-id="@eligibility.InvoiceID" class="btn btn-sm btn-outline-secondary">
+        <a asp-controller="Sales" asp-action="Details" asp-route-id="@eligibility.InvoiceID" class="btn btn-sm btn-outline-secondary me-2">
             <i class="bi bi-arrow-left me-1"></i> Back to Invoice
+        </a>
+        <a asp-action="CreateReturn" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-plus-square me-1"></i> Create Return Wizard
         </a>
     </div>
 </div>
@@ -302,6 +305,15 @@
         $(document).ready(function () {
             const invoiceId = @eligibility.InvoiceID;
 
+            function showReturnError(xhr, fallback) {
+                var msg = (xhr.responseJSON && xhr.responseJSON.message) || fallback;
+                if (window.WimsToast) {
+                    window.WimsToast.show(msg, 'danger');
+                } else {
+                    alert(msg);
+                }
+            }
+
             function getRowMode($row) {
                 const $checked = $row.find('.return-unit-mode:checked');
                 if ($checked.length) {
@@ -509,16 +521,9 @@
                             alert('Preview Refund Calculation Error: ' + (res.message || 'Unknown error'));
                         }
                     },
-                    error: function (xhr, status, error) {
+                    error: function (xhr) {
                         $btn.prop('disabled', false).html('<i class="bi bi-arrow-repeat me-1"></i> Calculate / Preview Refund');
-                        console.error('PreviewSalesClawback AJAX Error:', status, error, xhr.responseText);
-                        let msg = 'HTTP ' + xhr.status + ' (' + error + ')';
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            msg += ': ' + xhr.responseJSON.message;
-                        } else if (xhr.responseText) {
-                            msg += ': ' + xhr.responseText.substring(0, 300);
-                        }
-                        alert('Preview Refund Calculation Error:\n' + msg);
+                        showReturnError(xhr, 'Preview refund calculation failed.');
                     }
                 });
             }
@@ -594,15 +599,8 @@
                             $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Sales Return');
                         }
                     },
-                    error: function (xhr, status, error) {
-                        console.error('ProcessSalesReturn AJAX Error:', status, error, xhr.responseText);
-                        let msg = 'HTTP ' + xhr.status + ' (' + error + ')';
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            msg += ': ' + xhr.responseJSON.message;
-                        } else if (xhr.responseText) {
-                            msg += ': ' + xhr.responseText.substring(0, 300);
-                        }
-                        alert('Failed to process sales return:\n' + msg);
+                    error: function (xhr) {
+                        showReturnError(xhr, 'Failed to process sales return.');
                         $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Sales Return');
                     }
                 });

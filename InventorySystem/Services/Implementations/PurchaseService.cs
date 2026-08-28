@@ -59,15 +59,16 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult<int>.Fail("The selected Warehouse does not exist or is inactive.");
             }
 
-            // Generate or sanitize InvoiceNumber
-            string invoiceNumber = string.IsNullOrWhiteSpace(dto.InvoiceNumber)
-                ? $"PINV-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}"
-                : dto.InvoiceNumber.Trim();
-
-            if (await _purchaseRepository.ExistsByInvoiceNumberAsync(invoiceNumber, null, cancellationToken))
+            // System invoice number is always auto-generated; manual field is SupplierInvoiceNumber.
+            string invoiceNumber = $"PINV-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
+            while (await _purchaseRepository.ExistsByInvoiceNumberAsync(invoiceNumber, null, cancellationToken))
             {
-                return OperationResult<int>.Fail($"A purchase invoice with number '{invoiceNumber}' already exists.");
+                invoiceNumber = $"PINV-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
             }
+
+            string? supplierInvoiceNumber = string.IsNullOrWhiteSpace(dto.SupplierInvoiceNumber)
+                ? null
+                : dto.SupplierInvoiceNumber.Trim();
 
             // Begin single atomic transaction spanning EF Core context session
             await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -137,6 +138,7 @@ namespace InventorySystem.Services.Implementations
                     CompanyID = dto.CompanyID,
                     WarehouseID = dto.WarehouseID,
                     InvoiceNumber = invoiceNumber,
+                    SupplierInvoiceNumber = supplierInvoiceNumber,
                     InvoiceDate = dto.InvoiceDate == default ? DateTime.Today : dto.InvoiceDate,
                     SubTotal = grandTotal,
                     TaxAmount = 0m,

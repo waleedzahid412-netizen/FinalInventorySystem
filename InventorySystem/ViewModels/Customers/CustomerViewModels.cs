@@ -47,6 +47,10 @@ namespace InventorySystem.ViewModels.Customers
         [Display(Name = "Credit Limit (PKR)")]
         public decimal CreditLimit { get; set; } = 0;
 
+        [Range(0, 100, ErrorMessage = "Preferred discount must be between 0 and 100.")]
+        [Display(Name = "Preferred Discount (%)")]
+        public decimal? PreferredDiscountPercent { get; set; }
+
         [Display(Name = "Active Status")]
         public bool IsActive { get; set; } = true;
 
@@ -88,6 +92,10 @@ namespace InventorySystem.ViewModels.Customers
         [Range(0, 100000000, ErrorMessage = "Credit Limit must be a non-negative value.")]
         [Display(Name = "Credit Limit (PKR)")]
         public decimal CreditLimit { get; set; } = 0;
+
+        [Range(0, 100, ErrorMessage = "Preferred discount must be between 0 and 100.")]
+        [Display(Name = "Preferred Discount (%)")]
+        public decimal? PreferredDiscountPercent { get; set; }
 
         [Display(Name = "Active Status")]
         public bool IsActive { get; set; } = true;

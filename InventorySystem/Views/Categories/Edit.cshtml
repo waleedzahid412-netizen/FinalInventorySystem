@@ -20,7 +20,7 @@
 
     <div class="card border-0 shadow-sm col-lg-8 mx-auto">
         <div class="card-body p-4">
-            <form asp-action="Edit" method="post">
+            <form asp-action="Edit" method="post" data-unsaved-company-sensitive>
                 <input type="hidden" asp-for="CategoryID" />
                 @if (Model.HasProducts)
                 {
@@ -30,14 +30,16 @@
 
                 <div class="row g-3">
                     <div class="col-md-12">
-                        <label asp-for="CompanyID" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
-                        <select asp-for="CompanyID" asp-items="Model.Companies" class="form-select" disabled="@(Model.HasProducts ? "disabled" : null)">
-                            <option value="">-- Select Company --</option>
-                        </select>
-                        <span asp-validation-for="CompanyID" class="text-danger small"></span>
+                        <label class="form-label fw-semibold">Company</label> <span class="text-danger">*</span>
+                        <div>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 fw-semibold px-3 py-2">
+                                <i class="bi bi-building me-1"></i>@Model.CompanyName
+                            </span>
+                        </div>
+                        <input type="hidden" asp-for="CompanyID" />
                         @if (Model.HasProducts)
                         {
-                            <div class="form-text small text-warning">Company cannot be changed because this category is assigned to products.</div>
+                            <div class="form-text small text-muted">Company is fixed for this category.</div>
                         }
                     </div>
 

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using BCrypt.Net;
 using Microsoft.EntityFrameworkCore;
+using InventorySystem.Constants;
 using InventorySystem.Models.Entities;
 
 namespace InventorySystem.Data
@@ -24,6 +25,8 @@ namespace InventorySystem.Data
                     adminRole = new Role
                     {
                         RoleName = "Admin",
+                        RoleDescription = "System administrator with full access",
+                        IsSystemRole = true,
                         IsActive = true,
                         IsDeleted = false,
                         CreatedAt = DateTime.UtcNow
@@ -32,6 +35,35 @@ namespace InventorySystem.Data
                     await context.Roles.AddAsync(adminRole);
                     await context.SaveChangesAsync();
                 }
+                else if (!adminRole.IsSystemRole)
+                {
+                    adminRole.IsSystemRole = true;
+                    adminRole.RoleDescription ??= "System administrator with full access";
+                    await context.SaveChangesAsync();
+                }
+
+                var userRole = await context.Roles
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(r => r.RoleName == "User");
+
+                if (userRole == null)
+                {
+                    userRole = new Role
+                    {
+                        RoleName = "User",
+                        RoleDescription = "Standard user with view-only defaults",
+                        IsSystemRole = false,
+                        IsActive = true,
+                        IsDeleted = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    await context.Roles.AddAsync(userRole);
+                    await context.SaveChangesAsync();
+                }
+
+                await SeedPermissionCatalogAsync(context);
+                await SeedDefaultUserRolePermissionsAsync(context, userRole.RoleID);
 
                 // ===== 2. SEED ADMIN USER =====
                 var adminUser = await context.Users
@@ -81,17 +113,17 @@ namespace InventorySystem.Data
                 // ===== 10. SEED PURCHASE INVOICES =====
                 await SeedPurchaseInvoicesAsync(context, adminUser.UserID, warehouses);
 
-                // ===== 10b. SEED BROKERS =====
-                var brokers = await SeedBrokersAsync(context);
+                // ===== 10b. SEED BOOKERS (company-scoped — BR-043) =====
+                var bookers = await SeedBookersAsync(context, companiesDict);
 
-                // ===== 10c. SEED DELIVERY PERSONS =====
-                var deliveryPersons = await SeedDeliveryPersonsAsync(context);
+                // ===== 10c. SEED SUPPLIERS =====
+                var suppliers = await SeedSuppliersAsync(context);
 
                 // ===== 11. SEED SALES INVOICES =====
-                await SeedSalesInvoicesAsync(context, adminUser.UserID, warehouses, brokers, deliveryPersons);
+                await SeedSalesInvoicesAsync(context, adminUser.UserID, warehouses, bookers, suppliers);
 
                 // ===== 11b. BACKFILL EXISTING INVOICES FOR LOAD SHEET TESTING =====
-                await BackfillExistingInvoicesForLoadSheetTestingAsync(context, brokers, salespersonUsers, deliveryPersons);
+                await BackfillExistingInvoicesForLoadSheetTestingAsync(context, bookers, salespersonUsers, suppliers);
 
                 // ===== 12. SEED PROMOTIONS & DISCOUNTS =====
                 await SeedPromotionsAndDiscountsAsync(context, adminUser.UserID);
@@ -837,9 +869,9 @@ namespace InventorySystem.Data
 
             var warehouses = new List<Warehouse>
             {
-                new Warehouse { Name = "Main Warehouse", Address = "Plot 45, SITE Industrial Area, Karachi", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow, CreatedBy = adminUserId },
-                new Warehouse { Name = "North Warehouse", Address = "Sector I-9/3 Industrial Area, Islamabad", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow, CreatedBy = adminUserId },
-                new Warehouse { Name = "South Warehouse", Address = "Sunder Industrial Estate, Lahore", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow, CreatedBy = adminUserId }
+                new Warehouse { Name = "Main Warehouse", Address = "Plot 45, SITE Industrial Area, Karachi", IsActive = true, IsMain = true, IsDeleted = false, CreatedAt = DateTime.UtcNow, CreatedBy = adminUserId },
+                new Warehouse { Name = "North Warehouse", Address = "Sector I-9/3 Industrial Area, Islamabad", IsActive = true, IsMain = false, IsDeleted = false, CreatedAt = DateTime.UtcNow, CreatedBy = adminUserId },
+                new Warehouse { Name = "South Warehouse", Address = "Sunder Industrial Estate, Lahore", IsActive = true, IsMain = false, IsDeleted = false, CreatedAt = DateTime.UtcNow, CreatedBy = adminUserId }
             };
 
             await context.Warehouses.AddRangeAsync(warehouses);
@@ -1025,18 +1057,23 @@ namespace InventorySystem.Data
 
         private static async Task BackfillExistingInvoicesForLoadSheetTestingAsync(
             ApplicationDbContext context,
-            List<Broker> brokers,
+            List<Booker> bookers,
             List<User> salespersons,
-            List<DeliveryPerson> deliveryPersons)
+            List<Supplier> suppliers)
         {
-            if (brokers.Count < 2 || !salespersons.Any())
+            if (bookers.Count < 2 || !salespersons.Any())
             {
                 return;
             }
 
+            // A Booker belongs to exactly one Company (BR-043), so only invoices of that same
+            // company are eligible for booker backfill.
+            int bookerCompanyId = bookers[0].CompanyID;
+
             var invoices = await context.SalesInvoices
                 .IgnoreQueryFilters()
                 .Where(si => !si.IsDeleted)
+                .Where(si => si.CompanyID == bookerCompanyId)
                 .OrderBy(si => si.InvoiceDate)
                 .ThenBy(si => si.InvoiceID)
                 .ToListAsync();
@@ -1046,14 +1083,14 @@ namespace InventorySystem.Data
                 return;
             }
 
-            // Only Broker and Salesperson are backfilled. Suppliers are resolved per line item through
-            // Product.CompanyID, so no invoice-level supplier is derived here.
-            bool brokersAlreadyAssigned = invoices.Any(i => i.BrokerID.HasValue);
-            if (!brokersAlreadyAssigned)
+            // Only Booker, Salesperson and Supplier are backfilled. The invoice company is already
+            // persisted on each invoice, so no company is derived here.
+            bool bookersAlreadyAssigned = invoices.Any(i => i.BookerID.HasValue);
+            if (!bookersAlreadyAssigned)
             {
-                var brokerA = brokers[0];
-                var brokerB = brokers[1];
-                var brokerC = brokers.Count > 2 ? brokers[2] : brokerA;
+                var bookerA = bookers[0];
+                var bookerB = bookers[1];
+                var bookerC = bookers.Count > 2 ? bookers[2] : bookerA;
                 var userA = salespersons[0];
                 var userB = salespersons.Count > 1 ? salespersons[1] : salespersons[0];
 
@@ -1062,7 +1099,7 @@ namespace InventorySystem.Data
                     .OrderBy(g => g.Key)
                     .ToList();
 
-                bool assignedBrokerC = false;
+                bool assignedBookerC = false;
 
                 foreach (var group in dateGroups)
                 {
@@ -1088,24 +1125,24 @@ namespace InventorySystem.Data
                     for (int i = 0; i < list.Count; i++)
                     {
                         var invoice = list[i];
-                        bool assignBrokerC = list.Count == 1 && !assignedBrokerC;
+                        bool assignBookerC = list.Count == 1 && !assignedBookerC;
 
-                        if (assignBrokerC)
+                        if (assignBookerC)
                         {
-                            invoice.BrokerID = brokerC.BrokerID;
+                            invoice.BookerID = bookerC.BookerID;
                             invoice.SalespersonID = userA.UserID;
-                            assignedBrokerC = true;
+                            assignedBookerC = true;
                             continue;
                         }
 
-                        bool inBrokerAGroup = i < splitIndex;
-                        invoice.BrokerID = inBrokerAGroup ? brokerA.BrokerID : brokerB.BrokerID;
+                        bool inBookerAGroup = i < splitIndex;
+                        invoice.BookerID = inBookerAGroup ? bookerA.BookerID : bookerB.BookerID;
 
-                        if (inBrokerAGroup && list.Count >= 3 && i < 2)
+                        if (inBookerAGroup && list.Count >= 3 && i < 2)
                         {
                             invoice.SalespersonID = userB.UserID;
                         }
-                        else if (!inBrokerAGroup)
+                        else if (!inBookerAGroup)
                         {
                             invoice.SalespersonID = userB.UserID;
                         }
@@ -1117,85 +1154,103 @@ namespace InventorySystem.Data
                 }
             }
 
-            if (deliveryPersons.Any())
+            if (suppliers.Any())
             {
-                var unassigned = invoices.Where(i => !i.DeliveryPersonID.HasValue).ToList();
+                var unassigned = invoices.Where(i => !i.SupplierID.HasValue).ToList();
                 for (int i = 0; i < unassigned.Count; i++)
                 {
-                    unassigned[i].DeliveryPersonID = deliveryPersons[i % deliveryPersons.Count].DeliveryPersonID;
+                    unassigned[i].SupplierID = suppliers[i % suppliers.Count].SupplierID;
                 }
             }
 
             await context.SaveChangesAsync();
         }
 
-        private static async Task<List<Broker>> SeedBrokersAsync(ApplicationDbContext context)
+        private static async Task<List<Booker>> SeedBookersAsync(
+            ApplicationDbContext context,
+            Dictionary<string, Company> companies)
         {
-            if (await context.Brokers.IgnoreQueryFilters().AnyAsync())
+            if (await context.Bookers.IgnoreQueryFilters().AnyAsync())
             {
-                return await context.Brokers.IgnoreQueryFilters().Where(b => !b.IsDeleted).ToListAsync();
+                return await context.Bookers.IgnoreQueryFilters().Where(b => !b.IsDeleted).ToListAsync();
             }
 
-            var brokers = new List<Broker>
+            // A Booker belongs to exactly one Company (BR-043). All seed bookers share the first
+            // company so the seeded single-company sales invoices (BR-044) stay coherent.
+            var company = companies.Values.OrderBy(c => c.CompanyID).FirstOrDefault();
+            if (company == null)
             {
-                new Broker { Name = "Nadeem", Phone = "03001234567", IsActive = true, IsDeleted = false },
-                new Broker { Name = "Imran", Phone = "03007654321", IsActive = true, IsDeleted = false },
-                new Broker { Name = "Asif", Phone = "03009876543", IsActive = true, IsDeleted = false }
+                return new List<Booker>();
+            }
+
+            var now = DateTime.UtcNow;
+
+            var bookers = new List<Booker>
+            {
+                new Booker { CompanyID = company.CompanyID, Name = "Nadeem", CNIC = "42101-1000001-1", Phone = "03001234567", IsActive = true, IsDeleted = false, CreatedAt = now },
+                new Booker { CompanyID = company.CompanyID, Name = "Imran", CNIC = "42101-1000002-1", Phone = "03007654321", IsActive = true, IsDeleted = false, CreatedAt = now },
+                new Booker { CompanyID = company.CompanyID, Name = "Asif", CNIC = "42101-1000003-1", Phone = "03009876543", IsActive = true, IsDeleted = false, CreatedAt = now }
             };
 
-            await context.Brokers.AddRangeAsync(brokers);
+            await context.Bookers.AddRangeAsync(bookers);
             await context.SaveChangesAsync();
-            return brokers;
+            return bookers;
         }
 
-        private static async Task<List<DeliveryPerson>> SeedDeliveryPersonsAsync(ApplicationDbContext context)
+        private static async Task<List<Supplier>> SeedSuppliersAsync(ApplicationDbContext context)
         {
-            if (await context.DeliveryPersons.IgnoreQueryFilters().AnyAsync())
+            if (await context.Suppliers.IgnoreQueryFilters().AnyAsync())
             {
-                return await context.DeliveryPersons.IgnoreQueryFilters().Where(dp => !dp.IsDeleted).ToListAsync();
+                return await context.Suppliers.IgnoreQueryFilters().Where(dp => !dp.IsDeleted).ToListAsync();
             }
 
-            var deliveryPersons = new List<DeliveryPerson>
+            var suppliers = new List<Supplier>
             {
-                new DeliveryPerson { Name = "Khalid", Phone = "03001112233", Type = "Employee", IsActive = true, IsDeleted = false },
-                new DeliveryPerson { Name = "Waseem", Phone = "03004445566", Type = "Employee", IsActive = true, IsDeleted = false },
-                new DeliveryPerson { Name = "Tariq", Phone = "03007778899", Type = "External", IsActive = true, IsDeleted = false }
+                new Supplier { Name = "Khalid", CNIC = "42101-0000001-1", Phone = "03001112233", Address = null, Type = "Employee", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
+                new Supplier { Name = "Waseem", CNIC = "42101-0000002-1", Phone = "03004445566", Address = null, Type = "Employee", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow },
+                new Supplier { Name = "Tariq", CNIC = "42101-0000003-1", Phone = "03007778899", Address = null, Type = "External", IsActive = true, IsDeleted = false, CreatedAt = DateTime.UtcNow }
             };
 
-            await context.DeliveryPersons.AddRangeAsync(deliveryPersons);
+            await context.Suppliers.AddRangeAsync(suppliers);
             await context.SaveChangesAsync();
-            return deliveryPersons;
+            return suppliers;
         }
 
         private static async Task SeedSalesInvoicesAsync(
             ApplicationDbContext context,
             int adminUserId,
             List<Warehouse> warehouses,
-            List<Broker> brokers,
-            List<DeliveryPerson> deliveryPersons)
+            List<Booker> bookers,
+            List<Supplier> suppliers)
         {
             if (await context.SalesInvoices.IgnoreQueryFilters().AnyAsync()) return;
 
-            var mainWarehouse = warehouses.FirstOrDefault() ?? warehouses.First();
+            var mainWarehouse = warehouses.FirstOrDefault(w => w.IsMain) ?? warehouses.First();
             var customers = await context.Customers.IgnoreQueryFilters().Where(c => !c.IsDeleted).ToListAsync();
             var products = await context.Products.IgnoreQueryFilters().Include(p => p.ProductUnits).Where(p => !p.IsDeleted).ToListAsync();
 
-            if (!customers.Any() || !products.Any() || !brokers.Any()) return;
+            if (!customers.Any() || !products.Any() || !bookers.Any()) return;
+
+            // One invoice, one company (BR-044). The invoice company comes from the booker's company,
+            // so every line item must be a product of that same company.
+            int invoiceCompanyId = bookers[0].CompanyID;
+            var companyProducts = products.Where(p => p.CompanyID == invoiceCompanyId).ToList();
+            if (!companyProducts.Any()) return;
+
+            var companyBookers = bookers.Where(b => b.CompanyID == invoiceCompanyId).ToList();
+            if (!companyBookers.Any()) return;
 
             var now = DateTime.UtcNow;
 
             for (int i = 1; i <= 4; i++)
             {
                 var customer = customers[(i - 1) % customers.Count];
-                var product1 = products[(i * 2 - 2) % products.Count];
-                // Deliberately pick a second product from a DIFFERENT supplier so seeded invoices
-                // remain valid mixed-company invoices.
-                var product2 = products
-                    .FirstOrDefault(p => p.CompanyID != product1.CompanyID)
-                    ?? products.FirstOrDefault(p => p.ProductID != product1.ProductID)
-                    ?? product1;
-                var broker = brokers[(i - 1) % brokers.Count];
-                var deliveryPerson = deliveryPersons.Any() ? deliveryPersons[(i - 1) % deliveryPersons.Count] : null;
+                var product1 = companyProducts[(i - 1) % companyProducts.Count];
+                var product2 = companyProducts.Count > 1
+                    ? companyProducts[i % companyProducts.Count]
+                    : product1;
+                var booker = companyBookers[(i - 1) % companyBookers.Count];
+                var supplier = suppliers.Any() ? suppliers[(i - 1) % suppliers.Count] : null;
                 var invoiceDate = now.AddDays(-i);
 
                 var pu1 = product1.ProductUnits.FirstOrDefault() ?? new ProductUnit { UnitID = product1.BaseUnitID, ConversionToBaseUnit = 1m };
@@ -1218,9 +1273,10 @@ namespace InventorySystem.Data
                 var invoice = new SalesInvoice
                 {
                     CustomerID = customer.CustomerID,
-                    BrokerID = broker.BrokerID,
+                    CompanyID = invoiceCompanyId,
+                    BookerID = booker.BookerID,
                     SalespersonID = adminUserId,
-                    DeliveryPersonID = deliveryPerson?.DeliveryPersonID,
+                    SupplierID = supplier?.SupplierID,
                     WarehouseID = mainWarehouse.WarehouseID,
                     AreaID = customer.AreaID,
                     SubAreaID = customer.SubAreaID,
@@ -1306,10 +1362,27 @@ namespace InventorySystem.Data
         {
             var now = DateTime.UtcNow;
 
+            // Promotions and discount rules are company-scoped, and a promotion's buy/free products
+            // must belong to that same company. Pick the first company that has at least 2 products.
+            var allProducts = await context.Products.IgnoreQueryFilters().Where(p => !p.IsDeleted).ToListAsync();
+            var scopedProducts = allProducts
+                .GroupBy(p => p.CompanyID)
+                .Where(g => g.Count() >= 2)
+                .OrderBy(g => g.Key)
+                .Select(g => g.OrderBy(p => p.ProductID).ToList())
+                .FirstOrDefault();
+
+            if (scopedProducts == null)
+            {
+                return;
+            }
+
+            int promoCompanyId = scopedProducts[0].CompanyID;
+
             // Seed Promotion Campaign if none exist
             if (!await context.PromotionCampaigns.IgnoreQueryFilters().AnyAsync())
             {
-                var products = await context.Products.IgnoreQueryFilters().Where(p => !p.IsDeleted).ToListAsync();
+                var products = scopedProducts;
                 if (products.Count >= 2)
                 {
                     var p1 = products[0];
@@ -1318,6 +1391,7 @@ namespace InventorySystem.Data
                     var campaign = new PromotionCampaign
                     {
                         Name = "Bulk Wholesale Buy 5 Get 1 Free Promo",
+                        CompanyID = promoCompanyId,
                         StartDate = now.AddDays(-30),
                         EndDate = now.AddDays(180),
                         IsActive = true,
@@ -1348,6 +1422,7 @@ namespace InventorySystem.Data
                 var rule1 = new DiscountRule
                 {
                     RuleName = "Bulk Order 5% Discount (Orders > PKR 5,000)",
+                    CompanyID = promoCompanyId,
                     MinimumOrderAmount = 5000m,
                     DiscountType = "Percentage",
                     DiscountValue = 5m,
@@ -1363,6 +1438,7 @@ namespace InventorySystem.Data
                 var rule2 = new DiscountRule
                 {
                     RuleName = "VIP Order 10% Discount (Orders > PKR 15,000)",
+                    CompanyID = promoCompanyId,
                     MinimumOrderAmount = 15000m,
                     DiscountType = "Percentage",
                     DiscountValue = 10m,
@@ -1378,6 +1454,100 @@ namespace InventorySystem.Data
                 await context.DiscountRules.AddRangeAsync(rule1, rule2);
                 await context.SaveChangesAsync();
             }
+        }
+
+        private static async Task SeedPermissionCatalogAsync(ApplicationDbContext context)
+        {
+            foreach (var moduleSeed in PermissionSeedData.GetModulesAndPages())
+            {
+                var module = await context.ApplicationModules
+                    .FirstOrDefaultAsync(m => m.ModuleKey == moduleSeed.ModuleKey);
+
+                if (module == null)
+                {
+                    module = new ApplicationModule
+                    {
+                        ModuleKey = moduleSeed.ModuleKey,
+                        ModuleName = moduleSeed.ModuleName,
+                        DisplayOrder = moduleSeed.Order,
+                        IsActive = true
+                    };
+                    await context.ApplicationModules.AddAsync(module);
+                    await context.SaveChangesAsync();
+                }
+                else
+                {
+                    module.ModuleName = moduleSeed.ModuleName;
+                    module.DisplayOrder = moduleSeed.Order;
+                    module.IsActive = true;
+                }
+
+                foreach (var pageSeed in moduleSeed.Pages)
+                {
+                    var page = await context.ApplicationPages
+                        .FirstOrDefaultAsync(p => p.PageKey == pageSeed.PageKey);
+
+                    if (page == null)
+                    {
+                        await context.ApplicationPages.AddAsync(new ApplicationPage
+                        {
+                            ApplicationModuleID = module.ApplicationModuleID,
+                            PageKey = pageSeed.PageKey,
+                            PageName = pageSeed.PageName,
+                            ControllerName = pageSeed.Controller,
+                            DefaultActionName = pageSeed.Action,
+                            DisplayOrder = pageSeed.PageOrder,
+                            IsActive = true
+                        });
+                    }
+                    else
+                    {
+                        page.ApplicationModuleID = module.ApplicationModuleID;
+                        page.PageName = pageSeed.PageName;
+                        page.ControllerName = pageSeed.Controller;
+                        page.DefaultActionName = pageSeed.Action;
+                        page.DisplayOrder = pageSeed.PageOrder;
+                        page.IsActive = true;
+                    }
+                }
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task SeedDefaultUserRolePermissionsAsync(ApplicationDbContext context, int userRoleId)
+        {
+            if (await context.RolePermissions.AnyAsync(rp => rp.RoleID == userRoleId))
+            {
+                return;
+            }
+
+            var viewOnlyKeys = new HashSet<string>
+            {
+                PageKeys.Dashboard,
+                PageKeys.SalesInvoices,
+                PageKeys.Customers,
+                PageKeys.Products
+            };
+
+            var pages = await context.ApplicationPages
+                .Where(p => p.IsActive && viewOnlyKeys.Contains(p.PageKey))
+                .ToListAsync();
+
+            foreach (var page in pages)
+            {
+                await context.RolePermissions.AddAsync(new RolePermission
+                {
+                    RoleID = userRoleId,
+                    ApplicationPageID = page.ApplicationPageID,
+                    CanView = true,
+                    CanAdd = false,
+                    CanEdit = false,
+                    CanDelete = false
+                });
+            }
+
+            await context.SaveChangesAsync();
         }
     }
 }

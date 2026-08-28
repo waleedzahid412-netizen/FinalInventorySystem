@@ -1,0 +1,199 @@
+@using InventorySystem.Controllers
+@using InventorySystem.Services.Implementations
+@using InventorySystem.Services.Interfaces
+@inject ICompanyContext CompanyContext
+@inject ILookupService LookupService
+@inject IUserCompanyAccessService CompanyAccess
+@{
+    await CompanyContext.TryResolveAsync();
+    var companies = await LookupService.GetCompaniesAsync();
+    var canUseAllCompanies = await CompanyAccess.IsCurrentUserAdminAsync();
+    var returnUrl = Context.Request.Path + Context.Request.QueryString;
+    var hasResolved = CompanyContext.HasResolvedScope;
+    var currentValue = CompanyContext.IsAllCompanies
+        ? CompanyScopeController.AllCompaniesCompanyId.ToString()
+        : (CompanyContext.HasCompany ? CompanyContext.CompanyID.ToString() : "");
+    var displayLabel = CompanyContext.IsAllCompanies
+        ? "All Companies"
+        : (CompanyContext.HasCompany ? CompanyContext.CompanyName : "Select company");
+}
+
+<div id="companyScopePicker" class="company-scope-picker d-flex align-items-center">
+    @if (!hasResolved)
+    {
+        <a class="btn btn-sm btn-warning fw-semibold"
+           asp-controller="CompanyScope"
+           asp-action="Select"
+           asp-route-returnUrl="@returnUrl"
+           title="Select a company to continue">
+            <i class="bi bi-building-exclamation me-1"></i> Select company
+        </a>
+    }
+    else
+    {
+        <form asp-controller="CompanyScope" asp-action="Switch" method="post" id="companyScopeSwitchForm" class="mb-0">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@returnUrl" />
+            <label class="visually-hidden" for="companyScopeSelect">Working company</label>
+            <select id="companyScopeSelect"
+                    name="companyId"
+                    class="form-select form-select-sm company-scope-select"
+                    data-no-select2="true"
+                    data-placeholder="Search company..."
+                    data-allow-clear="false"
+                    title="Working company"
+                    aria-label="Working company">
+                @foreach (var company in companies)
+                {
+                    if (CompanyContext.HasCompany && company.Id == CompanyContext.CompanyID)
+                    {
+                        <option value="@company.Id" selected="selected">@company.Name</option>
+                    }
+                    else
+                    {
+                        <option value="@company.Id">@company.Name</option>
+                    }
+                }
+                @if (canUseAllCompanies)
+                {
+                    @if (CompanyContext.IsAllCompanies)
+                    {
+                        <option value="@CompanyScopeController.AllCompaniesCompanyId" data-all-companies="true" selected="selected">
+                            All Companies
+                        </option>
+                    }
+                    else
+                    {
+                        <option value="@CompanyScopeController.AllCompaniesCompanyId" data-all-companies="true">
+                            All Companies
+                        </option>
+                    }
+                }
+            </select>
+        </form>
+        <span class="visually-hidden" id="companyScopeCurrentLabel">@displayLabel</span>
+    }
+</div>
+
+<style>
+    #companyScopePicker .company-scope-select {
+        min-width: 11rem;
+        max-width: 16rem;
+    }
+    #companyScopePicker .select2-container {
+        min-width: 11rem;
+        max-width: 16rem;
+    }
+    #companyScopePicker .select2-container--bootstrap-5 .select2-selection {
+        font-weight: 600;
+        border-color: var(--bs-primary);
+        color: var(--bs-primary);
+    }
+    #companyScopePicker .select2-results__option[data-all-companies="true"],
+    #companyScopePicker .select2-results__option--all-companies {
+        border-top: 1px solid var(--bs-border-color);
+        margin-top: 0.25rem;
+        padding-top: 0.5rem !important;
+        font-weight: 600;
+    }
+</style>
+
+<script>
+    (function () {
+        var form = document.getElementById('companyScopeSwitchForm');
+        var select = document.getElementById('companyScopeSelect');
+        if (!form || !select) {
+            return;
+        }
+
+        var initialValue = select.value;
+
+        function confirmUnsaved() {
+            var sensitive = document.querySelector('form[data-unsaved-company-sensitive]');
+            if (!sensitive) {
+                return true;
+            }
+            return window.confirm(
+                'You have unsaved changes. Switching company will clear this form. Continue?');
+        }
+
+        function wireSelect2() {
+            if (!window.jQuery || !jQuery.fn.select2) {
+                select.addEventListener('change', onNativeChange);
+                return;
+            }
+
+            var $select = jQuery(select);
+            if ($select.hasClass('select2-hidden-accessible')) {
+                try { $select.select2('destroy'); } catch (e) { /* ignore */ }
+            }
+
+            $select.select2({
+                theme: 'bootstrap-5',
+                width: 'style',
+                placeholder: 'Search company...',
+                allowClear: false,
+                dropdownParent: jQuery(document.body),
+                matcher: function (params, data) {
+                    if (jQuery.trim(params.term) === '') {
+                        return data;
+                    }
+                    if (typeof data.text === 'undefined') {
+                        return null;
+                    }
+                    if (data.text.toUpperCase().indexOf(params.term.toUpperCase()) > -1) {
+                        return data;
+                    }
+                    return null;
+                },
+                templateResult: function (data) {
+                    if (!data.id) {
+                        return data.text;
+                    }
+                    var $opt = jQuery(data.element);
+                    var $el = jQuery('<span></span>').text(data.text);
+                    if ($opt.attr('data-all-companies') === 'true' || data.id === '0') {
+                        $el.addClass('select2-results__option--all-companies');
+                    }
+                    return $el;
+                }
+            });
+
+            $select.off('change.companyScope').on('change.companyScope', function () {
+                var next = $select.val();
+                if (next === initialValue) {
+                    return;
+                }
+                if (!confirmUnsaved()) {
+                    $select.val(initialValue).trigger('change.select2');
+                    return;
+                }
+                form.submit();
+            });
+        }
+
+        function onNativeChange() {
+            if (select.value === initialValue) {
+                return;
+            }
+            if (!confirmUnsaved()) {
+                select.value = initialValue;
+                return;
+            }
+            form.submit();
+        }
+
+        // Select2 CDN loads after this partial in _Layout — poll until available.
+        (function waitForSelect2(attempts) {
+            if (window.jQuery && jQuery.fn.select2) {
+                wireSelect2();
+                return;
+            }
+            if (attempts <= 0) {
+                select.addEventListener('change', onNativeChange);
+                return;
+            }
+            setTimeout(function () { waitForSelect2(attempts - 1); }, 50);
+        })(80);
+    })();
+</script>

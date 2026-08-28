@@ -1,10 +1,13 @@
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using InventorySystem.Authorization;
+using InventorySystem.Constants;
 using InventorySystem.DTOs.Common;
 using InventorySystem.DTOs.Payments;
 using InventorySystem.Services.Interfaces;
@@ -17,11 +20,13 @@ namespace InventorySystem.Controllers
     {
         private readonly IPaymentService _paymentService;
         private readonly ILookupService _lookupService;
+        private readonly ICompanyContext _companyContext;
 
-        public PaymentsController(IPaymentService paymentService, ILookupService lookupService)
+        public PaymentsController(IPaymentService paymentService, ILookupService lookupService, ICompanyContext companyContext)
         {
             _paymentService = paymentService;
             _lookupService = lookupService;
+            _companyContext = companyContext;
         }
 
         private int GetCurrentUserId()
@@ -39,6 +44,11 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> CustomerPayments([FromQuery] PaymentFilterDto filter, CancellationToken cancellationToken)
         {
             filter ??= new PaymentFilterDto();
+            if (await _companyContext.TryResolveAsync(cancellationToken) && _companyContext.HasCompany)
+            {
+                filter.CompanyID = _companyContext.CompanyID;
+            }
+
             var pagedResult = await _paymentService.GetPagedCustomerPaymentsAsync(filter, cancellationToken);
             var customers = await _lookupService.GetCustomersAsync(cancellationToken);
 
@@ -52,23 +62,16 @@ namespace InventorySystem.Controllers
             return View(vm);
         }
 
-        // GET: /Payments/CustomerPaymentQuick
-        [HttpGet]
-        public async Task<IActionResult> CustomerPaymentQuick(CancellationToken cancellationToken)
-        {
-            var customers = await _lookupService.GetCustomersAsync(cancellationToken);
-            var vm = new CustomerPaymentListViewModel
-            {
-                Customers = customers.Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Name }).ToList()
-            };
-            return View(vm);
-        }
-
         // GET: /Payments/CompanyPayments
         [HttpGet]
         public async Task<IActionResult> CompanyPayments([FromQuery] PaymentFilterDto filter, CancellationToken cancellationToken)
         {
             filter ??= new PaymentFilterDto();
+            if (await _companyContext.TryResolveAsync(cancellationToken) && _companyContext.HasCompany)
+            {
+                filter.CompanyID = _companyContext.CompanyID;
+            }
+
             var pagedResult = await _paymentService.GetPagedCompanyPaymentsAsync(filter, cancellationToken);
             var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
 
@@ -82,22 +85,11 @@ namespace InventorySystem.Controllers
             return View(vm);
         }
 
-        // GET: /Payments/CompanyPaymentQuick
-        [HttpGet]
-        public async Task<IActionResult> CompanyPaymentQuick(CancellationToken cancellationToken)
-        {
-            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
-            var vm = new CompanyPaymentListViewModel
-            {
-                Companies = companies.Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Name }).ToList()
-            };
-            return View(vm);
-        }
-
         // GET: /Payments/GetUnpaidCustomerInvoices?customerId=X
         [HttpGet]
         public async Task<IActionResult> GetUnpaidCustomerInvoices(int customerId, CancellationToken cancellationToken)
         {
+            // Soft-scope applied inside PaymentService when HasCompany (All Companies → consolidated).
             var invoices = await _paymentService.GetUnpaidCustomerInvoicesAsync(customerId, cancellationToken);
             return Json(invoices);
         }
@@ -113,6 +105,7 @@ namespace InventorySystem.Controllers
         // POST: /Payments/RecordCustomerPayment
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [RequirePermission(PageKeys.CustomerPayments, PermissionAction.Add)]
         public async Task<IActionResult> RecordCustomerPayment([FromBody] RecordCustomerPaymentRequest request, CancellationToken cancellationToken)
         {
             if (request == null)
@@ -199,6 +192,11 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> Cheques([FromQuery] ChequeFilterDto filter, CancellationToken cancellationToken)
         {
             filter ??= new ChequeFilterDto();
+            if (await _companyContext.TryResolveAsync(cancellationToken) && _companyContext.HasCompany)
+            {
+                filter.CompanyID = _companyContext.CompanyID;
+            }
+
             var pagedResult = await _paymentService.GetPagedChequesAsync(filter, cancellationToken);
 
             var vm = new ChequeManagementViewModel

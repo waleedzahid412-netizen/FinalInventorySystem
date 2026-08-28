@@ -45,9 +45,14 @@ namespace InventorySystem.Repositories.Implementations
                 query = query.Where(si => si.WarehouseID == filter.WarehouseID.Value);
             }
 
-            if (filter.DeliveryPersonID.HasValue && filter.DeliveryPersonID.Value > 0)
+            if (filter.SupplierID.HasValue && filter.SupplierID.Value > 0)
             {
-                query = query.Where(si => si.DeliveryPersonID == filter.DeliveryPersonID.Value);
+                query = query.Where(si => si.SupplierID == filter.SupplierID.Value);
+            }
+
+            if (filter.CompanyID.HasValue && filter.CompanyID.Value > 0)
+            {
+                query = query.Where(si => si.CompanyID == filter.CompanyID.Value);
             }
 
             if (filter.DateFrom.HasValue)
@@ -80,7 +85,7 @@ namespace InventorySystem.Repositories.Implementations
                     InvoiceNumber = si.InvoiceNumber,
                     CustomerID = si.CustomerID,
                     CustomerName = string.IsNullOrWhiteSpace(si.Customer.OwnerName) ? si.Customer.ShopName : $"{si.Customer.ShopName} ({si.Customer.OwnerName})",
-                    DeliveryPersonName = si.DeliveryPerson != null ? si.DeliveryPerson.Name : null,
+                    SupplierName = si.Supplier != null ? si.Supplier.Name : null,
                     InvoiceDate = si.InvoiceDate,
                     SubTotal = si.SubTotal,
                     DiscountTotal = si.DiscountTotal,
@@ -127,10 +132,11 @@ namespace InventorySystem.Repositories.Implementations
                     CustomerName = string.IsNullOrWhiteSpace(si.Customer.OwnerName) ? si.Customer.ShopName : $"{si.Customer.ShopName} ({si.Customer.OwnerName})",
                     ShopName = si.Customer.ShopName,
                     CustomerAddress = si.Customer.Address,
+                    CustomerPhone = si.Customer.Phone,
                     CompanyID = si.CompanyID,
                     CompanyName = si.Company != null ? si.Company.CompanyName : null,
-                    BrokerID = si.BrokerID,
-                    BrokerName = si.Broker != null ? si.Broker.Name : null,
+                    BookerID = si.BookerID,
+                    BookerName = si.Booker != null ? si.Booker.Name : null,
                     PaymentMode = si.CustomerPayments
                         .Where(p => !p.IsDeleted)
                         .OrderBy(p => p.PaymentDate)
@@ -141,8 +147,8 @@ namespace InventorySystem.Repositories.Implementations
                     SalespersonName = si.SalespersonUser != null ? (si.SalespersonUser.FullName ?? si.SalespersonUser.Username) : null,
                     WarehouseID = si.WarehouseID,
                     WarehouseName = si.Warehouse.Name,
-                    DeliveryPersonID = si.DeliveryPersonID,
-                    DeliveryPersonName = si.DeliveryPerson != null ? si.DeliveryPerson.Name : null,
+                    SupplierID = si.SupplierID,
+                    SupplierName = si.Supplier != null ? si.Supplier.Name : null,
                     AreaID = si.AreaID,
                     AreaName = si.Area != null ? si.Area.AreaName : null,
                     SubAreaID = si.SubAreaID,
@@ -260,9 +266,9 @@ namespace InventorySystem.Repositories.Implementations
             return await _context.Warehouses.AsNoTracking().AnyAsync(w => w.WarehouseID == warehouseId && !w.IsDeleted && w.IsActive, cancellationToken);
         }
 
-        public async Task<bool> DeliveryPersonExistsAsync(int deliveryPersonId, CancellationToken cancellationToken = default)
+        public async Task<bool> SupplierExistsAsync(int SupplierID, CancellationToken cancellationToken = default)
         {
-            return await _context.DeliveryPersons.AsNoTracking().AnyAsync(dp => dp.DeliveryPersonID == deliveryPersonId && !dp.IsDeleted && dp.IsActive, cancellationToken);
+            return await _context.Suppliers.AsNoTracking().AnyAsync(dp => dp.SupplierID == SupplierID && !dp.IsDeleted && dp.IsActive, cancellationToken);
         }
 
         public async Task<bool> CompanyExistsAsync(int companyId, CancellationToken cancellationToken = default)
@@ -270,9 +276,27 @@ namespace InventorySystem.Repositories.Implementations
             return await _context.Companies.AsNoTracking().AnyAsync(c => c.CompanyID == companyId && !c.IsDeleted, cancellationToken);
         }
 
-        public async Task<bool> BrokerExistsAsync(int brokerId, CancellationToken cancellationToken = default)
+        public async Task<bool> BookerExistsAsync(int bookerId, CancellationToken cancellationToken = default)
         {
-            return await _context.Brokers.AsNoTracking().AnyAsync(b => b.BrokerID == brokerId && !b.IsDeleted && b.IsActive, cancellationToken);
+            return await _context.Bookers.AsNoTracking().AnyAsync(b => b.BookerID == bookerId && !b.IsDeleted && b.IsActive, cancellationToken);
+        }
+
+        public async Task<int?> GetBookerCompanyIdAsync(int bookerId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Bookers
+                .AsNoTracking()
+                .Where(b => b.BookerID == bookerId && !b.IsDeleted && b.IsActive)
+                .Select(b => (int?)b.CompanyID)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<string?> GetCompanyNameAsync(int companyId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Companies
+                .AsNoTracking()
+                .Where(c => c.CompanyID == companyId && !c.IsDeleted)
+                .Select(c => c.CompanyName)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         public async Task<bool> SalespersonExistsAsync(int userId, CancellationToken cancellationToken = default)
@@ -286,6 +310,15 @@ namespace InventorySystem.Repositories.Implementations
                 .AsNoTracking()
                 .Where(p => p.ProductID == productId && !p.IsDeleted && p.IsActive)
                 .Select(p => (int?)p.CompanyID)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<string?> GetProductNameAsync(int productId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Products
+                .AsNoTracking()
+                .Where(p => p.ProductID == productId && !p.IsDeleted)
+                .Select(p => p.ProductName)
                 .FirstOrDefaultAsync(cancellationToken);
         }
 

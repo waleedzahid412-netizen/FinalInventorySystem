@@ -1,0 +1,51 @@
+@model InventorySystem.DTOs.Analytics.BookerDetailDto
+@{
+    ViewData["Title"] = Model.BookerName;
+}
+<div class="container-fluid px-4 py-3">
+    <h2 class="h3 fw-bold mb-1">@Model.BookerName</h2>
+    <p class="text-muted">Booker invoice performance for the selected filters.</p>
+    <partial name="_AnalyticsNav" />
+    <partial name="_AnalyticsFilters" />
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Revenue</div><div class="fs-5 fw-bold" id="dRev">PKR @Model.Revenue.ToString("N2")</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Returns</div><div class="fs-5 fw-bold" id="dRet">PKR @Model.Returns.ToString("N2")</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Discounts</div><div class="fs-5 fw-bold" id="dDisc">PKR @Model.Discounts.ToString("N2")</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Outstanding</div><div class="fs-5 fw-bold" id="dOut">PKR @Model.Outstanding.ToString("N2")</div></div></div></div>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-7"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Sales trend</h5></div><div class="card-body"><canvas id="chartB"></canvas></div></div></div>
+        <div class="col-lg-5"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Payment mix</h5></div><div class="card-body"><canvas id="chartPay"></canvas></div></div></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Shops</h5></div>
+            <table class="table mb-0"><thead><tr><th>Customer</th><th class="text-end">Revenue</th></tr></thead><tbody id="shopBody"></tbody></table></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Top products</h5></div>
+            <table class="table mb-0"><thead><tr><th>Product</th><th class="text-end">Revenue</th></tr></thead><tbody id="prodBody"></tbody></table></div>
+    </div>
+</div>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const bookerId = @(Model.BookerID ?? 0);
+        let currentPreset = 'ThisMonth', c1, c2;
+        function money(v) { return 'PKR ' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function buildFilter() {
+            return { Preset: currentPreset, StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null, EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
+                CompanyID: parseInt($('#companyId').val()) || null, WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null };
+        }
+        $(function () {
+            $('#presetGroup button').click(function () { $('#presetGroup button').removeClass('active'); $(this).addClass('active'); currentPreset = $(this).data('preset'); if (currentPreset === 'Custom') $('.custom-date-container').slideDown(); else { $('.custom-date-container').slideUp(); load(); } });
+            $('#btnApplyFilter').click(load);
+            load();
+        });
+        async function load() {
+            const res = await fetch('/Analytics/GetBookerDetail?id=' + bookerId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildFilter()) });
+            const d = await res.json();
+            $('#dRev').text(money(d.revenue)); $('#dRet').text(money(d.returns)); $('#dDisc').text(money(d.discounts)); $('#dOut').text(money(d.outstanding));
+            if (c1) c1.destroy(); if (c2) c2.destroy();
+            c1 = new Chart(document.getElementById('chartB'), { type: 'line', data: { labels: (d.salesTrend || []).map(r => r.label), datasets: [{ data: (d.salesTrend || []).map(r => r.salesAmount), borderColor: '#0d6efd', tension: 0.2, fill: false }] } });
+            c2 = new Chart(document.getElementById('chartPay'), { type: 'doughnut', data: { labels: (d.paymentMix || []).map(x => x.status), datasets: [{ data: (d.paymentMix || []).map(x => x.count) }] } });
+            $('#shopBody').html((d.customers || []).map(c => `<tr><td><a href="/Analytics/Customer/${c.customerID}">${c.customerName}</a></td><td class="text-end">${money(c.revenue)}</td></tr>`).join(''));
+            $('#prodBody').html((d.topProducts || []).map(p => `<tr><td><a href="/Analytics/Product/${p.productID}">${p.productName}</a></td><td class="text-end">${money(p.revenue)}</td></tr>`).join(''));
+        }
+    </script>
+}

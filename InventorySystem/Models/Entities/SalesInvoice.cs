@@ -22,15 +22,15 @@ namespace InventorySystem.Models.Entities
         public int CustomerID { get; set; }
         public virtual Customer Customer { get; set; } = null!;
 
-        /// <summary>Invoice-level supplier (manufacturer/company).</summary>
+        /// <summary>Invoice-level supplier (manufacturer/company). Required — one invoice, one company (BR-044).</summary>
         [ForeignKey("Company")]
-        public int? CompanyID { get; set; }
-        public virtual Company? Company { get; set; }
+        public int CompanyID { get; set; }
+        public virtual Company Company { get; set; } = null!;
 
         /// <summary>External person who brought/placed the order.</summary>
-        [ForeignKey("Broker")]
-        public int? BrokerID { get; set; }
-        public virtual Broker? Broker { get; set; }
+        [ForeignKey("Booker")]
+        public int? BookerID { get; set; }
+        public virtual Booker? Booker { get; set; }
 
         /// <summary>Internal salesperson responsible for the order.</summary>
         [ForeignKey("SalespersonUser")]
@@ -50,9 +50,10 @@ namespace InventorySystem.Models.Entities
         public int? SubAreaID { get; set; }
         public virtual SubArea? SubArea { get; set; }
 
-        [ForeignKey("DeliveryPerson")]
-        public int? DeliveryPersonID { get; set; }
-        public virtual DeliveryPerson? DeliveryPerson { get; set; }
+        /// <summary>Global supplier (person) assigned to fulfill/deliver this invoice. Not company-scoped.</summary>
+        [ForeignKey("Supplier")]
+        public int? SupplierID { get; set; }
+        public virtual Supplier? Supplier { get; set; }
 
         // Source quotation if this invoice was converted from one
         [ForeignKey("Quotation")]
@@ -79,6 +80,7 @@ namespace InventorySystem.Models.Entities
         /// None = no invoice discount applied.
         /// Automatic = threshold DiscountRule applied at sale (snapshot in InvoiceDiscounts).
         /// Manual = seller-entered percentage or fixed amount (no threshold).
+        /// Customer = seller applied customer's PreferredDiscountPercent (snapshot; no threshold).
         /// </summary>
         [Required]
         [MaxLength(20)]

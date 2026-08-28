@@ -14,20 +14,29 @@ namespace InventorySystem.Services.Implementations
     public class CustomerService : ICustomerService
     {
         private readonly ICustomerRepository _customerRepository;
+        private readonly ICompanyContext _companyContext;
 
-        public CustomerService(ICustomerRepository customerRepository)
+        public CustomerService(ICustomerRepository customerRepository, ICompanyContext companyContext)
         {
             _customerRepository = customerRepository;
+            _companyContext = companyContext;
+        }
+
+        private async Task<int?> ResolveSoftCompanyIdAsync(CancellationToken cancellationToken)
+        {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            return _companyContext.HasCompany ? _companyContext.CompanyID : null;
         }
 
         public async Task<PagedResult<CustomerListDto>> GetPagedCustomersAsync(CustomerFilterDto filter, CancellationToken cancellationToken = default)
         {
             var pagedCustomers = await _customerRepository.GetPagedAsync(filter, cancellationToken);
+            int? companyId = await ResolveSoftCompanyIdAsync(cancellationToken);
 
             var listItems = new List<CustomerListDto>();
             foreach (var c in pagedCustomers.Items)
             {
-                var summary = await _customerRepository.GetFinancialSummaryAsync(c.CustomerID, cancellationToken);
+                var summary = await _customerRepository.GetFinancialSummaryAsync(c.CustomerID, companyId, cancellationToken);
                 listItems.Add(new CustomerListDto
                 {
                     CustomerID = c.CustomerID,
@@ -66,6 +75,7 @@ namespace InventorySystem.Services.Implementations
                 SubAreaName = c.SubArea?.SubAreaName,
                 TaxID = c.TaxID,
                 CreditLimit = c.CreditLimit,
+                PreferredDiscountPercent = c.PreferredDiscountPercent,
                 IsActive = c.IsActive,
                 CreatedAt = c.CreatedAt,
                 UpdatedAt = c.UpdatedAt
@@ -88,6 +98,7 @@ namespace InventorySystem.Services.Implementations
                 SubAreaID = c.SubAreaID,
                 TaxID = c.TaxID,
                 CreditLimit = c.CreditLimit,
+                PreferredDiscountPercent = c.PreferredDiscountPercent,
                 IsActive = c.IsActive
             };
         }
@@ -97,7 +108,8 @@ namespace InventorySystem.Services.Implementations
             var info = await GetCustomerByIdAsync(customerId, cancellationToken);
             if (info == null) return null;
 
-            var summary = await _customerRepository.GetFinancialSummaryAsync(customerId, cancellationToken);
+            int? companyId = await ResolveSoftCompanyIdAsync(cancellationToken);
+            var summary = await _customerRepository.GetFinancialSummaryAsync(customerId, companyId, cancellationToken);
 
             return new CustomerDetailsDto
             {
@@ -130,6 +142,12 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult<int>.Fail($"A customer with the phone number '{dto.Phone}' already exists.");
             }
 
+            var preferredResult = NormalizePreferredDiscount(dto.PreferredDiscountPercent);
+            if (!preferredResult.Success)
+            {
+                return OperationResult<int>.Fail(preferredResult.Message!);
+            }
+
             var customer = new Customer
             {
                 ShopName = dto.ShopName.Trim(),
@@ -140,6 +158,7 @@ namespace InventorySystem.Services.Implementations
                 SubAreaID = dto.SubAreaID,
                 TaxID = dto.TaxID?.Trim(),
                 CreditLimit = dto.CreditLimit < 0 ? 0m : dto.CreditLimit,
+                PreferredDiscountPercent = preferredResult.Data,
                 IsActive = dto.IsActive,
                 CreatedBy = userId,
                 CreatedAt = DateTime.UtcNow,
@@ -175,6 +194,12 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult.Fail($"A customer with the phone number '{dto.Phone}' already exists.");
             }
 
+            var preferredResult = NormalizePreferredDiscount(dto.PreferredDiscountPercent);
+            if (!preferredResult.Success)
+            {
+                return OperationResult.Fail(preferredResult.Message!);
+            }
+
             customer.ShopName = dto.ShopName.Trim();
             customer.OwnerName = dto.OwnerName?.Trim();
             customer.Phone = dto.Phone?.Trim();
@@ -183,6 +208,7 @@ namespace InventorySystem.Services.Implementations
             customer.SubAreaID = dto.SubAreaID;
             customer.TaxID = dto.TaxID?.Trim();
             customer.CreditLimit = dto.CreditLimit < 0 ? 0m : dto.CreditLimit;
+            customer.PreferredDiscountPercent = preferredResult.Data;
             customer.IsActive = dto.IsActive;
             customer.UpdatedBy = userId;
 
@@ -224,17 +250,38 @@ namespace InventorySystem.Services.Implementations
 
         public async Task<PagedResult<CustomerSalesHistoryDto>> GetSalesHistoryAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
         {
-            return await _customerRepository.GetSalesHistoryAsync(customerId, pageNumber, pageSize, cancellationToken);
+            int? companyId = await ResolveSoftCompanyIdAsync(cancellationToken);
+            return await _customerRepository.GetSalesHistoryAsync(customerId, pageNumber, pageSize, companyId, cancellationToken);
         }
 
         public async Task<PagedResult<CustomerPaymentHistoryDto>> GetPaymentHistoryAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
         {
-            return await _customerRepository.GetPaymentHistoryAsync(customerId, pageNumber, pageSize, cancellationToken);
+            int? companyId = await ResolveSoftCompanyIdAsync(cancellationToken);
+            return await _customerRepository.GetPaymentHistoryAsync(customerId, pageNumber, pageSize, companyId, cancellationToken);
         }
 
         public async Task<PagedResult<CustomerLedgerEntryDto>> GetLedgerAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
         {
-            return await _customerRepository.GetLedgerAsync(customerId, pageNumber, pageSize, cancellationToken);
+            int? companyId = await ResolveSoftCompanyIdAsync(cancellationToken);
+            return await _customerRepository.GetLedgerAsync(customerId, pageNumber, pageSize, companyId, cancellationToken);
+        }
+
+        /// <summary>
+        /// Null or &lt;= 0 → unset (null). Values must be in (0, 100].
+        /// </summary>
+        private static OperationResult<decimal?> NormalizePreferredDiscount(decimal? value)
+        {
+            if (!value.HasValue || value.Value <= 0m)
+            {
+                return OperationResult<decimal?>.Ok(null);
+            }
+
+            if (value.Value > 100m)
+            {
+                return OperationResult<decimal?>.Fail("Preferred discount percentage cannot exceed 100.");
+            }
+
+            return OperationResult<decimal?>.Ok(Math.Round(value.Value, 2, MidpointRounding.AwayFromZero));
         }
     }
 }

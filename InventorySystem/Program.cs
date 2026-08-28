@@ -3,6 +3,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,25 +53,62 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 
-    // Extract JWT from HTTP-only cookie
+    // Extract JWT from HTTP-only cookie. Expired/invalid tokens must not
+    // surface as 500s — redirect browsers to login and return 401 for AJAX.
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
         {
-            if (context.Request.Cookies.TryGetValue("jwt_token", out var token))
+            if (context.Request.Cookies.TryGetValue(JwtCookieHelper.CookieName, out var token))
             {
                 context.Token = token;
             }
+            return Task.CompletedTask;
+        },
+        OnAuthenticationFailed = context =>
+        {
+            // JwtBearer rethrows unless Result is set. Fail so [Authorize]
+            // challenges and OnChallenge can send the user to login.
+            if (!context.Response.HasStarted)
+            {
+                JwtCookieHelper.DeleteToken(context.Response);
+            }
+
+            context.Fail(context.Exception);
+            return Task.CompletedTask;
+        },
+        OnChallenge = context =>
+        {
+            context.HandleResponse();
+
+            if (!JwtCookieHelper.IsBrowserNavigation(context.Request))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json";
+                return context.Response.WriteAsync(
+                    "{\"success\":false,\"message\":\"Your session has expired. Please sign in again.\"}");
+            }
+
+            context.Response.Redirect(
+                JwtCookieHelper.BuildLoginRedirect(context.Request, context.AuthenticateFailure));
             return Task.CompletedTask;
         }
     };
 });
 
 builder.Services.AddAuthorization();
+builder.Services.AddMemoryCache();
 
 // ===== DEPENDENCY INJECTION =====
+builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+builder.Services.AddScoped<IRoleManagementService, RoleManagementService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddScoped<IUserPermissionContext, UserPermissionContext>();
+builder.Services.AddScoped<InventorySystem.Filters.PermissionAuthorizationFilter>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserCompanyAccessService, UserCompanyAccessService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICompanyRepository, CompanyRepository>();
@@ -91,15 +129,24 @@ builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
-builder.Services.AddScoped<IBrokerRepository, BrokerRepository>();
-builder.Services.AddScoped<IBrokerService, BrokerService>();
+builder.Services.AddScoped<ICompanyStockReportRepository, CompanyStockReportRepository>();
+builder.Services.AddScoped<ICompanyStockReportService, CompanyStockReportService>();
+builder.Services.AddScoped<IBookerRepository, BookerRepository>();
+builder.Services.AddScoped<IBookerService, BookerService>();
+builder.Services.AddScoped<ISupplierRepository, SupplierRepository>();
+builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<ILoadSheetService, LoadSheetService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICompanyContext, CompanyContext>();
 
 // Configure QuestPDF License
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 // Add MVC Controllers & Views
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Add<InventorySystem.Filters.PermissionAuthorizationFilter>();
+});
 
 var app = builder.Build();
 

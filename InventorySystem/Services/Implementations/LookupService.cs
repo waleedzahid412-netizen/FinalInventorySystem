@@ -13,10 +13,12 @@ namespace InventorySystem.Services.Implementations
     public class LookupService : ILookupService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IUserCompanyAccessService _companyAccess;
 
-        public LookupService(ApplicationDbContext context)
+        public LookupService(ApplicationDbContext context, IUserCompanyAccessService companyAccess)
         {
             _context = context;
+            _companyAccess = companyAccess;
         }
 
         public async Task<List<LookupItemDto>> GetCategoriesAsync(int? companyId = null, CancellationToken cancellationToken = default)
@@ -60,9 +62,26 @@ namespace InventorySystem.Services.Implementations
 
         public async Task<List<LookupItemDto>> GetCompaniesAsync(CancellationToken cancellationToken = default)
         {
-            return await _context.Companies
+            var query = _context.Companies
                 .AsNoTracking()
-                .Where(c => !c.IsDeleted)
+                .Where(c => !c.IsDeleted);
+
+            var userId = _companyAccess.GetCurrentUserId();
+            if (userId.HasValue)
+            {
+                var profile = await _companyAccess.GetAccessProfileAsync(userId.Value, cancellationToken);
+                if (!profile.IsUnrestricted)
+                {
+                    if (profile.AllowedCompanyIds.Count == 0)
+                    {
+                        return new List<LookupItemDto>();
+                    }
+
+                    query = query.Where(c => profile.AllowedCompanyIds.Contains(c.CompanyID));
+                }
+            }
+
+            return await query
                 .OrderBy(c => c.CompanyName)
                 .Select(c => new LookupItemDto
                 {
@@ -72,16 +91,35 @@ namespace InventorySystem.Services.Implementations
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<LookupItemDto>> GetCustomersAsync(CancellationToken cancellationToken = default)
+        public Task<List<LookupItemDto>> GetCustomersAsync(CancellationToken cancellationToken = default)
         {
-            return await _context.Customers
+            return GetCustomersAsync(null, null, cancellationToken);
+        }
+
+        public async Task<List<LookupItemDto>> GetCustomersAsync(int? areaId, int? subAreaId, CancellationToken cancellationToken = default)
+        {
+            var query = _context.Customers
                 .AsNoTracking()
-                .Where(c => !c.IsDeleted && c.IsActive)
+                .Where(c => !c.IsDeleted && c.IsActive);
+
+            if (areaId.HasValue && areaId.Value > 0)
+            {
+                query = query.Where(c => c.AreaID == areaId.Value);
+            }
+
+            if (subAreaId.HasValue && subAreaId.Value > 0)
+            {
+                query = query.Where(c => c.SubAreaID == subAreaId.Value);
+            }
+
+            return await query
                 .OrderBy(c => c.ShopName)
                 .Select(c => new LookupItemDto
                 {
                     Id = c.CustomerID,
-                    Name = c.ShopName
+                    Name = c.OwnerName != null && c.OwnerName != ""
+                        ? c.ShopName + " (" + c.OwnerName + ")"
+                        : c.ShopName
                 })
                 .ToListAsync(cancellationToken);
         }
@@ -142,13 +180,23 @@ namespace InventorySystem.Services.Implementations
             return await _context.Warehouses
                 .AsNoTracking()
                 .Where(w => !w.IsDeleted && w.IsActive)
-                .OrderBy(w => w.Name)
+                .OrderByDescending(w => w.IsMain)
+                .ThenBy(w => w.Name)
                 .Select(w => new LookupItemDto
                 {
                     Id = w.WarehouseID,
                     Name = w.Name
                 })
                 .ToListAsync(cancellationToken);
+        }
+
+        public async Task<int?> GetMainWarehouseIdAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Warehouses
+                .AsNoTracking()
+                .Where(w => !w.IsDeleted && w.IsActive && w.IsMain)
+                .Select(w => (int?)w.WarehouseID)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         public async Task<List<LookupItemDto>> GetProductsByCompanyAsync(int companyId, CancellationToken cancellationToken = default)
@@ -200,29 +248,36 @@ namespace InventorySystem.Services.Implementations
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        public async Task<List<LookupItemDto>> GetDeliveryPersonsAsync(CancellationToken cancellationToken = default)
+        public async Task<List<LookupItemDto>> GetSuppliersAsync(CancellationToken cancellationToken = default)
         {
-            return await _context.DeliveryPersons
+            return await _context.Suppliers
                 .AsNoTracking()
                 .Where(dp => !dp.IsDeleted && dp.IsActive)
                 .OrderBy(dp => dp.Name)
                 .Select(dp => new LookupItemDto
                 {
-                    Id = dp.DeliveryPersonID,
+                    Id = dp.SupplierID,
                     Name = dp.Name
                 })
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<LookupItemDto>> GetBrokersAsync(CancellationToken cancellationToken = default)
+        public async Task<List<LookupItemDto>> GetBookersAsync(int? companyId = null, CancellationToken cancellationToken = default)
         {
-            return await _context.Brokers
+            var query = _context.Bookers
                 .AsNoTracking()
-                .Where(b => !b.IsDeleted && b.IsActive)
+                .Where(b => !b.IsDeleted && b.IsActive);
+
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                query = query.Where(b => b.CompanyID == companyId.Value);
+            }
+
+            return await query
                 .OrderBy(b => b.Name)
                 .Select(b => new LookupItemDto
                 {
-                    Id = b.BrokerID,
+                    Id = b.BookerID,
                     Name = b.Name
                 })
                 .ToListAsync(cancellationToken);
@@ -253,6 +308,7 @@ namespace InventorySystem.Services.Implementations
                     c.ShopName,
                     c.OwnerName,
                     c.CreditLimit,
+                    c.PreferredDiscountPercent,
                     c.AreaID,
                     AreaName = c.Area != null ? c.Area.AreaName : null,
                     c.SubAreaID,
@@ -281,6 +337,7 @@ namespace InventorySystem.Services.Implementations
                 CustomerName = string.IsNullOrWhiteSpace(customer.OwnerName) ? customer.ShopName : $"{customer.ShopName} ({customer.OwnerName})",
                 ShopName = customer.ShopName,
                 CreditLimit = customer.CreditLimit,
+                PreferredDiscountPercent = customer.PreferredDiscountPercent,
                 CurrentOutstanding = outstanding,
                 AreaID = customer.AreaID,
                 AreaName = customer.AreaName,

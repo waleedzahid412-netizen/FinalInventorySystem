@@ -5,9 +5,9 @@ namespace InventorySystem.DTOs.LoadSheets
 {
     public class LoadSheetFilterDto
     {
-        public int BrokerID { get; set; }
+        public int BookerID { get; set; }
         public DateTime Date { get; set; } = DateTime.Today;
-        public int? DeliveryPersonID { get; set; }
+        public int? SupplierID { get; set; }
     }
 
     public class LoadSheetProductRowDto
@@ -15,7 +15,11 @@ namespace InventorySystem.DTOs.LoadSheets
         public int ProductID { get; set; }
         public string ProductIdDisplay { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;
-        public string? Description { get; set; }
+        /// <summary>True when this row is aggregated from FREE invoice lines (kept separate from paid rows).</summary>
+        public bool IsFree { get; set; }
+        /// <summary>Selling price per smallest (base) unit, derived from historical line UnitPrice / ConversionToBaseUnit.</summary>
+        public decimal UnitPrice { get; set; }
+        /// <summary>Net quantity to load in base units (ConvertedQuantity minus returns).</summary>
         public decimal TotalQuantity { get; set; }
         public string BaseUnitName { get; set; } = string.Empty;
     }
@@ -34,9 +38,9 @@ namespace InventorySystem.DTOs.LoadSheets
 
     public class LoadSheetDto
     {
-        public string BrokerName { get; set; } = string.Empty;
+        public string BookerName { get; set; } = string.Empty;
         public DateTime FilterDate { get; set; }
-        public string DeliveryPersonDisplay { get; set; } = "All Delivery Persons";
+        public string SupplierDisplay { get; set; } = "All Suppliers";
         public string SalespersonDisplay { get; set; } = string.Empty;
         public bool HasInvoices { get; set; }
         public string? EmptyMessage { get; set; }

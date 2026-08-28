@@ -13,10 +13,10 @@ namespace InventorySystem.Mappings
             var dto = new CreateSalesInvoiceDto
             {
                 CustomerID = model.CustomerID,
-                BrokerID = model.BrokerID,
+                BookerID = model.BookerID,
                 SalespersonID = model.SalespersonID,
                 WarehouseID = model.WarehouseID,
-                DeliveryPersonID = model.DeliveryPersonID,
+                SupplierID = model.SupplierID,
                 InvoiceNumber = model.InvoiceNumber,
                 InvoiceDate = model.InvoiceDate,
                 Remarks = model.Remarks,

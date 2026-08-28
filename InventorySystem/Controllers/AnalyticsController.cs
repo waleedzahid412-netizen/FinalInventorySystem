@@ -18,27 +18,65 @@ namespace InventorySystem.Controllers
     {
         private readonly IAnalyticsService _analyticsService;
         private readonly IAnalyticsRepository _analyticsRepository;
+        private readonly ILookupService _lookupService;
+        private readonly ICompanyContext _companyContext;
         private readonly ILogger<AnalyticsController> _logger;
         private readonly IPdfService _pdfService;
 
         public AnalyticsController(
             IAnalyticsService analyticsService,
             IAnalyticsRepository analyticsRepository,
+            ILookupService lookupService,
+            ICompanyContext companyContext,
             ILogger<AnalyticsController> logger,
             IPdfService pdfService)
         {
             _analyticsService = analyticsService;
             _analyticsRepository = analyticsRepository;
+            _lookupService = lookupService;
+            _companyContext = companyContext;
             _logger = logger;
             _pdfService = pdfService;
+        }
+
+        private async Task<AnalyticsFilterDto> DefaultFilterAsync(CancellationToken cancellationToken)
+        {
+            var filter = new AnalyticsFilterDto { Preset = "ThisMonth" };
+            // HasCompany only — All Companies / unscoped leave CompanyID null (consolidated).
+            if (await _companyContext.TryResolveAsync(cancellationToken) && _companyContext.HasCompany)
+            {
+                filter.CompanyID = _companyContext.CompanyID;
+            }
+            return filter;
+        }
+
+        /// <summary>
+        /// Pins AJAX filter company from ambient scope so the client cannot escape HasCompany.
+        /// All Companies forces null; unscoped leaves the body as-is.
+        /// </summary>
+        private async Task ApplyAmbientCompanyScopeAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken)
+        {
+            if (!await _companyContext.TryResolveAsync(cancellationToken))
+            {
+                return;
+            }
+
+            if (_companyContext.HasCompany)
+            {
+                filter.CompanyID = _companyContext.CompanyID;
+            }
+            else if (_companyContext.IsAllCompanies)
+            {
+                filter.CompanyID = null;
+            }
         }
 
         [HttpGet]
         public async Task<IActionResult> Index(CancellationToken cancellationToken)
         {
-            await PopulateDropdownsAsync(showBroker: true, cancellationToken);
+            await PopulateDropdownsAsync(showBooker: true, cancellationToken);
             ViewData["AnalyticsSection"] = "Overview";
-            var filter = new AnalyticsFilterDto { Preset = "ThisMonth" };
+            var filter = await DefaultFilterAsync(cancellationToken);
             OverviewAnalyticsDto model;
             try
             {
@@ -56,7 +94,7 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Sales(CancellationToken cancellationToken)
         {
-            await PopulateDropdownsAsync(showBroker: true, cancellationToken);
+            await PopulateDropdownsAsync(showBooker: true, cancellationToken);
             ViewData["AnalyticsSection"] = "Sales";
             return View();
         }
@@ -64,7 +102,7 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Customers(CancellationToken cancellationToken)
         {
-            await PopulateDropdownsAsync(showBroker: true, cancellationToken);
+            await PopulateDropdownsAsync(showBooker: true, cancellationToken);
             ViewData["AnalyticsSection"] = "Customers";
             return View();
         }
@@ -72,10 +110,11 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Customer(int id, CancellationToken cancellationToken)
         {
-            await PopulateDropdownsAsync(showBroker: true, cancellationToken);
+            await PopulateDropdownsAsync(showBooker: true, cancellationToken);
             ViewData["AnalyticsSection"] = "Customers";
             ViewData["HideCustomerFilter"] = true;
-            var filter = new AnalyticsFilterDto { Preset = "ThisMonth", CustomerID = id };
+            var filter = await DefaultFilterAsync(cancellationToken);
+            filter.CustomerID = id;
             CustomerDetailDto? model;
             try
             {
@@ -96,7 +135,7 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Products(CancellationToken cancellationToken)
         {
-            await PopulateDropdownsAsync(showBroker: false, cancellationToken);
+            await PopulateDropdownsAsync(showBooker: false, cancellationToken);
             ViewData["AnalyticsSection"] = "Products";
             ViewData["HideCustomerFilter"] = false;
             return View();
@@ -105,9 +144,9 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Product(int id, CancellationToken cancellationToken)
         {
-            await PopulateDropdownsAsync(showBroker: false, cancellationToken);
+            await PopulateDropdownsAsync(showBooker: false, cancellationToken);
             ViewData["AnalyticsSection"] = "Products";
-            var filter = new AnalyticsFilterDto { Preset = "ThisMonth" };
+            var filter = await DefaultFilterAsync(cancellationToken);
             ProductDetailDto? model;
             try
             {
@@ -126,42 +165,44 @@ namespace InventorySystem.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Brokers(CancellationToken cancellationToken)
+        public async Task<IActionResult> Bookers(CancellationToken cancellationToken)
         {
-            await PopulateDropdownsAsync(showBroker: true, cancellationToken);
-            ViewData["AnalyticsSection"] = "Brokers";
+            await PopulateDropdownsAsync(showBooker: true, cancellationToken);
+            ViewData["AnalyticsSection"] = "Bookers";
             return View();
         }
 
         [HttpGet]
-        public async Task<IActionResult> Broker(int id, CancellationToken cancellationToken)
+        public async Task<IActionResult> Booker(int id, CancellationToken cancellationToken)
         {
-            await PopulateDropdownsAsync(showBroker: true, cancellationToken);
-            ViewData["AnalyticsSection"] = "Brokers";
-            ViewData["HideBrokerFilter"] = true;
-            int? brokerId = id == 0 ? null : id;
-            var filter = new AnalyticsFilterDto { Preset = "ThisMonth", BrokerID = brokerId.HasValue ? brokerId : -1 };
-            BrokerDetailDto? model;
+            await PopulateDropdownsAsync(showBooker: true, cancellationToken);
+            ViewData["AnalyticsSection"] = "Bookers";
+            ViewData["HideBookerFilter"] = true;
+            int? bookerId = id == 0 ? null : id;
+            var filter = await DefaultFilterAsync(cancellationToken);
+            filter.BookerID = bookerId.HasValue ? bookerId : -1;
+            BookerDetailDto? model;
             try
             {
-                model = await _analyticsService.GetBrokerDetailAsync(brokerId, filter, cancellationToken);
+                model = await _analyticsService.GetBookerDetailAsync(bookerId, filter, cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error loading broker analytics {BrokerId}.", id);
+                _logger.LogError(ex, "Error loading booker analytics {BookerId}.", id);
                 model = null;
             }
 
             if (model == null)
                 return NotFound();
 
-            return View("BrokerDetail", model);
+            return View("BookerDetail", model);
         }
 
         [HttpPost]
         public async Task<IActionResult> GetOverview([FromBody] AnalyticsFilterDto filter, [FromQuery] string interval = "Daily", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetOverviewAsync(filter, interval, cancellationToken));
@@ -177,6 +218,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetKpiSummary([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetKpiSummaryAsync(filter, cancellationToken));
@@ -192,6 +234,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetSalesTrend([FromBody] AnalyticsFilterDto filter, [FromQuery] string interval = "Daily", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetSalesTrendAsync(filter, interval, cancellationToken));
@@ -207,6 +250,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetTopProducts([FromBody] AnalyticsFilterDto filter, [FromQuery] string sortBy = "Revenue", [FromQuery] int topCount = 10, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetTopProductsAsync(filter, sortBy, topCount, cancellationToken));
@@ -222,6 +266,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetTopCustomers([FromBody] AnalyticsFilterDto filter, [FromQuery] string sortBy = "Revenue", [FromQuery] int topCount = 10, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetTopCustomersAsync(filter, sortBy, topCount, cancellationToken));
@@ -237,6 +282,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetCategorySales([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetCategorySalesAsync(filter, cancellationToken));
@@ -252,6 +298,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetPaymentAnalytics([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetPaymentAnalyticsAsync(filter, cancellationToken));
@@ -267,6 +314,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetInventoryInsights([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetInventoryInsightsAsync(filter, cancellationToken));
@@ -282,6 +330,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetStockRiskItems([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetStockRiskItemsAsync(filter, cancellationToken));
@@ -297,6 +346,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetInventoryMovement([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetInventoryMovementAsync(filter, cancellationToken));
@@ -312,6 +362,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetPromotionPerformance([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetPromotionPerformanceAsync(filter, cancellationToken));
@@ -327,6 +378,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetTopCompanies([FromBody] AnalyticsFilterDto filter, [FromQuery] int topCount = 5, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetTopCompaniesAsync(filter, topCount, cancellationToken));
@@ -342,6 +394,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetBusinessInsights([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetBusinessInsightsAsync(filter, cancellationToken));
@@ -357,6 +410,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetSalesAnalytics([FromBody] AnalyticsFilterDto filter, [FromQuery] string interval = "Daily", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetSalesAnalyticsAsync(filter, interval, cancellationToken));
@@ -372,6 +426,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetSalesDrilldown([FromBody] AnalyticsFilterDto filter, [FromQuery] DateTime bucketStart, [FromQuery] DateTime bucketEnd, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetSalesDrilldownAsync(filter, bucketStart, bucketEnd, cancellationToken));
@@ -387,6 +442,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetCustomerAnalytics([FromBody] AnalyticsFilterDto filter, [FromQuery] string sortBy = "Revenue", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetCustomerAnalyticsAsync(filter, sortBy, cancellationToken));
@@ -402,6 +458,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetCustomerDetail([FromBody] AnalyticsFilterDto filter, [FromQuery] int id, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetCustomerDetailAsync(id, filter, cancellationToken));
@@ -417,6 +474,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetProductAnalytics([FromBody] AnalyticsFilterDto filter, [FromQuery] string sortBy = "Quantity", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetProductAnalyticsAsync(filter, sortBy, cancellationToken));
@@ -432,6 +490,7 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetProductDetail([FromBody] AnalyticsFilterDto filter, [FromQuery] int id, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
                 return Json(await _analyticsService.GetProductDetailAsync(id, filter, cancellationToken));
@@ -444,32 +503,34 @@ namespace InventorySystem.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> GetBrokerAnalytics([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> GetBookerAnalytics([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
             try
             {
-                return Json(await _analyticsService.GetBrokerAnalyticsAsync(filter, cancellationToken));
+                return Json(await _analyticsService.GetBookerAnalyticsAsync(filter, cancellationToken));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetBrokerAnalytics.");
-                return Json(new BrokerAnalyticsDto());
+                _logger.LogError(ex, "Error in GetBookerAnalytics.");
+                return Json(new BookerAnalyticsDto());
             }
         }
 
         [HttpPost]
-        public async Task<IActionResult> GetBrokerDetail([FromBody] AnalyticsFilterDto filter, [FromQuery] int id, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> GetBookerDetail([FromBody] AnalyticsFilterDto filter, [FromQuery] int id, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            int? brokerId = id == 0 ? null : id;
+            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            int? bookerId = id == 0 ? null : id;
             try
             {
-                return Json(await _analyticsService.GetBrokerDetailAsync(brokerId, filter, cancellationToken));
+                return Json(await _analyticsService.GetBookerDetailAsync(bookerId, filter, cancellationToken));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetBrokerDetail.");
+                _logger.LogError(ex, "Error in GetBookerDetail.");
                 return Json(null);
             }
         }
@@ -482,7 +543,8 @@ namespace InventorySystem.Controllers
             [FromQuery] int? warehouseId = null,
             [FromQuery] int? customerId = null,
             [FromQuery] int? categoryId = null,
-            [FromQuery] int? brokerId = null,
+            [FromQuery] int? bookerId = null,
+            [FromQuery] int? companyId = null,
             CancellationToken cancellationToken = default)
         {
             try
@@ -495,8 +557,10 @@ namespace InventorySystem.Controllers
                     WarehouseID = warehouseId,
                     CustomerID = customerId,
                     CategoryID = categoryId,
-                    BrokerID = brokerId
+                    BookerID = bookerId,
+                    CompanyID = companyId
                 };
+                await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
 
                 var kpi = await _analyticsService.GetKpiSummaryAsync(filter, cancellationToken);
                 var inv = await _analyticsService.GetInventoryInsightsAsync(filter, cancellationToken);
@@ -517,20 +581,34 @@ namespace InventorySystem.Controllers
             }
         }
 
-        private async Task PopulateDropdownsAsync(bool showBroker, CancellationToken cancellationToken)
+        private async Task PopulateDropdownsAsync(bool showBooker, CancellationToken cancellationToken)
         {
             try
             {
                 var warehouses = await _analyticsRepository.GetWarehousesAsync(cancellationToken);
                 var customers = await _analyticsRepository.GetCustomersAsync(cancellationToken);
                 var categories = await _analyticsRepository.GetCategoriesAsync(cancellationToken);
-                var brokers = await _analyticsRepository.GetBrokersAsync(cancellationToken);
+                var bookers = await _analyticsRepository.GetBookersAsync(cancellationToken);
+                var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
+
+                int? defaultCompanyId = null;
+                if (await _companyContext.TryResolveAsync(cancellationToken) && _companyContext.HasCompany)
+                {
+                    defaultCompanyId = _companyContext.CompanyID;
+                }
 
                 ViewBag.Warehouses = warehouses.Select(w => new SelectListItem { Value = w.Id.ToString(), Text = w.Name }).ToList();
                 ViewBag.Customers = customers.Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Name }).ToList();
                 ViewBag.Categories = categories.Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Name }).ToList();
-                ViewBag.Brokers = brokers.Select(b => new SelectListItem { Value = b.Id.ToString(), Text = b.Name }).ToList();
-                ViewBag.ShowBrokerFilter = showBroker;
+                ViewBag.Bookers = bookers.Select(b => new SelectListItem { Value = b.Id.ToString(), Text = b.Name }).ToList();
+                ViewBag.Companies = companies.Select(c => new SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = c.Name,
+                    Selected = defaultCompanyId.HasValue && c.Id == defaultCompanyId.Value
+                }).ToList();
+                ViewBag.ShowBookerFilter = showBooker;
+                ViewBag.DefaultCompanyID = defaultCompanyId;
             }
             catch (Exception ex)
             {
@@ -538,8 +616,9 @@ namespace InventorySystem.Controllers
                 ViewBag.Warehouses = new List<SelectListItem>();
                 ViewBag.Customers = new List<SelectListItem>();
                 ViewBag.Categories = new List<SelectListItem>();
-                ViewBag.Brokers = new List<SelectListItem>();
-                ViewBag.ShowBrokerFilter = showBroker;
+                ViewBag.Bookers = new List<SelectListItem>();
+                ViewBag.Companies = new List<SelectListItem>();
+                ViewBag.ShowBookerFilter = showBooker;
             }
         }
     }

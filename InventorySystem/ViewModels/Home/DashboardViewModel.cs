@@ -21,6 +21,16 @@ namespace InventorySystem.ViewModels.Home
         public List<DashboardPurchaseItem> RecentPurchases { get; set; } = new List<DashboardPurchaseItem>();
         public List<DashboardReturnItem> RecentReturns { get; set; } = new List<DashboardReturnItem>();
         public List<DashboardLowStockProduct> LowStockProducts { get; set; } = new List<DashboardLowStockProduct>();
+
+        /// <summary>True when dashboard shows all companies (override or unscoped).</summary>
+        public bool ShowAllCompanies { get; set; }
+
+        public bool HasCompanyScope { get; set; }
+
+        public string ScopedCompanyName { get; set; } = string.Empty;
+
+        /// <summary>Set when a specific company is selected (not All Companies).</summary>
+        public int? ScopedCompanyId { get; set; }
     }
 
     public class DashboardSaleItem

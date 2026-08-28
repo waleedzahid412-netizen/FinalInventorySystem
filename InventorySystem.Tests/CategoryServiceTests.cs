@@ -162,7 +162,7 @@ namespace InventorySystem.Tests
             }, 1);
             await service.SoftDeleteCategoryAsync(create.Data, 1);
 
-            var lookup = new LookupService(context);
+            var lookup = new LookupService(context, new FakeUserCompanyAccessService(userId: 1));
             var items = await lookup.GetCategoriesAsync(companyA.CompanyID);
 
             Assert.DoesNotContain(items, i => i.Id == create.Data);

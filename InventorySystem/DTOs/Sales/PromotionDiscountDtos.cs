@@ -17,6 +17,8 @@ namespace InventorySystem.DTOs.Sales
     {
         public int CustomerID { get; set; }
         public int WarehouseID { get; set; }
+        /// <summary>Invoice company — promotions/discounts are filtered to this company.</summary>
+        public int CompanyID { get; set; }
         public decimal SubTotal { get; set; }
         public List<CartItemDto> Items { get; set; } = new List<CartItemDto>();
     }

@@ -15,10 +15,12 @@ namespace InventorySystem.Services.Implementations
     public class PaymentService : IPaymentService
     {
         private readonly ApplicationDbContext _context;
+        private readonly ICompanyContext _companyContext;
 
-        public PaymentService(ApplicationDbContext context)
+        public PaymentService(ApplicationDbContext context, ICompanyContext companyContext)
         {
             _context = context;
+            _companyContext = companyContext;
         }
 
         public async Task<CustomerPaymentDto> RecordCustomerPaymentAsync(RecordCustomerPaymentRequest request, int userId, CancellationToken cancellationToken = default)
@@ -973,6 +975,12 @@ namespace InventorySystem.Services.Implementations
                 if (filter.DateFrom.HasValue) custQuery = custQuery.Where(cp => cp.PaymentDate >= filter.DateFrom.Value);
                 if (filter.DateTo.HasValue) custQuery = custQuery.Where(cp => cp.PaymentDate <= filter.DateTo.Value.AddDays(1).AddTicks(-1));
 
+                if (filter.CompanyID.HasValue && filter.CompanyID.Value > 0)
+                {
+                    int cid = filter.CompanyID.Value;
+                    custQuery = custQuery.Where(cp => cp.SalesInvoice != null && cp.SalesInvoice.CompanyID == cid);
+                }
+
                 var custItems = await custQuery.Select(cp => new ChequeDetailDto
                 {
                     PaymentID = cp.CustomerPaymentID,
@@ -1025,6 +1033,12 @@ namespace InventorySystem.Services.Implementations
                 if (filter.DateFrom.HasValue) compQuery = compQuery.Where(cp => cp.PaymentDate >= filter.DateFrom.Value);
                 if (filter.DateTo.HasValue) compQuery = compQuery.Where(cp => cp.PaymentDate <= filter.DateTo.Value.AddDays(1).AddTicks(-1));
 
+                if (filter.CompanyID.HasValue && filter.CompanyID.Value > 0)
+                {
+                    int cid = filter.CompanyID.Value;
+                    compQuery = compQuery.Where(cp => cp.CompanyID == cid);
+                }
+
                 var compItems = await compQuery.Select(cp => new ChequeDetailDto
                 {
                     PaymentID = cp.CompanyPaymentID,
@@ -1063,9 +1077,23 @@ namespace InventorySystem.Services.Implementations
 
         public async Task<decimal> GetCustomerOutstandingBalanceAsync(int customerId, CancellationToken cancellationToken = default)
         {
-            var entries = await _context.CustomerLedgers
+            await _companyContext.TryResolveAsync(cancellationToken);
+            int? companyId = _companyContext.HasCompany ? _companyContext.CompanyID : null;
+
+            var ledgerQuery = _context.CustomerLedgers
                 .AsNoTracking()
-                .Where(cl => cl.CustomerID == customerId)
+                .Where(cl => cl.CustomerID == customerId);
+
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                int cid = companyId.Value;
+                ledgerQuery = ledgerQuery.Where(cl =>
+                    (cl.SalesInvoiceID != null && cl.SalesInvoice!.CompanyID == cid)
+                    || (cl.CustomerPaymentID != null && cl.CustomerPayment!.SalesInvoice.CompanyID == cid)
+                    || (cl.SalesReturnID != null && cl.SalesReturn!.InvoiceID != null && cl.SalesReturn.SalesInvoice!.CompanyID == cid));
+            }
+
+            var entries = await ledgerQuery
                 .Select(cl => new { cl.DebitAmount, cl.CreditAmount })
                 .ToListAsync(cancellationToken);
 
@@ -1107,6 +1135,11 @@ namespace InventorySystem.Services.Implementations
             if (!string.IsNullOrWhiteSpace(filter.InvoiceNumber))
             {
                 query = query.Where(cp => cp.SalesInvoice.InvoiceNumber.Contains(filter.InvoiceNumber));
+            }
+
+            if (filter.CompanyID.HasValue && filter.CompanyID.Value > 0)
+            {
+                query = query.Where(cp => cp.SalesInvoice != null && cp.SalesInvoice.CompanyID == filter.CompanyID.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.PaymentMethod))
@@ -1378,10 +1411,24 @@ namespace InventorySystem.Services.Implementations
 
         public async Task<IEnumerable<CustomerStatementEntryDto>> GetCustomerStatementAsync(int customerId, DateTime startDate, DateTime endDate, CancellationToken cancellationToken = default)
         {
-            var entries = await _context.CustomerLedgers
+            await _companyContext.TryResolveAsync(cancellationToken);
+            int? companyId = _companyContext.HasCompany ? _companyContext.CompanyID : null;
+
+            var ledgerQuery = _context.CustomerLedgers
                 .AsNoTracking()
                 .Include(cl => cl.SalesInvoice)
-                .Where(cl => cl.CustomerID == customerId && cl.TransactionDate >= startDate && cl.TransactionDate <= endDate)
+                .Where(cl => cl.CustomerID == customerId && cl.TransactionDate >= startDate && cl.TransactionDate <= endDate);
+
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                int cid = companyId.Value;
+                ledgerQuery = ledgerQuery.Where(cl =>
+                    (cl.SalesInvoiceID != null && cl.SalesInvoice!.CompanyID == cid)
+                    || (cl.CustomerPaymentID != null && cl.CustomerPayment!.SalesInvoice.CompanyID == cid)
+                    || (cl.SalesReturnID != null && cl.SalesReturn!.InvoiceID != null && cl.SalesReturn.SalesInvoice!.CompanyID == cid));
+            }
+
+            var entries = await ledgerQuery
                 .OrderBy(cl => cl.TransactionDate)
                 .ThenBy(cl => cl.CustomerLedgerID)
                 .ToListAsync(cancellationToken);
@@ -1446,9 +1493,19 @@ namespace InventorySystem.Services.Implementations
 
         public async Task<List<UnpaidInvoiceLookupDto>> GetUnpaidCustomerInvoicesAsync(int customerId, CancellationToken cancellationToken = default)
         {
-            var raw = await _context.SalesInvoices
+            await _companyContext.TryResolveAsync(cancellationToken);
+            int? companyId = _companyContext.HasCompany ? _companyContext.CompanyID : null;
+
+            var query = _context.SalesInvoices
                 .AsNoTracking()
-                .Where(s => s.CustomerID == customerId && !s.IsDeleted && s.PaymentStatus != "PAID")
+                .Where(s => s.CustomerID == customerId && !s.IsDeleted && s.PaymentStatus != "PAID");
+
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                query = query.Where(s => s.CompanyID == companyId.Value);
+            }
+
+            var raw = await query
                 .OrderBy(s => s.InvoiceDate)
                 .ThenBy(s => s.InvoiceID)
                 .Select(s => new

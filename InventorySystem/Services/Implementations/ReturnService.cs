@@ -518,9 +518,18 @@ namespace InventorySystem.Services.Implementations
             {
                 if (snapshot != null && snapshot.DiscountAmount > 0)
                 {
-                    discountMode = string.Equals(snapshot.DiscountSource, "Manual", StringComparison.OrdinalIgnoreCase)
-                        ? "Manual"
-                        : "Automatic";
+                    if (string.Equals(snapshot.DiscountSource, "Manual", StringComparison.OrdinalIgnoreCase))
+                    {
+                        discountMode = "Manual";
+                    }
+                    else if (string.Equals(snapshot.DiscountSource, "Customer", StringComparison.OrdinalIgnoreCase))
+                    {
+                        discountMode = "Customer";
+                    }
+                    else
+                    {
+                        discountMode = "Automatic";
+                    }
                 }
             }
 
@@ -605,7 +614,8 @@ namespace InventorySystem.Services.Implementations
                     remainingDiscount = 0m;
                 }
             }
-            else if (string.Equals(discountMode, "Manual", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(discountMode, "Manual", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(discountMode, "Customer", StringComparison.OrdinalIgnoreCase))
             {
                 // No threshold — remaining discount is what remains allocated to remaining quantities
                 remainingDiscount = remainingLineDiscountSum;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
@@ -9,6 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
 using InventorySystem.DTOs.Purchases;
+using InventorySystem.Filters;
+using InventorySystem.Helpers;
 using InventorySystem.Mappings;
 using InventorySystem.Services.Interfaces;
 using InventorySystem.ViewModels.Purchases;
@@ -16,22 +19,26 @@ using InventorySystem.ViewModels.Purchases;
 namespace InventorySystem.Controllers
 {
     [Authorize]
+    [RequireCompanyScope]
     public class PurchasesController : Controller
     {
         private readonly IPurchaseService _purchaseService;
         private readonly ILookupService _lookupService;
         private readonly IPdfService _pdfService;
+        private readonly ICompanyContext _companyContext;
         private readonly ILogger<PurchasesController> _logger;
 
         public PurchasesController(
             IPurchaseService purchaseService,
             ILookupService lookupService,
             IPdfService pdfService,
+            ICompanyContext companyContext,
             ILogger<PurchasesController> logger)
         {
             _purchaseService = purchaseService;
             _lookupService = lookupService;
             _pdfService = pdfService;
+            _companyContext = companyContext;
             _logger = logger;
         }
 
@@ -39,7 +46,17 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Index([FromQuery] PurchaseFilterViewModel filter, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
             filter ??= new PurchaseFilterViewModel();
+
+            if (_companyContext.HasCompany)
+            {
+                filter.CompanyID = _companyContext.CompanyID;
+            }
+            else
+            {
+                filter.CompanyID = null;
+            }
 
             var filterDto = new PurchaseFilterDto
             {
@@ -54,15 +71,15 @@ namespace InventorySystem.Controllers
             };
 
             var pagedPurchases = await _purchaseService.GetPagedPurchasesAsync(filterDto, cancellationToken);
-            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
             var warehouses = await _lookupService.GetWarehousesAsync(cancellationToken);
 
             var viewModel = new PurchaseListViewModel
             {
                 Filter = filter,
                 Items = pagedPurchases,
-                Companies = new SelectList(companies, "Id", "Name", filter.CompanyID),
-                Warehouses = new SelectList(warehouses, "Id", "Name", filter.WarehouseID)
+                Companies = new SelectList(Enumerable.Empty<SelectListItem>()),
+                Warehouses = new SelectList(warehouses, "Id", "Name", filter.WarehouseID),
+                CompanyName = CompanyScopeGuards.DisplayName(_companyContext)
             };
 
             return View(viewModel);
@@ -72,9 +89,17 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
+            var mainWarehouseId = await _lookupService.GetMainWarehouseIdAsync(cancellationToken);
             var viewModel = new CreatePurchaseViewModel
             {
-                InvoiceDate = DateTime.Today
+                InvoiceDate = DateTime.Today,
+                CompanyID = _companyContext.CompanyID,
+                CompanyName = _companyContext.CompanyName,
+                WarehouseID = mainWarehouseId ?? 0
             };
 
             await PopulateDropdownsAsync(viewModel, cancellationToken);
@@ -86,6 +111,13 @@ namespace InventorySystem.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreatePurchaseViewModel viewModel, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
+            viewModel.CompanyID = _companyContext.CompanyID;
+            viewModel.CompanyName = _companyContext.CompanyName;
+
             if (!ModelState.IsValid)
             {
                 await PopulateDropdownsAsync(viewModel, cancellationToken);
@@ -93,6 +125,7 @@ namespace InventorySystem.Controllers
             }
 
             var dto = viewModel.ToDto();
+            dto.CompanyID = _companyContext.CompanyID;
             int userId = GetCurrentUserId();
 
             var result = await _purchaseService.CreateAndFinalizePurchaseInvoiceAsync(dto, userId, cancellationToken);
@@ -111,11 +144,18 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Details(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var detailsDto = await _purchaseService.GetPurchaseDetailsAsync(id, cancellationToken);
             if (detailsDto == null)
             {
                 TempData["ErrorMessage"] = "Purchase invoice not found.";
                 return RedirectToAction(nameof(Index));
+            }
+
+            if (CompanyScopeGuards.IsOutOfScope(_companyContext, detailsDto.Header.CompanyID))
+            {
+                return NotFound();
             }
 
             var viewModel = detailsDto.ToViewModel();
@@ -126,6 +166,13 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> PaymentHistoryTab(int id, int pageNumber = 1, CancellationToken cancellationToken = default)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var details = await _purchaseService.GetPurchaseDetailsAsync(id, cancellationToken);
+            if (details == null || CompanyScopeGuards.IsOutOfScope(_companyContext, details.Header.CompanyID))
+            {
+                return NotFound();
+            }
+
             var history = await _purchaseService.GetPaymentHistoryTabAsync(id, pageNumber, 10, cancellationToken);
             return PartialView("_PaymentHistoryTab", history);
         }
@@ -134,6 +181,13 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> LedgerTab(int id, int pageNumber = 1, CancellationToken cancellationToken = default)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var details = await _purchaseService.GetPurchaseDetailsAsync(id, cancellationToken);
+            if (details == null || CompanyScopeGuards.IsOutOfScope(_companyContext, details.Header.CompanyID))
+            {
+                return NotFound();
+            }
+
             var ledger = await _purchaseService.GetLedgerTabAsync(id, pageNumber, 10, cancellationToken);
             return PartialView("_LedgerTab", ledger);
         }
@@ -143,7 +197,15 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> GetProductsByCompany(int companyId, CancellationToken cancellationToken)
         {
-            var products = await _lookupService.GetProductsByCompanyAsync(companyId, cancellationToken);
+            await _companyContext.TryResolveAsync(cancellationToken);
+
+            // Ignore query companyId — use ambient scope only.
+            if (!_companyContext.HasCompany)
+            {
+                return BadRequest(new { message = CompanyScopeGuards.SelectSpecificCompanyMessage });
+            }
+
+            var products = await _lookupService.GetProductsByCompanyAsync(_companyContext.CompanyID, cancellationToken);
             return Json(products);
         }
 
@@ -174,8 +236,10 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> DownloadPdf(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var details = await _purchaseService.GetPurchaseDetailsAsync(id, cancellationToken);
-            if (details == null)
+            if (details == null || CompanyScopeGuards.IsOutOfScope(_companyContext, details.Header.CompanyID))
             {
                 return NotFound();
             }
@@ -187,6 +251,8 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var checkResult = await _purchaseService.CanEditPurchaseInvoiceAsync(id, cancellationToken);
             if (!checkResult.Success)
             {
@@ -195,7 +261,7 @@ namespace InventorySystem.Controllers
             }
 
             var details = await _purchaseService.GetPurchaseDetailsAsync(id, cancellationToken);
-            if (details == null)
+            if (details == null || CompanyScopeGuards.IsOutOfScope(_companyContext, details.Header.CompanyID))
             {
                 return NotFound();
             }
@@ -227,6 +293,14 @@ namespace InventorySystem.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(EditPurchaseViewModel model, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
+            var existing = await _purchaseService.GetPurchaseDetailsAsync(model.PurchaseInvoiceID, cancellationToken);
+            if (existing == null || CompanyScopeGuards.IsOutOfScope(_companyContext, existing.Header.CompanyID))
+            {
+                return NotFound();
+            }
+
             if (string.IsNullOrWhiteSpace(model.EditReason))
             {
                 ModelState.AddModelError("EditReason", "An edit reason is required.");
@@ -276,10 +350,11 @@ namespace InventorySystem.Controllers
 
         private async Task PopulateDropdownsAsync(CreatePurchaseViewModel model, CancellationToken cancellationToken)
         {
-            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
             var warehouses = await _lookupService.GetWarehousesAsync(cancellationToken);
 
-            model.Companies = new SelectList(companies, "Id", "Name", model.CompanyID);
+            model.CompanyID = _companyContext.CompanyID;
+            model.CompanyName = _companyContext.CompanyName;
+            model.Companies = new SelectList(Enumerable.Empty<SelectListItem>());
             model.Warehouses = new SelectList(warehouses, "Id", "Name", model.WarehouseID);
         }
 

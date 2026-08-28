@@ -58,8 +58,11 @@ namespace InventorySystem.Services
         public static bool HasCustomer(AnalyticsFilterDto filter) =>
             filter.CustomerID.HasValue && filter.CustomerID.Value > 0;
 
-        public static bool HasBroker(AnalyticsFilterDto filter) =>
-            filter.BrokerID.HasValue && filter.BrokerID.Value != 0;
+        public static bool HasBooker(AnalyticsFilterDto filter) =>
+            filter.BookerID.HasValue && filter.BookerID.Value != 0;
+
+        public static bool HasCompany(AnalyticsFilterDto filter) =>
+            filter.CompanyID.HasValue && filter.CompanyID.Value > 0;
 
         public static decimal LineRevenue(decimal quantity, decimal unitPrice, decimal discountAmount) =>
             (quantity * unitPrice) - discountAmount;

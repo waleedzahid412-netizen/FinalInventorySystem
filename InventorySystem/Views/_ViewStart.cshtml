@@ -1,3 +1,8 @@
-﻿@{
+﻿@inject InventorySystem.Services.Interfaces.IUserPermissionContext PermCtx
+@{
     Layout = "_Layout";
+    if (User.Identity?.IsAuthenticated == true)
+    {
+        await PermCtx.EnsureLoadedAsync();
+    }
 }

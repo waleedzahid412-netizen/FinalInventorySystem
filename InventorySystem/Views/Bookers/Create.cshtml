@@ -1,0 +1,108 @@
+@model InventorySystem.ViewModels.Bookers.CreateBookerViewModel
+@{
+    ViewData["Title"] = "Add Booker";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-7 col-xl-6">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="h4 fw-bold mb-1"><i class="bi bi-person-badge text-primary me-2"></i>Add Booker</h1>
+                    <p class="text-muted small mb-0">Order agent for the company selected in the navbar.</p>
+                </div>
+                <a asp-action="Index" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back
+                </a>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <form asp-action="Create" method="post" data-unsaved-company-sensitive>
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small" role="alert"></div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small text-muted mb-1">Company</label>
+                            <div>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold px-3 py-2">
+                                    <i class="bi bi-building me-1"></i>@Model.CompanyName
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="Name" class="form-label fw-semibold"></label>
+                                <input asp-for="Name" class="form-control" placeholder="Full name" autocomplete="name" />
+                                <span asp-validation-for="Name" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="CNIC" class="form-label fw-semibold"></label>
+                                <input asp-for="CNIC" class="form-control" id="bookerCnicInput"
+                                       placeholder="12345-1234567-1" maxlength="15" inputmode="numeric" autocomplete="off" />
+                                <span asp-validation-for="CNIC" class="text-danger small"></span>
+                                <div class="form-text">Format: 5-7-1 digits (e.g. 42101-3097381-0)</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Phone" class="form-label fw-semibold"></label>
+                                <input asp-for="Phone" class="form-control" placeholder="0300-1234567" />
+                                <span asp-validation-for="Phone" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="CreditLimit" class="form-label fw-semibold"></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">PKR</span>
+                                    <input asp-for="CreditLimit" class="form-control" type="number" step="1000" min="0" />
+                                </div>
+                                <span asp-validation-for="CreditLimit" class="text-danger small"></span>
+                                <div class="form-text">Warning only — never blocks a sale.</div>
+                            </div>
+                            <div class="col-12">
+                                <label asp-for="Address" class="form-label fw-semibold"></label>
+                                <textarea asp-for="Address" class="form-control" rows="2" placeholder="Street, area, city…"></textarea>
+                                <span asp-validation-for="Address" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input asp-for="IsActive" class="form-check-input" />
+                                    <label asp-for="IsActive" class="form-check-label"></label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4 pt-2 border-top">
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="bi bi-check-lg me-1"></i>Save Booker
+                            </button>
+                            <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+    <script>
+        (function () {
+            var el = document.getElementById('bookerCnicInput');
+            if (!el) return;
+            el.addEventListener('input', function () {
+                var digits = (el.value || '').replace(/\D/g, '').slice(0, 13);
+                var out = digits;
+                if (digits.length > 5) {
+                    out = digits.slice(0, 5) + '-' + digits.slice(5);
+                }
+                if (digits.length > 12) {
+                    out = digits.slice(0, 5) + '-' + digits.slice(5, 12) + '-' + digits.slice(12);
+                } else if (digits.length > 5) {
+                    out = digits.slice(0, 5) + '-' + digits.slice(5);
+                }
+                el.value = out;
+            });
+        })();
+    </script>
+}

@@ -17,6 +17,15 @@
             <h1 class="h3 mb-0 text-gray-800 fw-bold">
                 <i class="bi bi-pencil-square me-2 text-warning"></i> Edit Sales Invoice #@Model.InvoiceNumber
             </h1>
+            @if (!string.IsNullOrWhiteSpace(Model.CompanyName))
+            {
+                <div class="mt-1">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold px-3 py-2">
+                        <i class="bi bi-building me-1"></i>@Model.CompanyName
+                    </span>
+                    <span class="text-muted small ms-2">Company cannot change after the invoice is created.</span>
+                </div>
+            }
         </div>
         <div>
             <a asp-action="Details" asp-route-id="@Model.InvoiceID" class="btn btn-outline-secondary shadow-sm">
@@ -28,7 +37,7 @@
     <!-- Error Summary -->
     <div asp-validation-summary="All" class="alert alert-danger shadow-sm d-none" id="validationSummary"></div>
 
-    <form asp-action="Edit" method="post" id="salesEditForm">
+    <form asp-action="Edit" method="post" id="salesEditForm" data-unsaved-company-sensitive>
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="InvoiceID" />
         <input type="hidden" asp-for="InvoiceNumber" />
@@ -73,11 +82,11 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label asp-for="BrokerID" class="form-label fw-semibold"></label>
-                        <select asp-for="BrokerID" asp-items="Model.Brokers" class="form-select" id="brokerSelect" required>
-                            <option value="">-- Select Bookie --</option>
+                        <label asp-for="BookerID" class="form-label fw-semibold"></label>
+                        <select asp-for="BookerID" asp-items="Model.Bookers" class="form-select" id="bookerSelect" required>
+                            <option value="">-- Select Booker --</option>
                         </select>
-                        <span asp-validation-for="BrokerID" class="text-danger small"></span>
+                        <span asp-validation-for="BookerID" class="text-danger small"></span>
                     </div>
 
                     <div class="col-md-4">
@@ -89,8 +98,8 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label asp-for="DeliveryPersonID" class="form-label fw-semibold"></label>
-                        <select asp-for="DeliveryPersonID" asp-items="Model.DeliveryPersons" class="form-select">
+                        <label asp-for="SupplierID" class="form-label fw-semibold"></label>
+                        <select asp-for="SupplierID" asp-items="Model.Suppliers" class="form-select">
                             <option value="">-- None / Direct Pick --</option>
                         </select>
                     </div>
@@ -143,10 +152,12 @@
                     <div class="btn-group btn-group-sm" role="group" aria-label="Discount mode toggle">
                         <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeNone" value="None" autocomplete="off" @(Model.DiscountMode == "None" ? "checked" : "")>
                         <label class="btn btn-outline-secondary" for="discountModeNone">None</label>
-                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeAutomatic" value="Automatic" autocomplete="off" @(Model.DiscountMode != "Manual" && Model.DiscountMode != "None" ? "checked" : "")>
+                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeAutomatic" value="Automatic" autocomplete="off" @(Model.DiscountMode != "Manual" && Model.DiscountMode != "None" && Model.DiscountMode != "Customer" ? "checked" : "")>
                         <label class="btn btn-outline-primary" for="discountModeAutomatic">Automatic</label>
                         <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeManual" value="Manual" autocomplete="off" @(Model.DiscountMode == "Manual" ? "checked" : "")>
                         <label class="btn btn-outline-warning" for="discountModeManual">Manual</label>
+                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeCustomer" value="Customer" autocomplete="off" @(Model.DiscountMode == "Customer" ? "checked" : "") disabled>
+                        <label class="btn btn-outline-info" for="discountModeCustomer" title="Requires customer preferred discount">Customer</label>
                     </div>
                     <span class="fw-semibold small text-muted mb-0">Apply Promotion:</span>
                     <div class="btn-group btn-group-sm" role="group" aria-label="Apply promotions toggle">
@@ -173,6 +184,20 @@
                             <label class="form-label small fw-semibold mb-1">Value</label>
                             <input type="number" id="manualDiscountValueInput" class="form-control form-control-sm" min="0" step="0.01" value="@(Model.ManualDiscountValue)" />
                         </div>
+                    </div>
+                </div>
+                <div id="customerPreferredDiscountPanel" class="border rounded p-3 mb-3 bg-light d-none">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <h6 class="fw-bold mb-1"><i class="bi bi-person-badge me-1"></i> Customer Preferred Discount</h6>
+                            <div class="small text-muted mb-0">
+                                Preferred rate: <strong id="lblCustomerPreferredPercent">—</strong>
+                                <span class="ms-1">(replaces Automatic/Manual)</span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-info text-white" id="btnApplyCustomerPreferredDiscount">
+                            <i class="bi bi-check-circle me-1"></i> Apply
+                        </button>
                     </div>
                 </div>
                 <div class="row">
@@ -281,11 +306,13 @@
 
         async function loadProducts() {
             try {
-                const res = await fetch(`/Sales/GetProductsByWarehouse?warehouseId=${warehouseId}`);
+                const res = await fetch('/Sales/GetProducts');
                 const products = await res.json();
                 productOptionsHtml = '<option value="">-- Select Product --</option>';
                 products.forEach(p => {
-                    productOptionsHtml += `<option value="${p.id}">${p.name}</option>`;
+                    const id = p.id ?? p.Id;
+                    const name = p.name ?? p.Name;
+                    productOptionsHtml += `<option value="${id}">${name}</option>`;
                 });
             } catch (err) {
                 console.error("Failed to load products:", err);
@@ -445,6 +472,24 @@
             return $('input[name="discountModeToggle"]:checked').val() || 'Automatic';
         }
 
+        let customerPreferredPercent = null;
+
+        function setCustomerPreferredPercent(percent) {
+            const raw = percent == null ? null : Number(percent);
+            customerPreferredPercent = (raw != null && !isNaN(raw) && raw > 0) ? raw : null;
+            $('#discountModeCustomer').prop('disabled', customerPreferredPercent == null);
+            $('#lblCustomerPreferredPercent').text(
+                customerPreferredPercent != null
+                    ? (String(customerPreferredPercent.toFixed(2)).replace(/\.00$/, '') + '%')
+                    : '—'
+            );
+            $('#customerPreferredDiscountPanel').toggleClass('d-none', customerPreferredPercent == null);
+            if (customerPreferredPercent == null && getDiscountMode() === 'Customer') {
+                $('#discountModeNone').prop('checked', true);
+                $('#DiscountMode').val('None');
+            }
+        }
+
         function syncDiscountHiddenFields(subtotal) {
             const mode = getDiscountMode();
             $('#DiscountMode').val(mode);
@@ -462,6 +507,14 @@
                     amount = Math.min(subtotal, Math.round(amount * 100) / 100);
                 }
                 return amount;
+            }
+            if (mode === 'Customer') {
+                $('#ManualDiscountType').val('');
+                $('#ManualDiscountValue').val('0');
+                $('#AppliedDiscountRuleID').val('');
+                if (customerPreferredPercent == null || customerPreferredPercent <= 0 || subtotal <= 0) return 0;
+                let amount = subtotal * (customerPreferredPercent / 100);
+                return Math.min(subtotal, Math.round(amount * 100) / 100);
             }
             $('#ManualDiscountType').val('');
             $('#ManualDiscountValue').val('0');
@@ -483,6 +536,30 @@
         $('#manualDiscountTypeSelect, #manualDiscountValueInput').on('change input', function () {
             recalculateInvoiceSummary();
         });
+
+        $('#btnApplyCustomerPreferredDiscount').on('click', function () {
+            if (customerPreferredPercent == null) return;
+            $('#discountModeCustomer').prop('disabled', false).prop('checked', true);
+            $('#DiscountMode').val('Customer');
+            $('#AppliedDiscountRuleID').val('');
+            $('#ManualDiscountType').val('');
+            $('#ManualDiscountValue').val('0');
+            $('#manualDiscountPanel').addClass('d-none');
+            recalculateInvoiceSummary();
+        });
+
+        // Load preferred discount for the fixed invoice customer
+        fetch(`/Sales/GetCustomerInfo?customerId=${customerId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data) return;
+                setCustomerPreferredPercent(data.preferredDiscountPercent ?? data.PreferredDiscountPercent);
+                if ('@(Model.DiscountMode)' === 'Customer' && customerPreferredPercent != null) {
+                    $('#discountModeCustomer').prop('disabled', false).prop('checked', true);
+                }
+                recalculateInvoiceSummary();
+            })
+            .catch(() => { });
 
         function calculateRowTotal(rowId) {
             const $row = $(`#row_${rowId}`);
@@ -532,7 +609,7 @@
             $('#summarySubtotal').text(`PKR ${subtotal.toFixed(2)}`);
 
             const mode = getDiscountMode();
-            if (mode === 'Manual' || mode === 'None') {
+            if (mode === 'Manual' || mode === 'Customer' || mode === 'None') {
                 const manualOrZero = syncDiscountHiddenFields(subtotal) || 0;
                 if (!isApplyPromotionsEnabled()) {
                     syncFreeItemsWithPromotions([]);
@@ -541,8 +618,8 @@
                             <i class="bi bi-slash-circle me-1"></i> Promotions will not be applied. Only paid (NORMAL) lines will be saved.
                         </div>`);
                 }
-                updateTotalsDisplay(subtotal, mode === 'Manual' ? manualOrZero : 0);
-                if (mode === 'Manual' && isApplyPromotionsEnabled() && cartItems.length > 0) {
+                updateTotalsDisplay(subtotal, (mode === 'Manual' || mode === 'Customer') ? manualOrZero : 0);
+                if ((mode === 'Manual' || mode === 'Customer') && isApplyPromotionsEnabled() && cartItems.length > 0) {
                     // still evaluate promos only
                 } else if (mode !== 'Automatic') {
                     if (!isApplyPromotionsEnabled() || cartItems.length === 0) {
@@ -562,7 +639,7 @@
             if (cartItems.length === 0) {
                 $('#promotionsContainer').html('<div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Add products to cart to evaluate promotional schemes.</div>');
                 syncFreeItemsWithPromotions([]);
-                updateTotalsDisplay(subtotal, mode === 'Manual' ? (syncDiscountHiddenFields(subtotal) || 0) : 0);
+                updateTotalsDisplay(subtotal, (mode === 'Manual' || mode === 'Customer') ? (syncDiscountHiddenFields(subtotal) || 0) : 0);
                 return;
             }
 
@@ -688,6 +765,9 @@
             } else if (getDiscountMode() === 'Manual') {
                 calculatedDiscount = syncDiscountHiddenFields(subtotal) || 0;
                 html += `<div class="alert alert-warning py-2 small mb-0 mt-2"><i class="bi bi-info-circle me-1"></i> Manual discount mode — automatic rules are not applied.</div>`;
+            } else if (getDiscountMode() === 'Customer') {
+                calculatedDiscount = syncDiscountHiddenFields(subtotal) || 0;
+                html += `<div class="alert alert-info py-2 small mb-0 mt-2"><i class="bi bi-info-circle me-1"></i> Customer preferred discount mode — automatic rules are not applied.</div>`;
             } else {
                 $('#AppliedDiscountRuleID').val('');
             }

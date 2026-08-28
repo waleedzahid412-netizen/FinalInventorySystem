@@ -27,7 +27,7 @@ namespace InventorySystem.Services.Interfaces
         Task<CustomerDetailDto?> GetCustomerDetailAsync(int customerId, AnalyticsFilterDto filter, CancellationToken cancellationToken = default);
         Task<ProductAnalyticsDto> GetProductAnalyticsAsync(AnalyticsFilterDto filter, string sortBy = "Quantity", CancellationToken cancellationToken = default);
         Task<ProductDetailDto?> GetProductDetailAsync(int productId, AnalyticsFilterDto filter, CancellationToken cancellationToken = default);
-        Task<BrokerAnalyticsDto> GetBrokerAnalyticsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default);
-        Task<BrokerDetailDto?> GetBrokerDetailAsync(int? brokerId, AnalyticsFilterDto filter, CancellationToken cancellationToken = default);
+        Task<BookerAnalyticsDto> GetBookerAnalyticsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default);
+        Task<BookerDetailDto?> GetBookerDetailAsync(int? bookerId, AnalyticsFilterDto filter, CancellationToken cancellationToken = default);
     }
 }

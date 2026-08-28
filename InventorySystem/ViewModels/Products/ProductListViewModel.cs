@@ -13,6 +13,7 @@ namespace InventorySystem.ViewModels.Products
         // Select lists for dropdown filters
         public IEnumerable<SelectListItem> Categories { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Companies { get; set; } = new List<SelectListItem>();
+        public string CompanyName { get; set; } = string.Empty;
         public IEnumerable<SelectListItem> StatusOptions { get; set; } = new List<SelectListItem>
         {
             new SelectListItem { Value = "", Text = "All Statuses" },

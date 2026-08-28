@@ -36,7 +36,14 @@
                                     <option value="">-- Select Customer --</option>
                                     @foreach (var c in Model.Customers)
                                     {
-                                        <option value="@c.Value">@c.Text</option>
+                                        if (c.Selected)
+                                        {
+                                            <option value="@c.Value" selected="selected">@c.Text</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@c.Value">@c.Text</option>
+                                        }
                                     }
                                 </select>
                             </div>

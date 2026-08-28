@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using InventorySystem.DTOs.Analytics;
 using InventorySystem.DTOs.LoadSheets;
 using InventorySystem.DTOs.Purchases;
+using InventorySystem.DTOs.Reports;
 using InventorySystem.DTOs.Sales;
 
 namespace InventorySystem.Services.Interfaces
@@ -13,6 +14,11 @@ namespace InventorySystem.Services.Interfaces
         byte[] GeneratePurchaseInvoicePdf(PurchaseDetailsDto invoice);
         byte[] GenerateSalesReturnPdf(InventorySystem.DTOs.Returns.SalesReturnDetailsDto returnDto);
         byte[] GenerateAnalyticsReportPdf(AnalyticsKpiSummaryDto kpi, InventoryInsightsDto inventory, List<BusinessInsightDto> insights, List<StockRiskItemDto> stockRisk, string preset);
+        byte[] GenerateCompanyStockReportPdf(
+            IReadOnlyList<CompanyStockReportRowDto> rows,
+            CompanyStockReportSummaryDto summary,
+            string scopeLabel,
+            bool includeCompanyColumn);
         byte[] GenerateLoadSheetProductPdf(LoadSheetDto loadSheet);
         byte[] GenerateLoadSheetInvoicePdf(LoadSheetDto loadSheet);
     }

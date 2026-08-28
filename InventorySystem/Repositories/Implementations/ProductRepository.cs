@@ -57,6 +57,11 @@ namespace InventorySystem.Repositories.Implementations
                 query = query.Where(p => p.CategoryID == filter.CategoryID.Value);
             }
 
+            if (filter.CompanyID.HasValue && filter.CompanyID.Value > 0)
+            {
+                query = query.Where(p => p.CompanyID == filter.CompanyID.Value);
+            }
+
             if (filter.IsActive.HasValue)
             {
                 query = query.Where(p => p.IsActive == filter.IsActive.Value);

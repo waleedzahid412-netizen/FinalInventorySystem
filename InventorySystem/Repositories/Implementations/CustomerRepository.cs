@@ -183,9 +183,14 @@ namespace InventorySystem.Repositories.Implementations
 
         /// <summary>
         /// Calculates financial KPIs using CustomerLedger as the single source of truth:
-        /// OutstandingReceivable = SUM(DebitAmount) - SUM(CreditAmount)
+        /// OutstandingReceivable = SUM(DebitAmount) - SUM(CreditAmount).
+        /// When <paramref name="companyId"/> is set, only ledger rows tied to that company's
+        /// sales invoices / payments / returns are included (customer master stays global).
         /// </summary>
-        public async Task<CustomerFinancialSummaryDto?> GetFinancialSummaryAsync(int customerId, CancellationToken cancellationToken = default)
+        public async Task<CustomerFinancialSummaryDto?> GetFinancialSummaryAsync(
+            int customerId,
+            int? companyId = null,
+            CancellationToken cancellationToken = default)
         {
             var customer = await _context.Customers
                 .AsNoTracking()
@@ -193,10 +198,11 @@ namespace InventorySystem.Repositories.Implementations
 
             if (customer == null) return null;
 
-            // Single source of truth calculation from CustomerLedger
-            var ledgerTotals = await _context.CustomerLedgers
-                .AsNoTracking()
-                .Where(l => l.CustomerID == customerId)
+            var ledgerQuery = ScopeCustomerLedger(
+                _context.CustomerLedgers.AsNoTracking().Where(l => l.CustomerID == customerId),
+                companyId);
+
+            var ledgerTotals = await ledgerQuery
                 .GroupBy(l => l.CustomerID)
                 .Select(g => new
                 {
@@ -209,19 +215,30 @@ namespace InventorySystem.Repositories.Implementations
             decimal totalCredits = ledgerTotals?.TotalCredits ?? 0m;
             decimal outstanding = totalDebits - totalCredits;
 
-            int pendingInvoicesCount = await _context.SalesInvoices
+            var invoiceQuery = _context.SalesInvoices
                 .AsNoTracking()
-                .Where(i => i.CustomerID == customerId && !i.IsDeleted && i.PaymentStatus != "Paid")
+                .Where(i => i.CustomerID == customerId && !i.IsDeleted);
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                invoiceQuery = invoiceQuery.Where(i => i.CompanyID == companyId.Value);
+            }
+
+            int pendingInvoicesCount = await invoiceQuery
+                .Where(i => i.PaymentStatus != "Paid")
                 .CountAsync(cancellationToken);
 
-            var lastSaleDate = await _context.SalesInvoices
-                .AsNoTracking()
-                .Where(i => i.CustomerID == customerId && !i.IsDeleted)
+            var lastSaleDate = await invoiceQuery
                 .MaxAsync(i => (DateTime?)i.InvoiceDate, cancellationToken);
 
-            var lastPaymentDate = await _context.CustomerPayments
+            var paymentQuery = _context.CustomerPayments
                 .AsNoTracking()
-                .Where(p => p.CustomerID == customerId && !p.IsDeleted)
+                .Where(p => p.CustomerID == customerId && !p.IsDeleted);
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                paymentQuery = paymentQuery.Where(p => p.SalesInvoice.CompanyID == companyId.Value);
+            }
+
+            var lastPaymentDate = await paymentQuery
                 .MaxAsync(p => (DateTime?)p.PaymentDate, cancellationToken);
 
             return new CustomerFinancialSummaryDto
@@ -238,16 +255,45 @@ namespace InventorySystem.Repositories.Implementations
             };
         }
 
+        /// <summary>
+        /// Soft-scopes ledger rows to a company via related SalesInvoice / Payment / Return.
+        /// Entries with no resolvable company (orphan adjustments) are excluded when scoped.
+        /// </summary>
+        private static IQueryable<CustomerLedger> ScopeCustomerLedger(IQueryable<CustomerLedger> query, int? companyId)
+        {
+            if (!companyId.HasValue || companyId.Value <= 0)
+            {
+                return query;
+            }
+
+            int cid = companyId.Value;
+            return query.Where(l =>
+                (l.SalesInvoiceID != null && l.SalesInvoice!.CompanyID == cid)
+                || (l.CustomerPaymentID != null && l.CustomerPayment!.SalesInvoice.CompanyID == cid)
+                || (l.SalesReturnID != null && l.SalesReturn!.InvoiceID != null && l.SalesReturn.SalesInvoice!.CompanyID == cid));
+        }
+
         #endregion
 
         #region 5. History Queries
 
-        public async Task<PagedResult<CustomerSalesHistoryDto>> GetSalesHistoryAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+        public async Task<PagedResult<CustomerSalesHistoryDto>> GetSalesHistoryAsync(
+            int customerId,
+            int pageNumber,
+            int pageSize,
+            int? companyId = null,
+            CancellationToken cancellationToken = default)
         {
             var query = _context.SalesInvoices
                 .AsNoTracking()
-                .Where(i => i.CustomerID == customerId && !i.IsDeleted)
-                .OrderByDescending(i => i.InvoiceDate);
+                .Where(i => i.CustomerID == customerId && !i.IsDeleted);
+
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                query = query.Where(i => i.CompanyID == companyId.Value);
+            }
+
+            query = query.OrderByDescending(i => i.InvoiceDate);
 
             int totalCount = await query.CountAsync(cancellationToken);
             var items = await query
@@ -267,13 +313,24 @@ namespace InventorySystem.Repositories.Implementations
             return new PagedResult<CustomerSalesHistoryDto>(items, totalCount, pageNumber, pageSize);
         }
 
-        public async Task<PagedResult<CustomerPaymentHistoryDto>> GetPaymentHistoryAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+        public async Task<PagedResult<CustomerPaymentHistoryDto>> GetPaymentHistoryAsync(
+            int customerId,
+            int pageNumber,
+            int pageSize,
+            int? companyId = null,
+            CancellationToken cancellationToken = default)
         {
             var query = _context.CustomerPayments
                 .AsNoTracking()
                 .Include(p => p.SalesInvoice)
-                .Where(p => p.CustomerID == customerId && !p.IsDeleted)
-                .OrderByDescending(p => p.PaymentDate);
+                .Where(p => p.CustomerID == customerId && !p.IsDeleted);
+
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                query = query.Where(p => p.SalesInvoice.CompanyID == companyId.Value);
+            }
+
+            query = query.OrderByDescending(p => p.PaymentDate);
 
             int totalCount = await query.CountAsync(cancellationToken);
             var items = await query
@@ -294,11 +351,16 @@ namespace InventorySystem.Repositories.Implementations
             return new PagedResult<CustomerPaymentHistoryDto>(items, totalCount, pageNumber, pageSize);
         }
 
-        public async Task<PagedResult<CustomerLedgerEntryDto>> GetLedgerAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+        public async Task<PagedResult<CustomerLedgerEntryDto>> GetLedgerAsync(
+            int customerId,
+            int pageNumber,
+            int pageSize,
+            int? companyId = null,
+            CancellationToken cancellationToken = default)
         {
-            var query = _context.CustomerLedgers
-                .AsNoTracking()
-                .Where(l => l.CustomerID == customerId)
+            var query = ScopeCustomerLedger(
+                    _context.CustomerLedgers.AsNoTracking().Where(l => l.CustomerID == customerId),
+                    companyId)
                 .OrderByDescending(l => l.TransactionDate)
                 .ThenByDescending(l => l.CustomerLedgerID);
 

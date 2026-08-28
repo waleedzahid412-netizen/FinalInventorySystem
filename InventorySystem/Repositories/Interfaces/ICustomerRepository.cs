@@ -18,11 +18,11 @@ namespace InventorySystem.Repositories.Interfaces
         Task UpdateAsync(Customer customer, CancellationToken cancellationToken = default);
         Task SoftDeleteAsync(int customerId, int userId, CancellationToken cancellationToken = default);
 
-        // Financial & History queries
-        Task<CustomerFinancialSummaryDto?> GetFinancialSummaryAsync(int customerId, CancellationToken cancellationToken = default);
-        Task<PagedResult<CustomerSalesHistoryDto>> GetSalesHistoryAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
-        Task<PagedResult<CustomerPaymentHistoryDto>> GetPaymentHistoryAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
-        Task<PagedResult<CustomerLedgerEntryDto>> GetLedgerAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+        // Financial & History queries (optional companyId soft-scopes via SalesInvoice.CompanyID; null = all companies)
+        Task<CustomerFinancialSummaryDto?> GetFinancialSummaryAsync(int customerId, int? companyId = null, CancellationToken cancellationToken = default);
+        Task<PagedResult<CustomerSalesHistoryDto>> GetSalesHistoryAsync(int customerId, int pageNumber, int pageSize, int? companyId = null, CancellationToken cancellationToken = default);
+        Task<PagedResult<CustomerPaymentHistoryDto>> GetPaymentHistoryAsync(int customerId, int pageNumber, int pageSize, int? companyId = null, CancellationToken cancellationToken = default);
+        Task<PagedResult<CustomerLedgerEntryDto>> GetLedgerAsync(int customerId, int pageNumber, int pageSize, int? companyId = null, CancellationToken cancellationToken = default);
 
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
     }

@@ -1,0 +1,82 @@
+@model InventorySystem.ViewModels.Roles.RoleDetailsViewModel
+@{
+    ViewData["Title"] = "Role Details";
+    var isReadOnlyMatrix = true;
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">
+                <i class="bi bi-shield-check me-2 text-primary"></i>Role Details
+            </h1>
+            <p class="text-muted small mb-0">View role information and assigned permissions.</p>
+        </div>
+        <div class="d-flex gap-2">
+            @if (PermCtx.CanEdit(PageKeys.Roles))
+            {
+                <a asp-action="Edit" asp-route-id="@Model.RoleID" class="btn btn-primary shadow-sm">
+                    <i class="bi bi-pencil me-1"></i>Edit Role
+                </a>
+            }
+            <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to Roles
+            </a>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <dl class="row mb-0">
+                <dt class="col-sm-2 text-muted">Role Name</dt>
+                <dd class="col-sm-10 fw-semibold">
+                    @Model.RoleName
+                    @if (Model.IsSystemRole)
+                    {
+                        <span class="badge bg-secondary ms-1">System</span>
+                    }
+                </dd>
+
+                <dt class="col-sm-2 text-muted">Description</dt>
+                <dd class="col-sm-10">@(string.IsNullOrWhiteSpace(Model.RoleDescription) ? "—" : Model.RoleDescription)</dd>
+
+                <dt class="col-sm-2 text-muted">Status</dt>
+                <dd class="col-sm-10">
+                    @if (Model.IsActive)
+                    {
+                        <span class="badge bg-success-subtle text-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary-subtle text-secondary">Inactive</span>
+                    }
+                </dd>
+
+                <dt class="col-sm-2 text-muted">Access Level</dt>
+                <dd class="col-sm-10">
+                    @if (Model.IsSystemRole)
+                    {
+                        <span class="badge bg-primary-subtle text-primary">Full access to all modules</span>
+                    }
+                    else
+                    {
+                        <span class="text-muted">Custom permissions configured below</span>
+                    }
+                </dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+            @if (Model.IsSystemRole)
+            {
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle me-1"></i> System roles bypass the permission matrix and have full access.
+                </div>
+            }
+
+            <partial name="_RolePermissionMatrix" model="Model" view-data="@(new ViewDataDictionary(ViewData) { { "IsReadOnlyMatrix", isReadOnlyMatrix } })" />
+        </div>
+    </div>
+</div>

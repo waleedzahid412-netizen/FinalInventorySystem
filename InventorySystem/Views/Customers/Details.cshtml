@@ -138,6 +138,14 @@
                     <div class="text-muted small">Tax ID / NTN</div>
                     <div class="fw-semibold">@(info.TaxID ?? "-")</div>
                 </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Preferred Discount</div>
+                    <div class="fw-semibold">
+                        @(info.PreferredDiscountPercent.HasValue
+                            ? $"{info.PreferredDiscountPercent.Value:0.##}%"
+                            : "Not set")
+                    </div>
+                </div>
                 <div class="col-md-12">
                     <div class="text-muted small">Delivery Address</div>
                     <div class="fw-semibold">@(info.Address ?? "No address registered.")</div>

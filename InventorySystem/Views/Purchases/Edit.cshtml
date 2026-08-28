@@ -28,7 +28,7 @@
     <!-- Error Summary -->
     <div asp-validation-summary="All" class="alert alert-danger shadow-sm d-none" id="validationSummary"></div>
 
-    <form asp-action="Edit" method="post" id="purchaseEditForm">
+    <form asp-action="Edit" method="post" id="purchaseEditForm" data-unsaved-company-sensitive>
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="PurchaseInvoiceID" />
         <input type="hidden" asp-for="InvoiceNumber" />

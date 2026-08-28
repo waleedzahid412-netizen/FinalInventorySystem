@@ -52,6 +52,15 @@ namespace InventorySystem.Repositories.Implementations
                 query = query.Where(r => r.CustomerID == filter.CustomerID.Value);
             }
 
+            // Soft company scope (O4): invoice returns by invoice company; manual by product company.
+            if (filter.CompanyID.HasValue && filter.CompanyID.Value > 0)
+            {
+                int companyId = filter.CompanyID.Value;
+                query = query.Where(r =>
+                    (r.SalesInvoice != null && r.SalesInvoice.CompanyID == companyId) ||
+                    (r.InvoiceID == null && r.Items.Any(i => i.Product != null && i.Product.CompanyID == companyId)));
+            }
+
             if (filter.DateFrom.HasValue)
             {
                 query = query.Where(r => r.ReturnDate >= filter.DateFrom.Value);

@@ -10,6 +10,8 @@ namespace InventorySystem.ViewModels.Categories
         [Display(Name = "Company")]
         public int CompanyID { get; set; }
 
+        public string CompanyName { get; set; } = string.Empty;
+
         [Required(ErrorMessage = "Please enter Category Name.")]
         [MaxLength(100, ErrorMessage = "Category Name cannot exceed 100 characters.")]
         [Display(Name = "Category Name")]

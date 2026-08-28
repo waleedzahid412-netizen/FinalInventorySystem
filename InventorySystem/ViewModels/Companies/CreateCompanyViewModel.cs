@@ -35,5 +35,9 @@ namespace InventorySystem.ViewModels.Companies
         [Range(0, 100000000, ErrorMessage = "Credit Limit cannot be negative.")]
         [Display(Name = "Supplier Credit Limit")]
         public decimal CreditLimit { get; set; } = 0;
+
+        [Range(0, 100, ErrorMessage = "Company Percentage must be between 0 and 100.")]
+        [Display(Name = "Company Percentage")]
+        public decimal? CompanyPercentage { get; set; }
     }
 }

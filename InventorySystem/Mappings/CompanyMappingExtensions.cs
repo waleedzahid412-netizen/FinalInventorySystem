@@ -15,7 +15,8 @@ namespace InventorySystem.Mappings
                 Email = model.Email,
                 Address = model.Address,
                 TaxID = model.TaxID,
-                CreditLimit = model.CreditLimit
+                CreditLimit = model.CreditLimit,
+                CompanyPercentage = model.CompanyPercentage
             };
         }
 

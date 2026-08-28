@@ -20,17 +20,20 @@ namespace InventorySystem.Services.Implementations
         private readonly ISalesRepository _salesRepository;
         private readonly ApplicationDbContext _context;
         private readonly IPromotionDiscountService _promotionDiscountService;
+        private readonly ICompanyContext _companyContext;
         private readonly ILogger<SalesService> _logger;
 
         public SalesService(
             ISalesRepository salesRepository,
             ApplicationDbContext context,
             IPromotionDiscountService promotionDiscountService,
+            ICompanyContext companyContext,
             ILogger<SalesService> logger)
         {
             _salesRepository = salesRepository;
             _context = context;
             _promotionDiscountService = promotionDiscountService;
+            _companyContext = companyContext;
             _logger = logger;
         }
 
@@ -90,16 +93,24 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult<int>.Fail("Selected warehouse does not exist or is inactive.");
             }
 
-            // Validate DeliveryPerson if assigned
-            if (dto.DeliveryPersonID.HasValue && dto.DeliveryPersonID.Value > 0)
+            // Validate Supplier if assigned
+            if (dto.SupplierID.HasValue && dto.SupplierID.Value > 0)
             {
-                if (!await _salesRepository.DeliveryPersonExistsAsync(dto.DeliveryPersonID.Value, cancellationToken))
+                if (!await _salesRepository.SupplierExistsAsync(dto.SupplierID.Value, cancellationToken))
                 {
                     return OperationResult<int>.Fail("Selected delivery person does not exist or is inactive.");
                 }
             }
 
-            var headerValidation = await ValidateInvoiceHeaderAsync(dto.BrokerID, dto.SalespersonID, cancellationToken);
+            if (!await _companyContext.TryResolveAsync(cancellationToken))
+            {
+                return OperationResult<int>.Fail("Please select a company before creating a sales invoice.");
+            }
+
+            int invoiceCompanyId = _companyContext.CompanyID;
+            string companyName = _companyContext.CompanyName;
+
+            var headerValidation = await ValidateInvoiceHeaderAsync(invoiceCompanyId, dto.BookerID, dto.SalespersonID, cancellationToken);
             if (!headerValidation.Success)
             {
                 return OperationResult<int>.Fail(headerValidation.Message);
@@ -174,6 +185,7 @@ namespace InventorySystem.Services.Implementations
             {
                 CustomerID = dto.CustomerID,
                 WarehouseID = dto.WarehouseID,
+                CompanyID = invoiceCompanyId,
                 SubTotal = rawPaidSubTotal,
                 Items = cartItems
             };
@@ -232,7 +244,7 @@ namespace InventorySystem.Services.Implementations
                     return OperationResult<int>.Fail($"Selected unit is not valid for product ID {itemDto.ProductID}.");
                 }
 
-                var productCheck = await ValidateProductIsSellableAsync(itemDto.ProductID, cancellationToken);
+                var productCheck = await ValidateProductIsSellableAsync(itemDto.ProductID, invoiceCompanyId, companyName, cancellationToken);
                 if (!productCheck.Success)
                 {
                     return OperationResult<int>.Fail(productCheck.Message);
@@ -263,6 +275,7 @@ namespace InventorySystem.Services.Implementations
                 dto.ManualDiscountType,
                 dto.ManualDiscountValue,
                 invoiceSubTotal,
+                dto.CustomerID,
                 autoPickFirstEligibleRule: false,
                 cancellationToken);
 
@@ -307,10 +320,11 @@ namespace InventorySystem.Services.Implementations
                 var invoice = new SalesInvoice
                 {
                     CustomerID = dto.CustomerID,
-                    BrokerID = dto.BrokerID,
+                    CompanyID = invoiceCompanyId,
+                    BookerID = dto.BookerID,
                     SalespersonID = dto.SalespersonID,
                     WarehouseID = dto.WarehouseID,
-                    DeliveryPersonID = (dto.DeliveryPersonID.HasValue && dto.DeliveryPersonID.Value > 0) ? dto.DeliveryPersonID.Value : null,
+                    SupplierID = (dto.SupplierID.HasValue && dto.SupplierID.Value > 0) ? dto.SupplierID.Value : null,
                     AreaID = customer.AreaID,       // Area snapshot from customer
                     SubAreaID = customer.SubAreaID,  // SubArea snapshot from customer
                     CreatedBy = userId,
@@ -516,7 +530,11 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult<int>.Fail("Sales invoice must contain at least one line item.");
             }
 
-            var headerValidation = await ValidateInvoiceHeaderAsync(dto.BrokerID, dto.SalespersonID, cancellationToken);
+            // BR-046: Company is immutable after create — always use the invoice's stored CompanyID.
+            int invoiceCompanyId = invoice.CompanyID;
+            string companyName = await _salesRepository.GetCompanyNameAsync(invoiceCompanyId, cancellationToken) ?? "the invoice company";
+
+            var headerValidation = await ValidateInvoiceHeaderAsync(invoiceCompanyId, dto.BookerID, dto.SalespersonID, cancellationToken);
             if (!headerValidation.Success)
             {
                 return OperationResult<int>.Fail(headerValidation.Message);
@@ -558,6 +576,7 @@ namespace InventorySystem.Services.Implementations
             {
                 CustomerID = invoice.CustomerID,
                 WarehouseID = invoice.WarehouseID,
+                CompanyID = invoiceCompanyId,
                 SubTotal = rawPaidSubTotal,
                 Items = cartItems
             };
@@ -615,7 +634,7 @@ namespace InventorySystem.Services.Implementations
                     return OperationResult<int>.Fail($"Selected unit is not valid for product ID {itemDto.ProductID}.");
                 }
 
-                var productCheck = await ValidateProductIsSellableAsync(itemDto.ProductID, cancellationToken);
+                var productCheck = await ValidateProductIsSellableAsync(itemDto.ProductID, invoiceCompanyId, companyName, cancellationToken);
                 if (!productCheck.Success)
                 {
                     return OperationResult<int>.Fail(productCheck.Message);
@@ -650,6 +669,7 @@ namespace InventorySystem.Services.Implementations
                 dto.ManualDiscountType,
                 dto.ManualDiscountValue,
                 newSubTotal,
+                invoice.CustomerID,
                 autoPickFirstEligibleRule: false,
                 cancellationToken);
 
@@ -787,9 +807,9 @@ namespace InventorySystem.Services.Implementations
 
                 // Step 6: UPDATE INVOICE HEADER & METADATA
                 invoice.InvoiceDate = dto.InvoiceDate;
-                invoice.BrokerID = dto.BrokerID;
+                invoice.BookerID = dto.BookerID;
                 invoice.SalespersonID = dto.SalespersonID;
-                invoice.DeliveryPersonID = (dto.DeliveryPersonID.HasValue && dto.DeliveryPersonID.Value > 0) ? dto.DeliveryPersonID.Value : null;
+                invoice.SupplierID = (dto.SupplierID.HasValue && dto.SupplierID.Value > 0) ? dto.SupplierID.Value : null;
                 invoice.SubTotal = newSubTotal;
                 invoice.DiscountTotal = newDiscountTotal;
                 invoice.DiscountMode = discountResolution.DiscountMode;
@@ -898,6 +918,11 @@ namespace InventorySystem.Services.Implementations
                 return "Manual";
             }
 
+            if (string.Equals(discountMode, "Customer", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Customer";
+            }
+
             if (string.Equals(discountMode, "Automatic", StringComparison.OrdinalIgnoreCase))
             {
                 return "Automatic";
@@ -918,6 +943,7 @@ namespace InventorySystem.Services.Implementations
             string? manualDiscountType,
             decimal manualDiscountValue,
             decimal paidSubTotal,
+            int customerId,
             bool autoPickFirstEligibleRule,
             CancellationToken cancellationToken)
         {
@@ -953,6 +979,44 @@ namespace InventorySystem.Services.Implementations
                     RuleName = "Manual Discount",
                     DiscountType = type,
                     DiscountValue = manualDiscountValue,
+                    HeaderDiscountAmount = headerAmount,
+                    MinimumOrderAmount = null,
+                    MaximumOrderAmount = null
+                };
+            }
+
+            if (string.Equals(mode, "Customer", StringComparison.OrdinalIgnoreCase))
+            {
+                if (customerId <= 0)
+                {
+                    return new InvoiceDiscountResolution { Success = false, ErrorMessage = "Customer preferred discount requires a valid customer." };
+                }
+
+                var preferredPercent = await _context.Customers
+                    .AsNoTracking()
+                    .Where(c => c.CustomerID == customerId && !c.IsDeleted)
+                    .Select(c => c.PreferredDiscountPercent)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (!preferredPercent.HasValue || preferredPercent.Value <= 0m)
+                {
+                    return new InvoiceDiscountResolution { DiscountMode = "None", HeaderDiscountAmount = 0m };
+                }
+
+                if (preferredPercent.Value > 100m)
+                {
+                    return new InvoiceDiscountResolution { Success = false, ErrorMessage = "Customer preferred discount percentage cannot exceed 100." };
+                }
+
+                decimal headerAmount = DiscountAllocationHelper.ComputeHeaderDiscount("Percentage", preferredPercent.Value, paidSubTotal);
+                return new InvoiceDiscountResolution
+                {
+                    DiscountMode = headerAmount > 0m ? "Customer" : "None",
+                    DiscountSource = "Customer",
+                    DiscountRuleID = null,
+                    RuleName = "Customer Preferred Discount",
+                    DiscountType = "Percentage",
+                    DiscountValue = preferredPercent.Value,
                     HeaderDiscountAmount = headerAmount,
                     MinimumOrderAmount = null,
                     MaximumOrderAmount = null
@@ -1083,11 +1147,25 @@ namespace InventorySystem.Services.Implementations
             }
         }
 
-        private async Task<OperationResult> ValidateInvoiceHeaderAsync(int brokerId, int salespersonId, CancellationToken cancellationToken)
+        private async Task<OperationResult> ValidateInvoiceHeaderAsync(
+            int companyId,
+            int bookerId,
+            int salespersonId,
+            CancellationToken cancellationToken)
         {
-            if (brokerId <= 0)
+            if (companyId <= 0)
             {
-                return OperationResult.Fail("Please select a broker.");
+                return OperationResult.Fail("A company is required for the sales invoice.");
+            }
+
+            if (!await _salesRepository.CompanyExistsAsync(companyId, cancellationToken))
+            {
+                return OperationResult.Fail("Selected company does not exist or is inactive.");
+            }
+
+            if (bookerId <= 0)
+            {
+                return OperationResult.Fail("Please select a booker.");
             }
 
             if (salespersonId <= 0)
@@ -1095,9 +1173,15 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult.Fail("Please select a salesperson.");
             }
 
-            if (!await _salesRepository.BrokerExistsAsync(brokerId, cancellationToken))
+            if (!await _salesRepository.BookerExistsAsync(bookerId, cancellationToken))
             {
-                return OperationResult.Fail("Selected broker does not exist or is inactive.");
+                return OperationResult.Fail("Selected booker does not exist or is inactive.");
+            }
+
+            var bookerCompanyId = await _salesRepository.GetBookerCompanyIdAsync(bookerId, cancellationToken);
+            if (!bookerCompanyId.HasValue || bookerCompanyId.Value != companyId)
+            {
+                return OperationResult.Fail("Selected booker does not belong to this invoice's company.");
             }
 
             if (!await _salesRepository.SalespersonExistsAsync(salespersonId, cancellationToken))
@@ -1109,10 +1193,14 @@ namespace InventorySystem.Services.Implementations
         }
 
         /// <summary>
-        /// A sales invoice may contain products from any number of suppliers, so only the
-        /// product's own existence and active state are validated here.
+        /// Every product line on a sales invoice must belong to the invoice company (BR-044).
+        /// Custom FREE items (ProductID null / productId &lt;= 0) are exempt.
         /// </summary>
-        private async Task<OperationResult> ValidateProductIsSellableAsync(int productId, CancellationToken cancellationToken)
+        private async Task<OperationResult> ValidateProductIsSellableAsync(
+            int productId,
+            int invoiceCompanyId,
+            string companyName,
+            CancellationToken cancellationToken)
         {
             if (productId <= 0)
             {
@@ -1123,6 +1211,14 @@ namespace InventorySystem.Services.Implementations
             if (!productCompanyId.HasValue)
             {
                 return OperationResult.Fail($"Product ID {productId} does not exist or is inactive.");
+            }
+
+            if (productCompanyId.Value != invoiceCompanyId)
+            {
+                var productName = await _salesRepository.GetProductNameAsync(productId, cancellationToken) ?? $"Product ID {productId}";
+                return OperationResult.Fail(
+                    $"'{productName}' belongs to a different company. " +
+                    $"Every item on an invoice must belong to {companyName}.");
             }
 
             return OperationResult.Ok();

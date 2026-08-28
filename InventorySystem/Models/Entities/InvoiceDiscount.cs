@@ -4,10 +4,10 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace InventorySystem.Models.Entities
 {
     /// <summary>
-    /// Historical snapshot of a discount applied to a SalesInvoice (Automatic rule or Manual).
+    /// Historical snapshot of a discount applied to a SalesInvoice (Automatic rule, Manual, or Customer preferred).
     /// Immutable at application time (BR-031). Returns MUST use these snapshotted fields —
-    /// never live DiscountRules.MinimumOrderAmount / DiscountValue.
-    /// DiscountRuleID is null for Manual discounts.
+    /// never live DiscountRules.MinimumOrderAmount / DiscountValue / Customer.PreferredDiscountPercent.
+    /// DiscountRuleID is null for Manual and Customer discounts.
     /// No IsDeleted on this table per SCHEMA.md.
     /// </summary>
     [Table("InvoiceDiscounts", Schema = "dbo")]
@@ -21,12 +21,12 @@ namespace InventorySystem.Models.Entities
         public int InvoiceID { get; set; }
         public virtual SalesInvoice SalesInvoice { get; set; } = null!;
 
-        /// <summary>Null when DiscountSource = Manual (no DiscountRule).</summary>
+        /// <summary>Null when DiscountSource = Manual or Customer (no DiscountRule).</summary>
         [ForeignKey("DiscountRule")]
         public int? DiscountRuleID { get; set; }
         public virtual DiscountRule? DiscountRule { get; set; }
 
-        /// <summary>Snapshot of rule name (or "Manual Discount") at time of application — immutable.</summary>
+        /// <summary>Snapshot of rule name (or "Manual Discount" / "Customer Preferred Discount") at time of application — immutable.</summary>
         [Required]
         [MaxLength(100)]
         public string RuleName { get; set; } = string.Empty;
@@ -45,17 +45,17 @@ namespace InventorySystem.Models.Entities
         public decimal DiscountAmount { get; set; }
 
         /// <summary>
-        /// Snapshotted Automatic threshold at sale. Null/0 for Manual.
+        /// Snapshotted Automatic threshold at sale. Null/0 for Manual and Customer.
         /// Returns must use this value — never live DiscountRules.MinimumOrderAmount.
         /// </summary>
         [Column(TypeName = "decimal(18,2)")]
         public decimal? MinimumOrderAmount { get; set; }
 
-        /// <summary>Optional snapshotted upper bound at sale. Null for Manual or unbounded rules.</summary>
+        /// <summary>Optional snapshotted upper bound at sale. Null for Manual, Customer, or unbounded rules.</summary>
         [Column(TypeName = "decimal(18,2)")]
         public decimal? MaximumOrderAmount { get; set; }
 
-        /// <summary>Automatic | Manual</summary>
+        /// <summary>Automatic | Manual | Customer</summary>
         [Required]
         [MaxLength(20)]
         public string DiscountSource { get; set; } = "Automatic";

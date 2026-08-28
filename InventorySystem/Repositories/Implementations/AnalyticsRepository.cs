@@ -42,8 +42,10 @@ namespace InventorySystem.Repositories.Implementations
                 CustomerID = s.CustomerID,
                 CustomerName = s.Customer.ShopName,
                 WarehouseID = s.WarehouseID,
-                BrokerID = s.BrokerID,
-                BrokerName = s.Broker != null ? s.Broker.Name : null,
+                CompanyID = s.CompanyID,
+                CompanyName = s.Company != null ? s.Company.CompanyName : string.Empty,
+                BookerID = s.BookerID,
+                BookerName = s.Booker != null ? s.Booker.Name : null,
                 AreaID = s.AreaID,
                 AreaName = s.Area != null ? s.Area.AreaName : null,
                 SubAreaID = s.SubAreaID,
@@ -97,12 +99,12 @@ namespace InventorySystem.Repositories.Implementations
             if (AnalyticsFilterHelper.HasCustomer(filter))
                 query = query.Where(r => r.CustomerID == filter.CustomerID!.Value);
 
-            if (AnalyticsFilterHelper.HasBroker(filter))
+            if (AnalyticsFilterHelper.HasBooker(filter))
             {
-                if (filter.BrokerID == -1)
-                    query = query.Where(r => r.SalesInvoice != null && r.SalesInvoice.BrokerID == null);
+                if (filter.BookerID == -1)
+                    query = query.Where(r => r.SalesInvoice != null && r.SalesInvoice.BookerID == null);
                 else
-                    query = query.Where(r => r.SalesInvoice != null && r.SalesInvoice.BrokerID == filter.BrokerID);
+                    query = query.Where(r => r.SalesInvoice != null && r.SalesInvoice.BookerID == filter.BookerID);
             }
 
             if (AnalyticsFilterHelper.HasCategory(filter))
@@ -112,8 +114,8 @@ namespace InventorySystem.Repositories.Implementations
                 int warehouseId = filter.WarehouseID ?? 0;
                 bool hasCustomer = AnalyticsFilterHelper.HasCustomer(filter);
                 int customerId = filter.CustomerID ?? 0;
-                bool hasBroker = AnalyticsFilterHelper.HasBroker(filter);
-                int brokerId = filter.BrokerID ?? 0;
+                bool hasBooker = AnalyticsFilterHelper.HasBooker(filter);
+                int bookerId = filter.BookerID ?? 0;
 
                 var itemQuery = _context.SalesReturnItems.AsNoTracking()
                     .Where(i => i.SalesReturn.ReturnDate >= startDate && i.SalesReturn.ReturnDate <= endDate
@@ -123,10 +125,10 @@ namespace InventorySystem.Repositories.Implementations
                     itemQuery = itemQuery.Where(i => i.SalesReturn.WarehouseID == warehouseId || (i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.WarehouseID == warehouseId));
                 if (hasCustomer)
                     itemQuery = itemQuery.Where(i => i.SalesReturn.CustomerID == customerId);
-                if (hasBroker && brokerId == -1)
-                    itemQuery = itemQuery.Where(i => i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.BrokerID == null);
-                else if (hasBroker)
-                    itemQuery = itemQuery.Where(i => i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.BrokerID == brokerId);
+                if (hasBooker && bookerId == -1)
+                    itemQuery = itemQuery.Where(i => i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.BookerID == null);
+                else if (hasBooker)
+                    itemQuery = itemQuery.Where(i => i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.BookerID == bookerId);
 
                 return await itemQuery
                     .Select(i => new AnalyticsReturnRow
@@ -136,7 +138,7 @@ namespace InventorySystem.Repositories.Implementations
                         CustomerID = i.SalesReturn.CustomerID,
                         InvoiceID = i.SalesReturn.InvoiceID,
                         WarehouseID = i.SalesReturn.WarehouseID ?? (i.SalesReturn.SalesInvoice != null ? i.SalesReturn.SalesInvoice.WarehouseID : null),
-                        BrokerID = i.SalesReturn.SalesInvoice != null ? i.SalesReturn.SalesInvoice.BrokerID : null,
+                        BookerID = i.SalesReturn.SalesInvoice != null ? i.SalesReturn.SalesInvoice.BookerID : null,
                         NetRefundAmount = i.SalesReturn.NetRefundAmount,
                         ProductID = i.ProductID,
                         CategoryID = i.Product != null ? i.Product.CategoryID : null,
@@ -152,7 +154,7 @@ namespace InventorySystem.Repositories.Implementations
                 CustomerID = r.CustomerID,
                 InvoiceID = r.InvoiceID,
                 WarehouseID = r.WarehouseID ?? (r.SalesInvoice != null ? r.SalesInvoice.WarehouseID : null),
-                BrokerID = r.SalesInvoice != null ? r.SalesInvoice.BrokerID : null,
+                BookerID = r.SalesInvoice != null ? r.SalesInvoice.BookerID : null,
                 NetRefundAmount = r.NetRefundAmount,
                 LineRefundAmount = r.NetRefundAmount,
                 HasLineSplit = false
@@ -167,6 +169,9 @@ namespace InventorySystem.Repositories.Implementations
 
             if (AnalyticsFilterHelper.HasWarehouse(filter))
                 query = query.Where(p => p.WarehouseID == filter.WarehouseID);
+
+            if (AnalyticsFilterHelper.HasCompany(filter))
+                query = query.Where(p => p.CompanyID == filter.CompanyID);
 
             if (AnalyticsFilterHelper.HasCategory(filter))
             {
@@ -193,6 +198,9 @@ namespace InventorySystem.Repositories.Implementations
 
             if (AnalyticsFilterHelper.HasWarehouse(filter))
                 query = query.Where(i => i.PurchaseInvoice.WarehouseID == filter.WarehouseID);
+
+            if (AnalyticsFilterHelper.HasCompany(filter))
+                query = query.Where(i => i.PurchaseInvoice.CompanyID == filter.CompanyID);
 
             if (AnalyticsFilterHelper.HasCategory(filter))
                 query = query.Where(i => i.Product.CategoryID == filter.CategoryID);
@@ -221,12 +229,12 @@ namespace InventorySystem.Repositories.Implementations
             if (AnalyticsFilterHelper.HasCustomer(filter))
                 query = query.Where(p => p.CustomerID == filter.CustomerID);
 
-            if (AnalyticsFilterHelper.HasBroker(filter))
+            if (AnalyticsFilterHelper.HasBooker(filter))
             {
-                if (filter.BrokerID == -1)
-                    query = query.Where(p => p.SalesInvoice.BrokerID == null);
+                if (filter.BookerID == -1)
+                    query = query.Where(p => p.SalesInvoice.BookerID == null);
                 else
-                    query = query.Where(p => p.SalesInvoice.BrokerID == filter.BrokerID);
+                    query = query.Where(p => p.SalesInvoice.BookerID == filter.BookerID);
             }
 
             return await query.SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
@@ -302,6 +310,9 @@ namespace InventorySystem.Repositories.Implementations
             if (AnalyticsFilterHelper.HasCategory(filter))
                 query = query.Where(s => s.Product.CategoryID == filter.CategoryID);
 
+            if (AnalyticsFilterHelper.HasCompany(filter))
+                query = query.Where(s => s.Product.CompanyID == filter.CompanyID);
+
             return await query.Select(s => new AnalyticsStockRow
             {
                 ProductID = s.ProductID,
@@ -351,12 +362,12 @@ namespace InventorySystem.Repositories.Implementations
             if (AnalyticsFilterHelper.HasCustomer(filter))
                 query = query.Where(p => p.SalesInvoice.CustomerID == filter.CustomerID);
 
-            if (AnalyticsFilterHelper.HasBroker(filter))
+            if (AnalyticsFilterHelper.HasBooker(filter))
             {
-                if (filter.BrokerID == -1)
-                    query = query.Where(p => p.SalesInvoice.BrokerID == null);
+                if (filter.BookerID == -1)
+                    query = query.Where(p => p.SalesInvoice.BookerID == null);
                 else
-                    query = query.Where(p => p.SalesInvoice.BrokerID == filter.BrokerID);
+                    query = query.Where(p => p.SalesInvoice.BookerID == filter.BookerID);
             }
 
             return await query.SumAsync(p => (decimal?)p.DiscountAmount, cancellationToken) ?? 0m;
@@ -380,10 +391,10 @@ namespace InventorySystem.Repositories.Implementations
                 .Select(c => new AnalyticsLookupItem { Id = c.CategoryID, Name = c.Name })
                 .ToListAsync(cancellationToken);
 
-        public async Task<List<AnalyticsLookupItem>> GetBrokersAsync(CancellationToken cancellationToken = default) =>
-            await _context.Brokers.AsNoTracking().Where(b => b.IsActive)
+        public async Task<List<AnalyticsLookupItem>> GetBookersAsync(CancellationToken cancellationToken = default) =>
+            await _context.Bookers.AsNoTracking().Where(b => b.IsActive)
                 .OrderBy(b => b.Name)
-                .Select(b => new AnalyticsLookupItem { Id = b.BrokerID, Name = b.Name })
+                .Select(b => new AnalyticsLookupItem { Id = b.BookerID, Name = b.Name })
                 .ToListAsync(cancellationToken);
 
         public async Task<string?> GetCustomerNameAsync(int customerId, CancellationToken cancellationToken = default) =>
@@ -392,8 +403,8 @@ namespace InventorySystem.Repositories.Implementations
         public async Task<string?> GetProductNameAsync(int productId, CancellationToken cancellationToken = default) =>
             await _context.Products.AsNoTracking().Where(p => p.ProductID == productId).Select(p => p.ProductName).FirstOrDefaultAsync(cancellationToken);
 
-        public async Task<string?> GetBrokerNameAsync(int brokerId, CancellationToken cancellationToken = default) =>
-            await _context.Brokers.AsNoTracking().Where(b => b.BrokerID == brokerId).Select(b => b.Name).FirstOrDefaultAsync(cancellationToken);
+        public async Task<string?> GetBookerNameAsync(int bookerId, CancellationToken cancellationToken = default) =>
+            await _context.Bookers.AsNoTracking().Where(b => b.BookerID == bookerId).Select(b => b.Name).FirstOrDefaultAsync(cancellationToken);
 
         private static IQueryable<Models.Entities.SalesInvoice> ApplySalesHeaderFilters(
             IQueryable<Models.Entities.SalesInvoice> query, AnalyticsFilterDto filter)
@@ -404,12 +415,15 @@ namespace InventorySystem.Repositories.Implementations
             if (AnalyticsFilterHelper.HasCustomer(filter))
                 query = query.Where(s => s.CustomerID == filter.CustomerID);
 
-            if (AnalyticsFilterHelper.HasBroker(filter))
+            if (AnalyticsFilterHelper.HasCompany(filter))
+                query = query.Where(s => s.CompanyID == filter.CompanyID);
+
+            if (AnalyticsFilterHelper.HasBooker(filter))
             {
-                if (filter.BrokerID == -1)
-                    query = query.Where(s => s.BrokerID == null);
+                if (filter.BookerID == -1)
+                    query = query.Where(s => s.BookerID == null);
                 else
-                    query = query.Where(s => s.BrokerID == filter.BrokerID);
+                    query = query.Where(s => s.BookerID == filter.BookerID);
             }
 
             return query;
@@ -424,15 +438,18 @@ namespace InventorySystem.Repositories.Implementations
             if (AnalyticsFilterHelper.HasCustomer(filter))
                 query = query.Where(i => i.SalesInvoice.CustomerID == filter.CustomerID);
 
+            if (AnalyticsFilterHelper.HasCompany(filter))
+                query = query.Where(i => i.SalesInvoice.CompanyID == filter.CompanyID);
+
             if (AnalyticsFilterHelper.HasCategory(filter))
                 query = query.Where(i => i.Product != null && i.Product.CategoryID == filter.CategoryID);
 
-            if (AnalyticsFilterHelper.HasBroker(filter))
+            if (AnalyticsFilterHelper.HasBooker(filter))
             {
-                if (filter.BrokerID == -1)
-                    query = query.Where(i => i.SalesInvoice.BrokerID == null);
+                if (filter.BookerID == -1)
+                    query = query.Where(i => i.SalesInvoice.BookerID == null);
                 else
-                    query = query.Where(i => i.SalesInvoice.BrokerID == filter.BrokerID);
+                    query = query.Where(i => i.SalesInvoice.BookerID == filter.BookerID);
             }
 
             return query;

@@ -7,6 +7,8 @@ namespace InventorySystem.DTOs.Returns
         public string? ReturnNumber { get; set; }
         public string? InvoiceNumber { get; set; }
         public int? CustomerID { get; set; }
+        /// <summary>Soft-scope: when set, filter invoice returns by SalesInvoice.CompanyID (manual returns by product company).</summary>
+        public int? CompanyID { get; set; }
         public string? ReturnType { get; set; } // INVOICE | MANUAL
         public string? SettlementMethod { get; set; } // CASH | ACCOUNT_ADJUSTMENT
         public DateTime? DateFrom { get; set; }

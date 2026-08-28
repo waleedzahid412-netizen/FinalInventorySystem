@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
+using InventorySystem.Data;
 
 namespace InventorySystem.ViewModels.Promotions
 {
@@ -36,6 +39,7 @@ namespace InventorySystem.ViewModels.Promotions
         public DateTime EndDate { get; set; }
         public bool IsActive { get; set; }
         public string CreatedByName { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
         public List<PromotionRuleItemViewModel> Rules { get; set; } = new();
     }
 
@@ -102,10 +106,42 @@ namespace InventorySystem.ViewModels.Promotions
                 {
                     yield return new ValidationResult("Enter a name for the custom free item.", new[] { nameof(CustomFreeItemName) });
                 }
+
+                yield break;
             }
-            else if (!FreeProductID.HasValue || FreeProductID.Value <= 0)
+
+            if (!FreeProductID.HasValue || FreeProductID.Value <= 0)
             {
                 yield return new ValidationResult("Select a free product or Other.", new[] { nameof(FreeRewardSelection) });
+                yield break;
+            }
+
+            // BR-047: free product must belong to the same company as the buy product.
+            var db = validationContext.GetService(typeof(ApplicationDbContext)) as ApplicationDbContext;
+            if (db == null)
+            {
+                yield break;
+            }
+
+            var productIds = new[] { BuyProductID, FreeProductID.Value };
+            var companies = db.Products
+                .AsNoTracking()
+                .Where(p => productIds.Contains(p.ProductID) && !p.IsDeleted)
+                .Select(p => new { p.ProductID, p.CompanyID })
+                .ToList();
+
+            var buy = companies.FirstOrDefault(p => p.ProductID == BuyProductID);
+            var free = companies.FirstOrDefault(p => p.ProductID == FreeProductID.Value);
+            if (buy == null || free == null)
+            {
+                yield break;
+            }
+
+            if (buy.CompanyID != free.CompanyID)
+            {
+                yield return new ValidationResult(
+                    "Free product must belong to the same company as the buy product (BR-047).",
+                    new[] { nameof(FreeRewardSelection) });
             }
         }
     }
@@ -125,6 +161,8 @@ namespace InventorySystem.ViewModels.Promotions
         public DateTime EndDate { get; set; } = DateTime.Today.AddMonths(1);
 
         public bool IsActive { get; set; } = true;
+
+        public string CompanyName { get; set; } = string.Empty;
 
         public List<PromotionRuleInputViewModel> Rules { get; set; } = new();
 
@@ -161,6 +199,8 @@ namespace InventorySystem.ViewModels.Promotions
         public DateTime EndDate { get; set; }
 
         public bool IsActive { get; set; }
+
+        public string CompanyName { get; set; } = string.Empty;
 
         public List<PromotionRuleInputViewModel> Rules { get; set; } = new();
 

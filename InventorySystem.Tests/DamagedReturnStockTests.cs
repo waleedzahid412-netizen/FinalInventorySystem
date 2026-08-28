@@ -49,7 +49,7 @@ namespace InventorySystem.Tests
             var returnService = new ReturnService(returnRepo, context, NullLogger<ReturnService>.Instance);
             var salesRepo = new SalesRepository(context);
             var promoService = new PromotionDiscountService(context);
-            var salesService = new SalesService(salesRepo, context, promoService, NullLogger<SalesService>.Instance);
+            var salesService = new SalesService(salesRepo, context, promoService, new FakeCompanyContext(1, "Co"), NullLogger<SalesService>.Instance);
 
             var customer = new Customer { CustomerID = 1, ShopName = "Test Shop", Address = "123 St", IsActive = true };
             var warehouse = new Warehouse { WarehouseID = 1, Name = "Main Warehouse", IsActive = true };
@@ -58,7 +58,7 @@ namespace InventorySystem.Tests
             var company = new Company { CompanyID = 1, CompanyName = "Co" };
             var role = new Role { RoleID = 1, RoleName = "Admin", IsActive = true };
             var user = new User { UserID = 1, RoleID = 1, FullName = "Test User", Username = "test", PasswordHash = "x", IsActive = true };
-            var broker = new Broker { BrokerID = 1, Name = "Test Broker", IsActive = true };
+            var booker = new Booker { BookerID = 1, CompanyID = 1, Name = "Test Booker", CNIC = "35202-1111111", IsActive = true };
 
             var productA = new Product
             {
@@ -124,6 +124,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "INV-DMG-001",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,
@@ -170,7 +171,7 @@ namespace InventorySystem.Tests
             context.Companies.Add(company);
             context.Roles.Add(role);
             context.Users.Add(user);
-            context.Brokers.Add(broker);
+            context.Bookers.Add(booker);
             context.Products.AddRange(productA, productB);
             context.ProductUnits.AddRange(unitA, unitB);
             context.InventoryStocks.AddRange(stockA, stockB);
@@ -329,7 +330,7 @@ namespace InventorySystem.Tests
             var successSale = await salesService.CreateAndFinalizeSalesInvoiceAsync(new CreateSalesInvoiceDto
             {
                 CustomerID = 1,
-                BrokerID = 1,
+                BookerID = 1,
                 SalespersonID = 1,
                 WarehouseID = 1,
                 InvoiceDate = DateTime.UtcNow,
@@ -357,7 +358,7 @@ namespace InventorySystem.Tests
             var failSale = await salesService.CreateAndFinalizeSalesInvoiceAsync(new CreateSalesInvoiceDto
             {
                 CustomerID = 1,
-                BrokerID = 1,
+                BookerID = 1,
                 SalespersonID = 1,
                 WarehouseID = 1,
                 InvoiceDate = DateTime.UtcNow,

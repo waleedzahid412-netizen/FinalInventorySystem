@@ -49,6 +49,7 @@ namespace InventorySystem.Tests
             {
                 PromotionID = 1,
                 Name = "Buy 1 Get 1 Free",
+                CompanyID = 1,
                 PromotionRules = new List<PromotionRule>
                 {
                     new PromotionRule
@@ -68,6 +69,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "INV-00001",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,

@@ -69,7 +69,7 @@
         function money(v) { return 'PKR ' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
         function buildFilter() {
             return { Preset: currentPreset, StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null, EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
-                WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null };
+                CompanyID: parseInt($('#companyId').val()) || null, WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null };
         }
         $(function () {
             $('#presetGroup button').click(function () { $('#presetGroup button').removeClass('active'); $(this).addClass('active'); currentPreset = $(this).data('preset'); if (currentPreset === 'Custom') $('.custom-date-container').slideDown(); else { $('.custom-date-container').slideUp(); load(); } });

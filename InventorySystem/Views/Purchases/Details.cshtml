@@ -93,8 +93,16 @@
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-3">
-                    <div class="text-muted small fw-semibold">Company (Supplier)</div>
+                    <div class="text-muted small fw-semibold">Company</div>
                     <div class="fw-bold fs-6">@header.CompanyName</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small fw-semibold">System Invoice #</div>
+                    <div class="fw-semibold">@header.InvoiceNumber</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small fw-semibold">Supplier Invoice #</div>
+                    <div class="fw-semibold">@(string.IsNullOrWhiteSpace(header.SupplierInvoiceNumber) ? "—" : header.SupplierInvoiceNumber)</div>
                 </div>
                 <div class="col-md-3">
                     <div class="text-muted small fw-semibold">Destination Warehouse</div>

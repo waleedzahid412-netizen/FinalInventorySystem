@@ -18,11 +18,14 @@ namespace InventorySystem.Repositories.Interfaces
         Task<bool> ExistsByInvoiceNumberAsync(string invoiceNumber, int? excludeId = null, CancellationToken cancellationToken = default);
         Task<Customer?> GetCustomerForInvoiceAsync(int customerId, CancellationToken cancellationToken = default);
         Task<bool> WarehouseExistsAsync(int warehouseId, CancellationToken cancellationToken = default);
-        Task<bool> DeliveryPersonExistsAsync(int deliveryPersonId, CancellationToken cancellationToken = default);
+        Task<bool> SupplierExistsAsync(int SupplierID, CancellationToken cancellationToken = default);
         Task<bool> CompanyExistsAsync(int companyId, CancellationToken cancellationToken = default);
-        Task<bool> BrokerExistsAsync(int brokerId, CancellationToken cancellationToken = default);
+        Task<bool> BookerExistsAsync(int bookerId, CancellationToken cancellationToken = default);
+        Task<int?> GetBookerCompanyIdAsync(int bookerId, CancellationToken cancellationToken = default);
+        Task<string?> GetCompanyNameAsync(int companyId, CancellationToken cancellationToken = default);
         Task<bool> SalespersonExistsAsync(int userId, CancellationToken cancellationToken = default);
         Task<int?> GetProductCompanyIdAsync(int productId, CancellationToken cancellationToken = default);
+        Task<string?> GetProductNameAsync(int productId, CancellationToken cancellationToken = default);
         Task<bool> ProductExistsAsync(int productId, CancellationToken cancellationToken = default);
         Task<ProductUnit?> GetProductUnitAsync(int productUnitId, CancellationToken cancellationToken = default);
         #endregion

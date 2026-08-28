@@ -14,6 +14,15 @@
         </nav>
         <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-receipt me-2 text-primary"></i> Create Sales Invoice</h1>
         <p class="text-muted small mb-0">Select a customer, add products, verify trade prices and real-time inventory, then finalize the sale.</p>
+        @if (!string.IsNullOrWhiteSpace(Model.CompanyName))
+        {
+            <div class="mt-2">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 fw-semibold px-3 py-2">
+                    <i class="bi bi-building me-1"></i>@Model.CompanyName
+                </span>
+                <span class="text-muted small ms-2">All products and bookers are scoped to this company.</span>
+            </div>
+        }
     </div>
 
     <!-- Form Validation Error Banner -->
@@ -22,7 +31,7 @@
         <strong id="formValidationErrorText">Please select all required fields and resolve stock errors before finalizing.</strong>
     </div>
 
-    <form id="createSalesForm" asp-action="Create" method="post" novalidate>
+    <form id="createSalesForm" asp-action="Create" method="post" novalidate data-unsaved-company-sensitive>
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="ItemsJson" id="ItemsJson" />
         <input type="hidden" asp-for="AppliedDiscountRuleID" id="AppliedDiscountRuleID" />
@@ -39,7 +48,28 @@
                 <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-person-bounding-box me-2"></i> Header Information</h5>
             </div>
             <div class="card-body">
+                <input type="hidden" asp-for="SalespersonID" />
                 <div class="row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="InvoiceDate" class="form-label fw-semibold"></label>
+                        <input asp-for="InvoiceDate" class="form-control" type="date" required />
+                        <div class="invalid-feedback">Please select a valid invoice date.</div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="AreaID" class="form-label fw-semibold"></label>
+                        <select asp-for="AreaID" asp-items="Model.Areas" class="form-select" id="areaSelect">
+                            <option value="">-- Select Area --</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="SubAreaID" class="form-label fw-semibold"></label>
+                        <select asp-for="SubAreaID" asp-items="Model.SubAreas" class="form-select" id="subAreaSelect">
+                            <option value="">-- Select Sub-Area --</option>
+                        </select>
+                    </div>
+
                     <div class="col-md-4">
                         <label asp-for="CustomerID" class="form-label fw-semibold"></label>
                         <select asp-for="CustomerID" asp-items="Model.Customers" class="form-select" id="customerSelect" required>
@@ -77,19 +107,11 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label asp-for="BrokerID" class="form-label fw-semibold"></label>
-                        <select asp-for="BrokerID" asp-items="Model.Brokers" class="form-select" id="brokerSelect" required>
-                            <option value="">-- Select Bookie --</option>
+                        <label asp-for="BookerID" class="form-label fw-semibold"></label>
+                        <select asp-for="BookerID" asp-items="Model.Bookers" class="form-select" id="bookerSelect" required>
+                            <option value="">-- Select Booker --</option>
                         </select>
-                        <span asp-validation-for="BrokerID" class="text-danger small"></span>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="SalespersonID" class="form-label fw-semibold"></label>
-                        <select asp-for="SalespersonID" asp-items="Model.Salespersons" class="form-select" id="salespersonSelect" required>
-                            <option value="">-- Select Salesperson --</option>
-                        </select>
-                        <span asp-validation-for="SalespersonID" class="text-danger small"></span>
+                        <span asp-validation-for="BookerID" class="text-danger small"></span>
                     </div>
 
                     <div class="col-md-4">
@@ -102,29 +124,11 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label asp-for="DeliveryPersonID" class="form-label fw-semibold"></label>
-                        <select asp-for="DeliveryPersonID" asp-items="Model.DeliveryPersons" class="form-select">
-                            <option value="">-- Select Delivery Agent (Optional) --</option>
+                        <label asp-for="SupplierID" class="form-label fw-semibold"></label>
+                        <select asp-for="SupplierID" asp-items="Model.Suppliers" class="form-select">
+                            <option value="">-- Select Supplier (Optional) --</option>
                         </select>
-                        <span asp-validation-for="DeliveryPersonID" class="text-danger small"></span>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="InvoiceNumber" class="form-label fw-semibold"></label>
-                        <input asp-for="InvoiceNumber" class="form-control bg-light" value="Auto-generated on save" readonly />
-                        <span class="form-text small text-muted">Invoice # is assigned automatically upon finalization.</span>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="InvoiceDate" class="form-label fw-semibold"></label>
-                        <input asp-for="InvoiceDate" class="form-control" type="date" required />
-                        <div class="invalid-feedback">Please select a valid invoice date.</div>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="Remarks" class="form-label fw-semibold"></label>
-                        <input asp-for="Remarks" class="form-control" placeholder="Optional notes or remarks" />
-                        <span asp-validation-for="Remarks" class="text-danger small"></span>
+                        <span asp-validation-for="SupplierID" class="text-danger small"></span>
                     </div>
                 </div>
             </div>
@@ -202,6 +206,8 @@
                         <label class="btn btn-outline-primary" for="discountModeAutomatic">Automatic</label>
                         <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeManual" value="Manual" autocomplete="off">
                         <label class="btn btn-outline-warning" for="discountModeManual">Manual</label>
+                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeCustomer" value="Customer" autocomplete="off" disabled>
+                        <label class="btn btn-outline-info" for="discountModeCustomer" id="discountModeCustomerLabel" title="Select a customer with a preferred discount">Customer</label>
                     </div>
                     <span class="fw-semibold small text-muted mb-0">Apply Promotion:</span>
                     <div class="btn-group btn-group-sm" role="group" aria-label="Apply promotions toggle">
@@ -230,6 +236,20 @@
                         <div class="col-md-4">
                             <div class="small text-muted" id="manualDiscountHint">Enter % off the invoice subtotal. Server allocates to each NORMAL line.</div>
                         </div>
+                    </div>
+                </div>
+                <div id="customerPreferredDiscountPanel" class="border rounded p-3 mb-3 bg-light d-none">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <h6 class="fw-bold mb-1"><i class="bi bi-person-badge me-1"></i> Customer Preferred Discount</h6>
+                            <div class="small text-muted mb-0">
+                                Preferred rate: <strong id="lblCustomerPreferredPercent">—</strong>
+                                <span class="ms-1">(seller must Apply; replaces Automatic/Manual)</span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-info text-white" id="btnApplyCustomerPreferredDiscount">
+                            <i class="bi bi-check-circle me-1"></i> Apply
+                        </button>
                     </div>
                 </div>
                 <div id="promotionSuggestionsContainer">
@@ -291,11 +311,38 @@
             let rowCounter = 0;
             let productsList = [];
             let currentAppliedDiscount = null; // { id, name, amount } — Automatic mode only
+            let customerPreferredPercent = null; // number | null from GetCustomerInfo
             let evaluationDebounceTimer = null;
 
             function getDiscountMode() {
                 const checked = document.querySelector('input[name="discountModeToggle"]:checked');
                 return checked ? checked.value : 'Automatic';
+            }
+
+            function setCustomerPreferredPercent(percent) {
+                const raw = percent == null ? null : Number(percent);
+                customerPreferredPercent = (raw != null && !isNaN(raw) && raw > 0) ? raw : null;
+
+                const radio = document.getElementById('discountModeCustomer');
+                const panel = document.getElementById('customerPreferredDiscountPanel');
+                const lbl = document.getElementById('lblCustomerPreferredPercent');
+
+                if (radio) {
+                    radio.disabled = customerPreferredPercent == null;
+                }
+                if (lbl) {
+                    lbl.textContent = customerPreferredPercent != null
+                        ? (customerPreferredPercent.toFixed(2).replace(/\.00$/, '') + '%')
+                        : '—';
+                }
+                if (panel) {
+                    panel.classList.toggle('d-none', customerPreferredPercent == null);
+                }
+
+                if (customerPreferredPercent == null && getDiscountMode() === 'Customer') {
+                    document.getElementById('discountModeNone').checked = true;
+                    document.getElementById('DiscountMode').value = 'None';
+                }
             }
 
             function syncDiscountHiddenFields(subTotal) {
@@ -312,6 +359,15 @@
                     document.getElementById('AppliedDiscountRuleID').value = '';
                     currentAppliedDiscount = null;
                     return computeManualDiscount(subTotal, type, value);
+                }
+
+                if (mode === 'Customer') {
+                    document.getElementById('ManualDiscountType').value = '';
+                    document.getElementById('ManualDiscountValue').value = '0';
+                    document.getElementById('AppliedDiscountRuleID').value = '';
+                    currentAppliedDiscount = null;
+                    if (customerPreferredPercent == null || customerPreferredPercent <= 0 || subTotal <= 0) return 0;
+                    return computeManualDiscount(subTotal, 'Percentage', customerPreferredPercent);
                 }
 
                 document.getElementById('ManualDiscountType').value = '';
@@ -342,19 +398,13 @@
             function updateDiscountModeUi() {
                 const mode = getDiscountMode();
                 const manualPanel = document.getElementById('manualDiscountPanel');
-                const suggestions = document.getElementById('promotionSuggestionsContainer');
                 if (manualPanel) {
                     manualPanel.classList.toggle('d-none', mode !== 'Manual');
                 }
-                if (mode === 'Manual') {
+                if (mode === 'Manual' || mode === 'None' || mode === 'Customer') {
                     currentAppliedDiscount = null;
                     document.getElementById('AppliedDiscountRuleID').value = '';
                 }
-                if (mode === 'None') {
-                    currentAppliedDiscount = null;
-                    document.getElementById('AppliedDiscountRuleID').value = '';
-                }
-                // When Manual/None, still show promo suggestions but hide auto discount apply buttons via calculateTotals refresh
                 calculateTotals();
             }
 
@@ -371,6 +421,21 @@
                 calculateTotals();
             });
             document.getElementById('manualDiscountValueInput')?.addEventListener('input', calculateTotals);
+
+            document.getElementById('btnApplyCustomerPreferredDiscount')?.addEventListener('click', function () {
+                if (customerPreferredPercent == null) return;
+                const radio = document.getElementById('discountModeCustomer');
+                if (radio) {
+                    radio.disabled = false;
+                    radio.checked = true;
+                }
+                document.getElementById('DiscountMode').value = 'Customer';
+                currentAppliedDiscount = null;
+                document.getElementById('AppliedDiscountRuleID').value = '';
+                document.getElementById('ManualDiscountType').value = '';
+                document.getElementById('ManualDiscountValue').value = '0';
+                updateDiscountModeUi();
+            });
 
             function isApplyPromotionsEnabled() {
                 return document.getElementById('applyPromotionsYes')?.checked === true;
@@ -438,40 +503,117 @@
                     addRow();
                 });
 
+            // Area → SubArea → Customer cascade
+            // Use jQuery change — Select2 does not reliably fire native addEventListener('change').
+            const $areaSelect = $('#areaSelect');
+            const $subAreaSelect = $('#subAreaSelect');
+            const $customerSelect = $('#customerSelect');
+            const areaSelect = $areaSelect[0];
+            const subAreaSelect = $subAreaSelect[0];
+            const customerSelect = $customerSelect[0];
+
+            function resetSelect($select, placeholder) {
+                $select.empty().append($('<option>', { value: '', text: placeholder }));
+                if (window.WimsSelect2) {
+                    window.WimsSelect2.refresh($select[0]);
+                }
+            }
+
+            function populateSelect($select, items, placeholder) {
+                $select.empty().append($('<option>', { value: '', text: placeholder }));
+                (items || []).forEach(item => {
+                    const id = item.id ?? item.Id;
+                    const name = item.name ?? item.Name;
+                    if (id == null || id === '') return;
+                    $select.append($('<option>', { value: id, text: name }));
+                });
+                if (window.WimsSelect2) {
+                    window.WimsSelect2.refresh($select[0]);
+                }
+            }
+
+            function hideCustomerInfo() {
+                document.getElementById('customerInfoCard').classList.add('d-none');
+                document.getElementById('creditLimitAlert').classList.add('d-none');
+                setCustomerPreferredPercent(null);
+            }
+
+            $areaSelect.on('change', function () {
+                const areaId = $(this).val();
+                resetSelect($subAreaSelect, '-- Select Sub-Area --');
+                resetSelect($customerSelect, '-- Select Customer --');
+                hideCustomerInfo();
+                checkGlobalFormValidity();
+
+                if (!areaId) return;
+
+                fetch(`/Sales/GetSubAreas?areaId=${encodeURIComponent(areaId)}`)
+                    .then(res => res.json())
+                    .then(data => populateSelect($subAreaSelect, data, '-- Select Sub-Area --'))
+                    .catch(err => console.error('Failed to load sub-areas:', err));
+            });
+
+            $subAreaSelect.on('change', function () {
+                const subAreaId = $(this).val();
+                const areaId = $areaSelect.val();
+                resetSelect($customerSelect, '-- Select Customer --');
+                hideCustomerInfo();
+                checkGlobalFormValidity();
+
+                if (!subAreaId) return;
+
+                const qs = new URLSearchParams();
+                if (areaId) qs.set('areaId', areaId);
+                qs.set('subAreaId', subAreaId);
+
+                fetch(`/Sales/GetCustomers?${qs.toString()}`)
+                    .then(res => res.json())
+                    .then(data => populateSelect($customerSelect, data, '-- Select Customer --'))
+                    .catch(err => console.error('Failed to load customers:', err));
+            });
+
             // Customer selection AJAX info lookup & validation
-            const customerSelect = document.getElementById('customerSelect');
-            customerSelect.addEventListener('change', function () {
-                validateField(this, 'Please select a customer.');
-                const customerId = this.value;
+            $customerSelect.on('change', function () {
+                validateField(customerSelect, 'Please select a customer.');
+                const customerId = $(this).val();
                 const card = document.getElementById('customerInfoCard');
                 const alertBox = document.getElementById('creditLimitAlert');
 
                 if (!customerId) {
                     card.classList.add('d-none');
                     alertBox.classList.add('d-none');
+                    setCustomerPreferredPercent(null);
+                    calculateTotals();
                     return;
                 }
 
-                fetch(`/Sales/GetCustomerInfo?customerId=${customerId}`)
+                fetch(`/Sales/GetCustomerInfo?customerId=${encodeURIComponent(customerId)}`)
                     .then(res => res.json())
                     .then(data => {
                         if (data) {
-                            document.getElementById('infoShopName').textContent = data.shopName || 'N/A';
-                            document.getElementById('infoArea').textContent = (data.areaName ? data.areaName + ' ' : '') + (data.subAreaName || '');
-                            document.getElementById('infoCreditLimit').textContent = data.creditLimit > 0 ? 'PKR ' + data.creditLimit.toFixed(2) : 'No Limit';
-                            document.getElementById('infoOutstanding').textContent = 'PKR ' + data.currentOutstanding.toFixed(2);
+                            document.getElementById('infoShopName').textContent = data.shopName || data.ShopName || 'N/A';
+                            const areaName = data.areaName || data.AreaName || '';
+                            const subAreaName = data.subAreaName || data.SubAreaName || '';
+                            document.getElementById('infoArea').textContent = (areaName ? areaName + ' ' : '') + subAreaName;
+                            const creditLimit = data.creditLimit ?? data.CreditLimit ?? 0;
+                            const outstanding = data.currentOutstanding ?? data.CurrentOutstanding ?? 0;
+                            document.getElementById('infoCreditLimit').textContent = creditLimit > 0 ? 'PKR ' + Number(creditLimit).toFixed(2) : 'No Limit';
+                            document.getElementById('infoOutstanding').textContent = 'PKR ' + Number(outstanding).toFixed(2);
                             card.classList.remove('d-none');
 
-                            if (data.exceedsCreditLimit) {
+                            if (data.exceedsCreditLimit || data.ExceedsCreditLimit) {
                                 alertBox.classList.remove('d-none');
                             } else {
                                 alertBox.classList.add('d-none');
                             }
+
+                            setCustomerPreferredPercent(data.preferredDiscountPercent ?? data.PreferredDiscountPercent);
+                            calculateTotals();
                         }
                     })
                     .catch(err => console.error('Failed to fetch customer info:', err));
             });
-            customerSelect.addEventListener('blur', function () { validateField(this, 'Please select a customer.'); });
+            $customerSelect.on('select2:close blur', function () { validateField(customerSelect, 'Please select a customer.'); });
 
             // Warehouse selection & validation
             const warehouseSelect = document.getElementById('warehouseSelect');
@@ -915,9 +1057,14 @@
 
                 if (discountAmount > 0) {
                     document.getElementById('lblDiscountTotal').textContent = 'PKR ' + discountAmount.toFixed(2);
-                    const name = mode === 'Manual'
-                        ? (`Manual ${document.getElementById('manualDiscountTypeSelect').value} ${document.getElementById('manualDiscountValueInput').value}`)
-                        : (currentAppliedDiscount ? currentAppliedDiscount.name : 'Discount');
+                    let name = 'Discount';
+                    if (mode === 'Manual') {
+                        name = `Manual ${document.getElementById('manualDiscountTypeSelect').value} ${document.getElementById('manualDiscountValueInput').value}`;
+                    } else if (mode === 'Customer') {
+                        name = `Customer Preferred ${customerPreferredPercent != null ? customerPreferredPercent : ''}%`;
+                    } else if (currentAppliedDiscount) {
+                        name = currentAppliedDiscount.name;
+                    }
                     document.getElementById('lblAppliedDiscountName').textContent = name + ` (-PKR ${discountAmount.toFixed(2)})`;
                     document.getElementById('lblDiscountModeBadge').textContent = mode;
                     document.getElementById('appliedDiscountBadgeContainer').classList.remove('d-none');
@@ -941,7 +1088,7 @@
                 currentAppliedDiscount = null;
                 if (getDiscountMode() === 'Manual') {
                     document.getElementById('manualDiscountValueInput').value = '0';
-                } else if (getDiscountMode() === 'Automatic') {
+                } else if (getDiscountMode() === 'Automatic' || getDiscountMode() === 'Customer') {
                     document.getElementById('discountModeNone').checked = true;
                     document.getElementById('DiscountMode').value = 'None';
                 }
@@ -1182,6 +1329,8 @@
                     });
                 } else if (hasDiscounts && getDiscountMode() === 'Manual') {
                     html += `<div class="alert alert-warning py-2 small mb-0"><i class="bi bi-info-circle me-1"></i> Automatic order discounts are disabled while Manual discount mode is selected.</div>`;
+                } else if (hasDiscounts && getDiscountMode() === 'Customer') {
+                    html += `<div class="alert alert-info py-2 small mb-0"><i class="bi bi-info-circle me-1"></i> Automatic order discounts are disabled while Customer preferred discount mode is selected.</div>`;
                 }
 
                 container.innerHTML = html;

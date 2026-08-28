@@ -752,7 +752,7 @@ namespace InventorySystem.Services.Implementations
             };
         }
 
-        public async Task<BrokerAnalyticsDto> GetBrokerAnalyticsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        public async Task<BookerAnalyticsDto> GetBookerAnalyticsAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             var (start, end, _, _) = AnalyticsFilterHelper.ResolveDates(filter);
             var invoices = await _repository.GetSalesInvoiceRowsAsync(filter, start, end, cancellationToken);
@@ -770,12 +770,12 @@ namespace InventorySystem.Services.Implementations
                 ? items.GroupBy(i => i.InvoiceID).ToDictionary(g => g.Key, g => g.Sum(i => i.DiscountAmount))
                 : invoices.ToDictionary(i => i.InvoiceID, i => i.DiscountTotal);
 
-            var brokers = invoices
-                .GroupBy(i => new { i.BrokerID, Name = string.IsNullOrWhiteSpace(i.BrokerName) ? "Unassigned" : i.BrokerName })
-                .Select(g => new BrokerRankedDto
+            var bookers = invoices
+                .GroupBy(i => new { i.BookerID, Name = string.IsNullOrWhiteSpace(i.BookerName) ? "Unassigned" : i.BookerName })
+                .Select(g => new BookerRankedDto
                 {
-                    BrokerID = g.Key.BrokerID,
-                    BrokerName = g.Key.Name,
+                    BookerID = g.Key.BookerID,
+                    BookerName = g.Key.Name,
                     InvoiceCount = g.Count(),
                     Revenue = g.Sum(x => revenueByInvoice.TryGetValue(x.InvoiceID, out var v) ? v : 0m),
                     Discounts = g.Sum(x => discountByInvoice.TryGetValue(x.InvoiceID, out var d) ? d : 0m),
@@ -785,13 +785,13 @@ namespace InventorySystem.Services.Implementations
                 .OrderByDescending(b => b.Revenue)
                 .ToList();
 
-            var returnsByBroker = returns
-                .GroupBy(r => r.BrokerID ?? -1)
+            var returnsByBooker = returns
+                .GroupBy(r => r.BookerID ?? -1)
                 .ToDictionary(g => g.Key, g => g.Sum(r => r.LineRefundAmount));
-            foreach (var b in brokers)
+            foreach (var b in bookers)
             {
-                int key = b.BrokerID ?? -1;
-                b.Returns = returnsByBroker.TryGetValue(key, out var r) ? r : 0m;
+                int key = b.BookerID ?? -1;
+                b.Returns = returnsByBooker.TryGetValue(key, out var r) ? r : 0m;
             }
 
             var topCustomers = invoices
@@ -809,45 +809,45 @@ namespace InventorySystem.Services.Implementations
 
             var topProducts = await GetTopProductsAsync(filter, "Revenue", 10, cancellationToken);
 
-            return new BrokerAnalyticsDto
+            return new BookerAnalyticsDto
             {
-                Revenue = brokers.Sum(b => b.Revenue),
-                InvoiceCount = brokers.Sum(b => b.InvoiceCount),
+                Revenue = bookers.Sum(b => b.Revenue),
+                InvoiceCount = bookers.Sum(b => b.InvoiceCount),
                 UniqueCustomers = invoices.Select(i => i.CustomerID).Distinct().Count(),
-                Outstanding = brokers.Sum(b => b.Outstanding),
-                Brokers = brokers,
+                Outstanding = bookers.Sum(b => b.Outstanding),
+                Bookers = bookers,
                 TopCustomers = topCustomers,
                 TopProducts = topProducts
             };
         }
 
-        public async Task<BrokerDetailDto?> GetBrokerDetailAsync(int? brokerId, AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
+        public async Task<BookerDetailDto?> GetBookerDetailAsync(int? bookerId, AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
-            filter.BrokerID = brokerId.HasValue && brokerId.Value > 0 ? brokerId : -1;
+            filter.BookerID = bookerId.HasValue && bookerId.Value > 0 ? bookerId : -1;
             string name = "Unassigned";
-            if (brokerId.HasValue && brokerId.Value > 0)
+            if (bookerId.HasValue && bookerId.Value > 0)
             {
-                var found = await _repository.GetBrokerNameAsync(brokerId.Value, cancellationToken);
+                var found = await _repository.GetBookerNameAsync(bookerId.Value, cancellationToken);
                 if (string.IsNullOrEmpty(found))
                     return null;
                 name = found;
             }
 
-            var summary = await GetBrokerAnalyticsAsync(filter, cancellationToken);
+            var summary = await GetBookerAnalyticsAsync(filter, cancellationToken);
             var trend = await GetSalesTrendAsync(filter, "Daily", cancellationToken);
             var customers = await GetCustomerAnalyticsAsync(filter, "Revenue", cancellationToken);
             var payments = await GetPaymentAnalyticsAsync(filter, cancellationToken);
-            var brokerRow = summary.Brokers.FirstOrDefault();
+            var bookerRow = summary.Bookers.FirstOrDefault();
 
-            return new BrokerDetailDto
+            return new BookerDetailDto
             {
-                BrokerID = brokerId.HasValue && brokerId.Value > 0 ? brokerId : null,
-                BrokerName = name,
-                Revenue = brokerRow?.Revenue ?? 0m,
-                Returns = brokerRow?.Returns ?? 0m,
-                Discounts = brokerRow?.Discounts ?? 0m,
-                Outstanding = brokerRow?.Outstanding ?? 0m,
-                InvoiceCount = brokerRow?.InvoiceCount ?? 0,
+                BookerID = bookerId.HasValue && bookerId.Value > 0 ? bookerId : null,
+                BookerName = name,
+                Revenue = bookerRow?.Revenue ?? 0m,
+                Returns = bookerRow?.Returns ?? 0m,
+                Discounts = bookerRow?.Discounts ?? 0m,
+                Outstanding = bookerRow?.Outstanding ?? 0m,
+                InvoiceCount = bookerRow?.InvoiceCount ?? 0,
                 SalesTrend = trend,
                 Customers = customers.Customers,
                 PaymentMix = payments.InvoiceStatuses,

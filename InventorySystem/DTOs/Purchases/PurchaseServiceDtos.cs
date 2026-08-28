@@ -7,7 +7,7 @@ namespace InventorySystem.DTOs.Purchases
     {
         public int CompanyID { get; set; }
         public int WarehouseID { get; set; }
-        public string? InvoiceNumber { get; set; }
+        public string? SupplierInvoiceNumber { get; set; }
         public DateTime InvoiceDate { get; set; } = DateTime.Today;
         public string? Notes { get; set; }
         public List<CreatePurchaseItemDto> Items { get; set; } = new List<CreatePurchaseItemDto>();
@@ -34,6 +34,7 @@ namespace InventorySystem.DTOs.Purchases
     {
         public int PurchaseInvoiceID { get; set; }
         public string InvoiceNumber { get; set; } = string.Empty;
+        public string? SupplierInvoiceNumber { get; set; }
         public int CompanyID { get; set; }
         public string CompanyName { get; set; } = string.Empty;
         public int WarehouseID { get; set; }

@@ -10,5 +10,6 @@ namespace InventorySystem.ViewModels.Categories
         public CategoryFilterDto Filter { get; set; } = new CategoryFilterDto();
         public PagedResult<CategoryListItemDto> Categories { get; set; } = new PagedResult<CategoryListItemDto>();
         public List<SelectListItem> Companies { get; set; } = new List<SelectListItem>();
+        public string CompanyName { get; set; } = string.Empty;
     }
 }

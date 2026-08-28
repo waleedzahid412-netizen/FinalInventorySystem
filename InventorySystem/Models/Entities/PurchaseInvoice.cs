@@ -25,9 +25,14 @@ namespace InventorySystem.Models.Entities
         public int WarehouseID { get; set; }
         public virtual Warehouse Warehouse { get; set; } = null!;
 
+        /// <summary>System-generated unique purchase invoice number (always auto-assigned).</summary>
         [Required]
         [MaxLength(50)]
         public string InvoiceNumber { get; set; } = string.Empty;
+
+        /// <summary>Optional supplier/company bill number entered manually at create.</summary>
+        [MaxLength(50)]
+        public string? SupplierInvoiceNumber { get; set; }
 
         public DateTime InvoiceDate { get; set; }
 

@@ -1,0 +1,98 @@
+@model InventorySystem.ViewModels.Bookers.BookerListViewModel
+@{
+    ViewData["Title"] = "Bookers";
+
+    string CreditBadgeClass(decimal outstanding, decimal limit)
+    {
+        if (limit <= 0) return "bg-secondary";
+        var ratio = outstanding / limit;
+        if (ratio <= 0.70m) return "bg-success";
+        if (ratio <= 1.0m) return "bg-warning text-dark";
+        return "bg-danger";
+    }
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold"><i class="bi bi-person-badge me-2 text-primary"></i> Bookers</h1>
+            <p class="text-muted small mb-0">Manage order bookers who bring sales to the company.</p>
+        </div>
+        <a asp-action="Create" class="btn btn-primary shadow-sm"><i class="bi bi-plus-lg me-1"></i> Add Booker</a>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show">@TempData["ErrorMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    }
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body bg-light">
+            <form method="get" class="row g-3">
+                <div class="col-md-6">
+                    <input type="text" name="SearchTerm" value="@Model.Filter.SearchTerm" class="form-control" placeholder="Search by name, phone, or CNIC..." />
+                </div>
+                <div class="col-md-3">
+                    <select name="IsActive" class="form-select" data-no-select2>
+                        <option value="">All statuses</option>
+                        <option value="true" selected="@(Model.Filter.IsActive == true)">Active</option>
+                        <option value="false" selected="@(Model.Filter.IsActive == false)">Inactive</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Name</th>
+                        <th>CNIC</th>
+                        <th>Phone</th>
+                        <th class="text-end">Credit Limit</th>
+                        <th class="text-end">Outstanding</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Bookers.Items.Any())
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">No bookers found.</td></tr>
+                    }
+                    @foreach (var booker in Model.Bookers.Items)
+                    {
+                        <tr>
+                            <td class="ps-4 fw-semibold">@booker.Name</td>
+                            <td>@(booker.CNIC ?? "—")</td>
+                            <td>@(booker.Phone ?? "—")</td>
+                            <td class="text-end">@booker.CreditLimit.ToString("N2")</td>
+                            <td class="text-end">
+                                <span class="badge @CreditBadgeClass(booker.OutstandingBalance, booker.CreditLimit)">
+                                    @booker.OutstandingBalance.ToString("N2")
+                                </span>
+                            </td>
+                            <td><span class="badge @(booker.IsActive ? "bg-success" : "bg-secondary")">@(booker.IsActive ? "Active" : "Inactive")</span></td>
+                            <td class="text-end pe-4">
+                                <a asp-action="Edit" asp-route-id="@booker.BookerID" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                <form asp-action="Delete" asp-route-id="@booker.BookerID" method="post" class="d-inline" onsubmit="return confirm('Delete this booker?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

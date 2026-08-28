@@ -23,7 +23,7 @@
         </div>
     }
 
-    <form asp-action="Create" method="post" id="createProductForm">
+    <form asp-action="Create" method="post" id="createProductForm" data-unsaved-company-sensitive>
         @Html.AntiForgeryToken()
 
         <!-- Section 1: Basic Information -->
@@ -54,11 +54,15 @@
                         <span asp-validation-for="Barcode" class="text-danger small"></span>
                     </div>
                     <div class="col-md-4">
-                        <label asp-for="CompanyID" class="form-label fw-semibold"></label>
-                        <select asp-for="CompanyID" asp-items="Model.Companies" class="form-select" id="companySelect">
-                            <option value="">-- Select Company (Supplier) --</option>
-                        </select>
+                        <label class="form-label fw-semibold">Company (Supplier)</label>
+                        <div>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 fw-semibold px-3 py-2">
+                                <i class="bi bi-building me-1"></i>@Model.CompanyName
+                            </span>
+                        </div>
+                        <input type="hidden" asp-for="CompanyID" id="companySelect" />
                         <span asp-validation-for="CompanyID" class="text-danger small"></span>
+                        <div class="form-text">Product is created under the company selected in the navbar.</div>
                     </div>
                     <div class="col-md-4">
                         <label asp-for="CategoryID" class="form-label fw-semibold"></label>

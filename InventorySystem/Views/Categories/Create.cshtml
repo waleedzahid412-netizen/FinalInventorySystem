@@ -20,16 +20,19 @@
 
     <div class="card border-0 shadow-sm col-lg-8 mx-auto">
         <div class="card-body p-4">
-            <form asp-action="Create" method="post">
+            <form asp-action="Create" method="post" data-unsaved-company-sensitive>
                 <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
 
                 <div class="row g-3">
                     <div class="col-md-12">
-                        <label asp-for="CompanyID" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
-                        <select asp-for="CompanyID" asp-items="Model.Companies" class="form-select">
-                            <option value="">-- Select Company --</option>
-                        </select>
-                        <span asp-validation-for="CompanyID" class="text-danger small"></span>
+                        <label class="form-label fw-semibold">Company</label> <span class="text-danger">*</span>
+                        <div>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 fw-semibold px-3 py-2">
+                                <i class="bi bi-building me-1"></i>@Model.CompanyName
+                            </span>
+                        </div>
+                        <input type="hidden" asp-for="CompanyID" />
+                        <div class="form-text">Category is created under the company selected in the navbar.</div>
                     </div>
 
                     <div class="col-md-12">

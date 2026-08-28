@@ -18,8 +18,11 @@ namespace InventorySystem.ViewModels.Sales
         [Display(Name = "Warehouse")]
         public int? WarehouseID { get; set; }
 
-        [Display(Name = "Delivery Person")]
-        public int? DeliveryPersonID { get; set; }
+        [Display(Name = "Supplier")]
+        public int? SupplierID { get; set; }
+
+        /// <summary>Set from ambient scope in the controller — not from the form when HasCompany.</summary>
+        public int? CompanyID { get; set; }
 
         [Display(Name = "From Date")]
         [DataType(DataType.Date)]
@@ -42,7 +45,8 @@ namespace InventorySystem.ViewModels.Sales
                 InvoiceNumber = InvoiceNumber,
                 CustomerID = CustomerID,
                 WarehouseID = WarehouseID,
-                DeliveryPersonID = DeliveryPersonID,
+                SupplierID = SupplierID,
+                CompanyID = CompanyID,
                 DateFrom = DateFrom,
                 DateTo = DateTo,
                 PaymentStatus = PaymentStatus,
@@ -59,7 +63,7 @@ namespace InventorySystem.ViewModels.Sales
 
         public IEnumerable<SelectListItem> Customers { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Warehouses { get; set; } = new List<SelectListItem>();
-        public IEnumerable<SelectListItem> DeliveryPersons { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Suppliers { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> PaymentStatuses { get; set; } = new List<SelectListItem>();
     }
 
@@ -88,15 +92,27 @@ namespace InventorySystem.ViewModels.Sales
 
     public class CreateSalesViewModel
     {
+        /// <summary>Read-only display of the ambient company scope (never posted as the invoice company source).</summary>
+        [Display(Name = "Company")]
+        public string CompanyName { get; set; } = string.Empty;
+
         [Required(ErrorMessage = "Customer is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "Please select a valid Customer.")]
         [Display(Name = "Customer")]
         public int CustomerID { get; set; }
 
-        [Required(ErrorMessage = "Bookie is required.")]
-        [Range(1, int.MaxValue, ErrorMessage = "Please select a valid Bookie.")]
-        [Display(Name = "Bookie")]
-        public int BrokerID { get; set; }
+        /// <summary>UI filter helper — not stored on invoice; Area/SubArea snapshot comes from Customer on finalize.</summary>
+        [Display(Name = "Area")]
+        public int? AreaID { get; set; }
+
+        /// <summary>UI filter helper — not stored on invoice; Area/SubArea snapshot comes from Customer on finalize.</summary>
+        [Display(Name = "Sub-Area")]
+        public int? SubAreaID { get; set; }
+
+        [Required(ErrorMessage = "Booker is required.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Please select a valid Booker.")]
+        [Display(Name = "Booker")]
+        public int BookerID { get; set; }
 
         [Required(ErrorMessage = "Salesperson is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "Please select a valid Salesperson.")]
@@ -108,8 +124,8 @@ namespace InventorySystem.ViewModels.Sales
         [Display(Name = "Warehouse")]
         public int WarehouseID { get; set; }
 
-        [Display(Name = "Delivery Person")]
-        public int? DeliveryPersonID { get; set; }
+        [Display(Name = "Supplier")]
+        public int? SupplierID { get; set; }
 
         [MaxLength(50, ErrorMessage = "Invoice Number cannot exceed 50 characters.")]
         [Display(Name = "Invoice Number (Auto-generated if empty)")]
@@ -150,11 +166,13 @@ namespace InventorySystem.ViewModels.Sales
         public string ItemsJson { get; set; } = "[]";
 
         // UI Dropdowns
+        public IEnumerable<SelectListItem> Areas { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> SubAreas { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Customers { get; set; } = new List<SelectListItem>();
-        public IEnumerable<SelectListItem> Brokers { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Bookers { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Salespersons { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Warehouses { get; set; } = new List<SelectListItem>();
-        public IEnumerable<SelectListItem> DeliveryPersons { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Suppliers { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Products { get; set; } = new List<SelectListItem>();
     }
 
@@ -168,13 +186,20 @@ namespace InventorySystem.ViewModels.Sales
     {
         public int InvoiceID { get; set; }
         public string InvoiceNumber { get; set; } = string.Empty;
+
+        /// <summary>Immutable invoice company (BR-046) — display only.</summary>
+        public int CompanyID { get; set; }
+
+        [Display(Name = "Company")]
+        public string CompanyName { get; set; } = string.Empty;
+
         public int CustomerID { get; set; }
         public string CustomerName { get; set; } = string.Empty;
-        public int BrokerID { get; set; }
+        public int BookerID { get; set; }
         public int SalespersonID { get; set; }
         public int WarehouseID { get; set; }
         public string WarehouseName { get; set; } = string.Empty;
-        public int? DeliveryPersonID { get; set; }
+        public int? SupplierID { get; set; }
 
         [Required(ErrorMessage = "Invoice Date is required.")]
         [DataType(DataType.Date)]
@@ -208,8 +233,8 @@ namespace InventorySystem.ViewModels.Sales
 
         public string ItemsJson { get; set; } = "[]";
 
-        public IEnumerable<SelectListItem> DeliveryPersons { get; set; } = new List<SelectListItem>();
-        public IEnumerable<SelectListItem> Brokers { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Suppliers { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Bookers { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Salespersons { get; set; } = new List<SelectListItem>();
     }
 }

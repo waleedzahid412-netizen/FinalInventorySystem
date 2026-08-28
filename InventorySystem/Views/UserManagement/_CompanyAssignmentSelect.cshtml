@@ -1,0 +1,28 @@
+@model List<int>
+@{
+    var companies = ViewData["CompanyOptions"] as IEnumerable<InventorySystem.ViewModels.UserManagement.CompanyOptionViewModel>
+        ?? Enumerable.Empty<InventorySystem.ViewModels.UserManagement.CompanyOptionViewModel>();
+    var selectedIds = Model ?? new List<int>();
+}
+
+<div class="mt-4 pt-3 border-top" id="companyPermissionsSection">
+    <label class="form-label fw-semibold" for="companySelect">Assigned Companies <span class="text-danger">*</span></label>
+    <p class="text-muted small mb-2">User role accounts can only work in the selected companies.</p>
+    <select name="CompanyIds"
+            id="companySelect"
+            class="form-select"
+            multiple
+            data-placeholder="Search and select companies...">
+        @foreach (var company in companies)
+        {
+            if (selectedIds.Contains(company.CompanyID))
+            {
+                <option value="@company.CompanyID" selected="selected">@company.CompanyName</option>
+            }
+            else
+            {
+                <option value="@company.CompanyID">@company.CompanyName</option>
+            }
+        }
+    </select>
+</div>

@@ -124,9 +124,18 @@
             <p class="text-muted small mb-0">Wholesale Inventory Management System</p>
         </div>
 
+        @if (ViewBag.SessionExpired == true)
+        {
+            <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center py-2 px-3 mb-4 rounded-3" role="alert">
+                <i class="bi bi-clock-history fs-5 me-2 flex-shrink-0"></i>
+                <div class="small fw-semibold mb-0">Your session has expired. Please sign in again.</div>
+            </div>
+        }
+
         <!-- Form -->
         <form asp-action="Login" asp-controller="Auth" method="post">
             @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
 
             <div class="mb-3 position-relative">
                 <label asp-for="Username" class="form-label small fw-semibold text-secondary mb-1">Username</label>

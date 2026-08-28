@@ -20,15 +20,18 @@ namespace InventorySystem.Controllers
         private readonly ILoadSheetService _loadSheetService;
         private readonly ILookupService _lookupService;
         private readonly IPdfService _pdfService;
+        private readonly ICompanyContext _companyContext;
 
         public LoadSheetsController(
             ILoadSheetService loadSheetService,
             ILookupService lookupService,
-            IPdfService pdfService)
+            IPdfService pdfService,
+            ICompanyContext companyContext)
         {
             _loadSheetService = loadSheetService;
             _lookupService = lookupService;
             _pdfService = pdfService;
+            _companyContext = companyContext;
         }
 
         [HttpGet]
@@ -58,10 +61,10 @@ namespace InventorySystem.Controllers
 
             var filter = new LoadSheetFilterDto
             {
-                BrokerID = model.BrokerID,
+                BookerID = model.BookerID,
                 Date = model.Date,
-                DeliveryPersonID = model.DeliveryPersonID.HasValue && model.DeliveryPersonID.Value > 0
-                    ? model.DeliveryPersonID
+                SupplierID = model.SupplierID.HasValue && model.SupplierID.Value > 0
+                    ? model.SupplierID
                     : null
             };
 
@@ -95,10 +98,10 @@ namespace InventorySystem.Controllers
             var productsPdf = _pdfService.GenerateLoadSheetProductPdf(result.Data);
             var invoicesPdf = _pdfService.GenerateLoadSheetInvoicePdf(result.Data);
 
-            var safeBroker = SanitizeFilePart(result.Data.BrokerName);
+            var safeBooker = SanitizeFilePart(result.Data.BookerName);
             var dateStamp = model.Date.ToString("yyyyMMdd");
-            var productsFileName = $"LoadSheet_Products_{safeBroker}_{dateStamp}.pdf";
-            var invoicesFileName = $"LoadSheet_Invoices_{safeBroker}_{dateStamp}.pdf";
+            var productsFileName = $"LoadSheet_Products_{safeBooker}_{dateStamp}.pdf";
+            var invoicesFileName = $"LoadSheet_Invoices_{safeBooker}_{dateStamp}.pdf";
 
             if (wantsJson)
             {
@@ -119,25 +122,28 @@ namespace InventorySystem.Controllers
                 WriteZipEntry(archive, invoicesFileName, invoicesPdf);
             }
 
-            return File(zipStream.ToArray(), "application/zip", $"LoadSheet_{safeBroker}_{dateStamp}.zip");
+            return File(zipStream.ToArray(), "application/zip", $"LoadSheet_{safeBooker}_{dateStamp}.zip");
         }
 
         private async Task PopulateDropdownsAsync(LoadSheetIndexViewModel model, CancellationToken cancellationToken)
         {
-            var brokers = await _lookupService.GetBrokersAsync(cancellationToken);
-            var deliveryPersons = await _lookupService.GetDeliveryPersonsAsync(cancellationToken);
+            await _companyContext.TryResolveAsync(cancellationToken);
+            int? companyId = _companyContext.HasCompany ? _companyContext.CompanyID : null;
+
+            var bookers = await _lookupService.GetBookersAsync(companyId, cancellationToken);
+            var Suppliers = await _lookupService.GetSuppliersAsync(cancellationToken);
 
             var deliveryItems = new List<SelectListItem>
             {
-                new SelectListItem { Value = "", Text = "All Delivery Persons" }
+                new SelectListItem { Value = "", Text = "All Suppliers" }
             };
-            foreach (var dp in deliveryPersons)
+            foreach (var dp in Suppliers)
             {
                 deliveryItems.Add(new SelectListItem { Value = dp.Id.ToString(), Text = dp.Name });
             }
 
-            model.Brokers = new SelectList(brokers, "Id", "Name", model.BrokerID);
-            model.DeliveryPersons = new SelectList(deliveryItems, "Value", "Text", model.DeliveryPersonID?.ToString() ?? "");
+            model.Bookers = new SelectList(bookers, "Id", "Name", model.BookerID);
+            model.Suppliers = new SelectList(deliveryItems, "Value", "Text", model.SupplierID?.ToString() ?? "");
         }
 
         private string FirstModelError()

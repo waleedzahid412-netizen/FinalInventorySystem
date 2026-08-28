@@ -8,32 +8,48 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using InventorySystem.Data;
+using InventorySystem.Filters;
+using InventorySystem.Helpers;
 using InventorySystem.Models.Entities;
+using InventorySystem.Services.Interfaces;
 using InventorySystem.ViewModels.Discounts;
 
 namespace InventorySystem.Controllers
 {
     [Authorize]
+    [RequireCompanyScope]
     public class DiscountsController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly ICompanyContext _companyContext;
         private readonly ILogger<DiscountsController> _logger;
 
         public DiscountsController(
             ApplicationDbContext context,
+            ICompanyContext companyContext,
             ILogger<DiscountsController> logger)
         {
             _context = context;
+            _companyContext = companyContext;
             _logger = logger;
         }
 
-        // GET: Discounts
         [HttpGet]
         public async Task<IActionResult> Index(CancellationToken cancellationToken)
         {
-            var rules = await _context.DiscountRules
+            await _companyContext.TryResolveAsync(cancellationToken);
+
+            var query = _context.DiscountRules
                 .AsNoTracking()
-                .Where(r => !r.IsDeleted)
+                .Where(r => !r.IsDeleted);
+
+            if (_companyContext.HasCompany)
+            {
+                int companyId = _companyContext.CompanyID;
+                query = query.Where(r => r.CompanyID == companyId);
+            }
+
+            var rules = await query
                 .OrderBy(r => r.Priority)
                 .ThenByDescending(r => r.MinimumOrderAmount)
                 .Select(r => new DiscountListViewModel
@@ -54,16 +70,18 @@ namespace InventorySystem.Controllers
             return View(rules);
         }
 
-        // GET: Discounts/Details/5
         [HttpGet]
         public async Task<IActionResult> Details(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var rule = await _context.DiscountRules
                 .AsNoTracking()
                 .Include(r => r.CreatedByUser)
+                .Include(r => r.Company)
                 .FirstOrDefaultAsync(r => r.DiscountRuleID == id && !r.IsDeleted, cancellationToken);
 
-            if (rule == null)
+            if (rule == null || CompanyScopeGuards.IsOutOfScope(_companyContext, rule.CompanyID))
             {
                 return NotFound();
             }
@@ -80,6 +98,7 @@ namespace InventorySystem.Controllers
                 EndDate = rule.EndDate,
                 IsActive = rule.IsActive,
                 Priority = rule.Priority,
+                CompanyName = rule.Company?.CompanyName ?? CompanyScopeGuards.DisplayName(_companyContext),
                 CreatedByName = rule.CreatedByUser != null ? rule.CreatedByUser.FullName : "System",
                 CreatedAt = rule.CreatedAt
             };
@@ -87,19 +106,26 @@ namespace InventorySystem.Controllers
             return View(viewModel);
         }
 
-        // GET: Discounts/Create
         [HttpGet]
-        public IActionResult Create()
+        public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
-            var viewModel = new CreateDiscountViewModel();
-            return View(viewModel);
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
+            return View(new CreateDiscountViewModel { CompanyName = _companyContext.CompanyName });
         }
 
-        // POST: Discounts/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateDiscountViewModel model, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
+            model.CompanyName = _companyContext.CompanyName;
+
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -110,6 +136,7 @@ namespace InventorySystem.Controllers
             var rule = new DiscountRule
             {
                 RuleName = model.RuleName.Trim(),
+                CompanyID = _companyContext.CompanyID,
                 MinimumOrderAmount = model.MinimumOrderAmount,
                 MaximumOrderAmount = model.MaximumOrderAmount,
                 DiscountType = model.DiscountType,
@@ -130,14 +157,16 @@ namespace InventorySystem.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // GET: Discounts/Edit/5
         [HttpGet]
         public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var rule = await _context.DiscountRules
+                .Include(r => r.Company)
                 .FirstOrDefaultAsync(r => r.DiscountRuleID == id && !r.IsDeleted, cancellationToken);
 
-            if (rule == null)
+            if (rule == null || CompanyScopeGuards.IsOutOfScope(_companyContext, rule.CompanyID))
             {
                 return NotFound();
             }
@@ -153,13 +182,13 @@ namespace InventorySystem.Controllers
                 StartDate = rule.StartDate?.Date,
                 EndDate = rule.EndDate?.Date,
                 IsActive = rule.IsActive,
-                Priority = rule.Priority
+                Priority = rule.Priority,
+                CompanyName = rule.Company?.CompanyName ?? CompanyScopeGuards.DisplayName(_companyContext)
             };
 
             return View(viewModel);
         }
 
-        // POST: Discounts/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, EditDiscountViewModel model, CancellationToken cancellationToken)
@@ -169,17 +198,22 @@ namespace InventorySystem.Controllers
                 return BadRequest();
             }
 
+            await _companyContext.TryResolveAsync(cancellationToken);
+
+            var rule = await _context.DiscountRules
+                .Include(r => r.Company)
+                .FirstOrDefaultAsync(r => r.DiscountRuleID == id && !r.IsDeleted, cancellationToken);
+
+            if (rule == null || CompanyScopeGuards.IsOutOfScope(_companyContext, rule.CompanyID))
+            {
+                return NotFound();
+            }
+
+            model.CompanyName = rule.Company?.CompanyName ?? CompanyScopeGuards.DisplayName(_companyContext);
+
             if (!ModelState.IsValid)
             {
                 return View(model);
-            }
-
-            var rule = await _context.DiscountRules
-                .FirstOrDefaultAsync(r => r.DiscountRuleID == id && !r.IsDeleted, cancellationToken);
-
-            if (rule == null)
-            {
-                return NotFound();
             }
 
             rule.RuleName = model.RuleName.Trim();
@@ -191,6 +225,7 @@ namespace InventorySystem.Controllers
             rule.EndDate = model.EndDate?.Date.AddDays(1).AddTicks(-1);
             rule.IsActive = model.IsActive;
             rule.Priority = model.Priority;
+            // CompanyID immutable after create
 
             await _context.SaveChangesAsync(cancellationToken);
 
@@ -198,15 +233,16 @@ namespace InventorySystem.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // POST: Discounts/ToggleStatus/5
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleStatus(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var rule = await _context.DiscountRules
                 .FirstOrDefaultAsync(r => r.DiscountRuleID == id && !r.IsDeleted, cancellationToken);
 
-            if (rule == null)
+            if (rule == null || CompanyScopeGuards.IsOutOfScope(_companyContext, rule.CompanyID))
             {
                 return NotFound();
             }
@@ -226,7 +262,7 @@ namespace InventorySystem.Controllers
             {
                 return userId;
             }
-            return 1; // Default fallback admin user
+            return 1;
         }
     }
 }

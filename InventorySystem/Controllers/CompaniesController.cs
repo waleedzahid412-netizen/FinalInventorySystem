@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using InventorySystem.DTOs.Companies;
+using InventorySystem.Helpers;
 using InventorySystem.Mappings;
 using InventorySystem.Services.Interfaces;
 using InventorySystem.ViewModels.Companies;
@@ -17,13 +18,16 @@ namespace InventorySystem.Controllers
     public class CompaniesController : Controller
     {
         private readonly ICompanyService _companyService;
+        private readonly ICompanyContext _companyContext;
         private readonly ILogger<CompaniesController> _logger;
 
         public CompaniesController(
             ICompanyService companyService,
+            ICompanyContext companyContext,
             ILogger<CompaniesController> logger)
         {
             _companyService = companyService;
+            _companyContext = companyContext;
             _logger = logger;
         }
 
@@ -31,6 +35,13 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Index([FromQuery] CompanyFilterDto filter, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var scopedAway = CompanyScopeGuards.RedirectIfCannotManageCompanies(this, _companyContext, notify: true);
+            if (scopedAway != null)
+            {
+                return scopedAway;
+            }
+
             var pagedCompanies = await _companyService.GetPagedCompaniesAsync(filter, cancellationToken);
 
             var viewModel = new CompanyListViewModel
@@ -44,8 +55,15 @@ namespace InventorySystem.Controllers
 
         // GET: Companies/Create
         [HttpGet]
-        public IActionResult Create()
+        public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotManageCompanies(this, _companyContext);
+            if (blocked != null)
+            {
+                return blocked;
+            }
+
             return View(new CreateCompanyViewModel());
         }
 
@@ -54,6 +72,13 @@ namespace InventorySystem.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateCompanyViewModel model, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotManageCompanies(this, _companyContext);
+            if (blocked != null)
+            {
+                return blocked;
+            }
+
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -79,6 +104,13 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotManageCompanies(this, _companyContext);
+            if (blocked != null)
+            {
+                return blocked;
+            }
+
             var editDto = await _companyService.GetCompanyForEditAsync(id, cancellationToken);
             if (editDto == null)
             {
@@ -94,6 +126,13 @@ namespace InventorySystem.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, EditCompanyViewModel model, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotManageCompanies(this, _companyContext);
+            if (blocked != null)
+            {
+                return blocked;
+            }
+
             if (id != model.CompanyID)
             {
                 return BadRequest();
@@ -129,11 +168,20 @@ namespace InventorySystem.Controllers
             [FromQuery] int pageSize = 10, 
             CancellationToken cancellationToken = default)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            if (_companyContext.HasCompany && id != _companyContext.CompanyID)
+            {
+                TempData["ErrorMessage"] = CompanyScopeGuards.ManageCompaniesInAllCompaniesMessage;
+                return RedirectToAction(nameof(Details), new { id = _companyContext.CompanyID });
+            }
+
             var detailsDto = await _companyService.GetCompanyDetailsAsync(id, cancellationToken);
             if (detailsDto == null)
             {
                 TempData["ErrorMessage"] = "Company not found.";
-                return RedirectToAction(nameof(Index));
+                return _companyContext.HasCompany
+                    ? RedirectToAction("Index", "Home")
+                    : RedirectToAction(nameof(Index));
             }
 
             var viewModel = detailsDto.ToViewModel();
@@ -161,6 +209,21 @@ namespace InventorySystem.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            if (_companyContext.HasCompany)
+            {
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                {
+                    return Json(new { success = false, message = CompanyScopeGuards.ManageCompaniesInAllCompaniesMessage });
+                }
+
+                var blocked = CompanyScopeGuards.RedirectIfCannotManageCompanies(this, _companyContext);
+                if (blocked != null)
+                {
+                    return blocked;
+                }
+            }
+
             int userId = GetCurrentUserId();
             var result = await _companyService.SoftDeleteCompanyAsync(id, userId, cancellationToken);
 

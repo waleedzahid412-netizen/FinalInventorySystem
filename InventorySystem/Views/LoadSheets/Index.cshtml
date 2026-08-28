@@ -7,7 +7,7 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
         <div>
             <h2 class="h3 fw-bold text-dark mb-1"><i class="bi bi-truck me-2 text-primary"></i> Generate Load Sheet</h2>
-            <p class="text-muted mb-0">Filter sales invoices by bookie, date, and delivery person. Generate downloads two PDFs — product load and party invoices.</p>
+            <p class="text-muted mb-0">Filter sales invoices by booker, date, and supplier. Generate downloads two PDFs — product load and party invoices.</p>
         </div>
     </div>
 
@@ -24,11 +24,11 @@
 
                 <div class="row g-3 align-items-end">
                     <div class="col-md-4">
-                        <label asp-for="BrokerID" class="form-label fw-semibold"></label>
-                        <select asp-for="BrokerID" asp-items="Model.Brokers" class="form-select" required>
-                            <option value="">-- Select Bookie --</option>
+                        <label asp-for="BookerID" class="form-label fw-semibold"></label>
+                        <select asp-for="BookerID" asp-items="Model.Bookers" class="form-select" required>
+                            <option value="">-- Select Booker --</option>
                         </select>
-                        <span asp-validation-for="BrokerID" class="text-danger small"></span>
+                        <span asp-validation-for="BookerID" class="text-danger small"></span>
                     </div>
                     <div class="col-md-4">
                         <label asp-for="Date" class="form-label fw-semibold"></label>
@@ -36,10 +36,10 @@
                         <span asp-validation-for="Date" class="text-danger small"></span>
                     </div>
                     <div class="col-md-4">
-                        <label asp-for="DeliveryPersonID" class="form-label fw-semibold"></label>
-                        <select asp-for="DeliveryPersonID" asp-items="Model.DeliveryPersons" class="form-select">
+                        <label asp-for="SupplierID" class="form-label fw-semibold"></label>
+                        <select asp-for="SupplierID" asp-items="Model.Suppliers" class="form-select">
                         </select>
-                        <div class="form-text small">Optional — limits the load sheet to invoices assigned to this delivery person. Bookie and date always apply.</div>
+                        <div class="form-text small">Optional — limits the load sheet to invoices assigned to this supplier. Booker and date always apply.</div>
                     </div>
                     <div class="col-12">
                         <button type="submit" id="btnGenerateLoadSheet" class="btn btn-primary fw-bold shadow-sm">
@@ -58,7 +58,7 @@
                 <div class="col-md-6">
                     <div class="border rounded p-3 h-100 bg-light">
                         <strong>PDF 1 — Product Load Summary</strong>
-                        <p class="small text-muted mb-0 mt-2">Aggregated products with SKU, name, description, and Total Count. Unit labels are omitted so loaders work from the numeric count.</p>
+                        <p class="small text-muted mb-0 mt-2">Aggregated products in base (smallest) units with SKU, name, base unit price, and Total Count.</p>
                     </div>
                 </div>
                 <div class="col-md-6">

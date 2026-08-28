@@ -1,0 +1,65 @@
+@{
+    ViewData["Title"] = "Booker Analytics";
+}
+<div class="container-fluid px-4 py-3">
+    <h2 class="h3 fw-bold mb-1">Booker Analytics</h2>
+    <p class="text-muted">Performance by invoice booker. Unassigned invoices are grouped separately. Salesperson is not included.</p>
+    <partial name="_AnalyticsNav" />
+    <partial name="_AnalyticsFilters" />
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Revenue</div><div class="fs-5 fw-bold" id="kRev">PKR 0.00</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Invoices</div><div class="fs-5 fw-bold" id="kInv">0</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Unique shops</div><div class="fs-5 fw-bold" id="kCust">0</div></div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Outstanding (invoices)</div><div class="fs-5 fw-bold" id="kOut">PKR 0.00</div></div></div></div>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Revenue by booker</h5></div><div class="card-body"><canvas id="chartRev"></canvas></div></div></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Invoice count by booker</h5></div><div class="card-body"><canvas id="chartCnt"></canvas></div></div></div>
+    </div>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white"><h5 class="mb-0 fw-bold">Bookers</h5></div>
+        <table class="table table-hover mb-0">
+            <thead><tr><th>Booker</th><th class="text-end">Invoices</th><th class="text-end">Revenue</th><th class="text-end">Discounts</th><th class="text-end">Returns</th><th class="text-end">Outstanding</th></tr></thead>
+            <tbody id="bookerBody"></tbody>
+        </table>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-6"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Top customers</h5></div>
+            <table class="table mb-0"><thead><tr><th>Customer</th><th class="text-end">Revenue</th></tr></thead><tbody id="topCust"></tbody></table></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm"><div class="card-header bg-white"><h5 class="mb-0">Top products</h5></div>
+            <table class="table mb-0"><thead><tr><th>Product</th><th class="text-end">Revenue</th></tr></thead><tbody id="topProd"></tbody></table></div>
+    </div>
+</div>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let currentPreset = 'ThisMonth', c1, c2;
+        function money(v) { return 'PKR ' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function buildFilter() {
+            const b = $('#bookerId').val();
+            return { Preset: currentPreset, StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null, EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
+                CompanyID: parseInt($('#companyId').val()) || null, WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null,
+                BookerID: b === '-1' ? -1 : (parseInt(b) || null) };
+        }
+        $(function () {
+            $('#presetGroup button').click(function () { $('#presetGroup button').removeClass('active'); $(this).addClass('active'); currentPreset = $(this).data('preset'); if (currentPreset === 'Custom') $('.custom-date-container').slideDown(); else { $('.custom-date-container').slideUp(); load(); } });
+            $('#btnApplyFilter').click(load);
+            load();
+        });
+        async function load() {
+            const res = await fetch('/Analytics/GetBookerAnalytics', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildFilter()) });
+            const d = await res.json();
+            $('#kRev').text(money(d.revenue)); $('#kInv').text(d.invoiceCount || 0); $('#kCust').text(d.uniqueCustomers || 0); $('#kOut').text(money(d.outstanding));
+            const bookers = d.bookers || [];
+            if (c1) c1.destroy(); if (c2) c2.destroy();
+            c1 = new Chart(document.getElementById('chartRev'), { type: 'bar', data: { labels: bookers.map(b => b.bookerName), datasets: [{ data: bookers.map(b => b.revenue), backgroundColor: '#0d6efd' }] }, options: { plugins: { legend: { display: false } } } });
+            c2 = new Chart(document.getElementById('chartCnt'), { type: 'bar', data: { labels: bookers.map(b => b.bookerName), datasets: [{ data: bookers.map(b => b.invoiceCount), backgroundColor: '#198754' }] }, options: { plugins: { legend: { display: false } } } });
+            $('#bookerBody').html(bookers.map(b => {
+                const id = b.bookerID ?? 0;
+                return `<tr><td><a href="/Analytics/Booker/${id}">${b.bookerName}</a></td><td class="text-end">${b.invoiceCount}</td><td class="text-end">${money(b.revenue)}</td><td class="text-end">${money(b.discounts)}</td><td class="text-end">${money(b.returns)}</td><td class="text-end">${money(b.outstanding)}</td></tr>`;
+            }).join(''));
+            $('#topCust').html((d.topCustomers || []).map(c => `<tr><td><a href="/Analytics/Customer/${c.customerID}">${c.customerName}</a></td><td class="text-end">${money(c.revenue)}</td></tr>`).join(''));
+            $('#topProd').html((d.topProducts || []).map(p => `<tr><td><a href="/Analytics/Product/${p.productID}">${p.productName}</a></td><td class="text-end">${money(p.revenue)}</td></tr>`).join(''));
+        }
+    </script>
+}

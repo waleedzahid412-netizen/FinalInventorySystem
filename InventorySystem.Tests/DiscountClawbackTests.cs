@@ -53,6 +53,7 @@ namespace InventorySystem.Tests
             var liveRule = new DiscountRule
             {
                 DiscountRuleID = 1,
+                CompanyID = 1,
                 RuleName = "5% Off 15K+",
                 MinimumOrderAmount = 50_000m, // live changed
                 DiscountType = "Percentage",
@@ -66,6 +67,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "INV-22000",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,
@@ -200,7 +202,7 @@ namespace InventorySystem.Tests
             };
             var units = products.Select(p => new ProductUnit { ProductUnitID = p.ProductID, ProductID = p.ProductID, UnitID = 1, ConversionToBaseUnit = 1, SellingPrice = p.BaseSellingPrice }).ToArray();
             var invoice = new SalesInvoice {
-                InvoiceID = 1, InvoiceNumber = "INV-R2", CustomerID = 1, Customer = customer, WarehouseID = 1, Warehouse = warehouse,
+                InvoiceID = 1, InvoiceNumber = "INV-R2", CustomerID = 1, CompanyID = 1, Customer = customer, WarehouseID = 1, Warehouse = warehouse,
                 InvoiceDate = DateTime.UtcNow, SubTotal = 22000m, DiscountTotal = 1100m, GrandTotal = 20900m, DiscountMode = "Automatic", CreatedBy = 1,
                 InvoiceDiscounts = new List<InvoiceDiscount> {
                     new InvoiceDiscount { InvoiceDiscountID = 1, InvoiceID = 1, DiscountRuleID = 1, RuleName = "5%", DiscountType = "Percentage", DiscountValue = 5m, DiscountAmount = 1100m, MinimumOrderAmount = 15000m, DiscountSource = "Automatic", AppliedBy = 1 }
@@ -217,7 +219,7 @@ namespace InventorySystem.Tests
             invoice.Items.Add(itemMid);
             invoice.Items.Add(itemC);
             invoice.Items.Add(Mk(4, 3000m, 150m));
-            context.DiscountRules.Add(new DiscountRule { DiscountRuleID = 1, RuleName = "5%", MinimumOrderAmount = 50000m, DiscountType = "Percentage", DiscountValue = 5m, IsActive = true, CreatedBy = 1 });
+            context.DiscountRules.Add(new DiscountRule { DiscountRuleID = 1, CompanyID = 1, RuleName = "5%", MinimumOrderAmount = 50000m, DiscountType = "Percentage", DiscountValue = 5m, IsActive = true, CreatedBy = 1 });
             context.AddRange(user, customer, warehouse, unit); context.AddRange(products); context.AddRange(units); context.Add(invoice);
             await context.SaveChangesAsync();
             context.SalesReturns.Add(new SalesReturn { SalesReturnID = 1, ReturnNumber = "SR-1", ReturnType = "INVOICE", InvoiceID = 1, CustomerID = 1, WarehouseID = 1, SettlementMethod = "ACCOUNT_ADJUSTMENT", ReturnDate = DateTime.UtcNow, GrossAmount = 4000m, NetRefundAmount = 3800m, IncludeSchemeCalculation = true, CreatedBy = 1 });
@@ -320,6 +322,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "INV-M",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,
@@ -386,6 +389,90 @@ namespace InventorySystem.Tests
         }
 
         [Fact]
+        public async Task CustomerPreferred5Percent_Returns950_For1000Item_NoClawback()
+        {
+            var context = GetInMemoryDbContext("Customer_5pct");
+            var service = new ReturnService(new ReturnRepository(context), context, NullLogger<ReturnService>.Instance);
+
+            var user = new User { UserID = 1, Username = "u", PasswordHash = "h", RoleID = 1 };
+            var customer = new Customer { CustomerID = 1, ShopName = "S", Address = "A", PreferredDiscountPercent = 5m };
+            var warehouse = new Warehouse { WarehouseID = 1, Name = "W" };
+            var unit = new Unit { UnitID = 1, UnitName = "PCS" };
+            var product = new Product { ProductID = 1, ProductName = "P", SKU = "P", BaseSellingPrice = 9999m };
+            var pu = new ProductUnit { ProductUnitID = 1, ProductID = 1, UnitID = 1, ConversionToBaseUnit = 1, SellingPrice = 9999m };
+
+            var invoice = new SalesInvoice
+            {
+                InvoiceID = 1,
+                InvoiceNumber = "INV-C",
+                CustomerID = 1,
+                CompanyID = 1,
+                Customer = customer,
+                WarehouseID = 1,
+                Warehouse = warehouse,
+                InvoiceDate = DateTime.UtcNow,
+                SubTotal = 1_000m,
+                DiscountTotal = 50m,
+                GrandTotal = 950m,
+                DiscountMode = "Customer",
+                CreatedBy = 1,
+                InvoiceDiscounts = new List<InvoiceDiscount>
+                {
+                    new InvoiceDiscount
+                    {
+                        InvoiceDiscountID = 1,
+                        InvoiceID = 1,
+                        DiscountRuleID = null,
+                        RuleName = "Customer Preferred Discount",
+                        DiscountType = "Percentage",
+                        DiscountValue = 5m,
+                        DiscountAmount = 50m,
+                        MinimumOrderAmount = null,
+                        DiscountSource = "Customer",
+                        AppliedBy = 1
+                    }
+                },
+                Items = new List<SalesInvoiceItem>()
+            };
+
+            var item = new SalesInvoiceItem
+            {
+                InvoiceItemID = 1,
+                InvoiceID = 1,
+                ProductID = 1,
+                Product = product,
+                ProductUnitID = 1,
+                ProductUnit = pu,
+                Quantity = 1m,
+                ConvertedQuantity = 1m,
+                UnitPrice = 1_000m,
+                DiscountRate = 5m,
+                DiscountAmount = 50m,
+                ItemType = "NORMAL"
+            };
+            invoice.Items.Add(item);
+
+            context.AddRange(user, customer, warehouse, unit, product, pu, invoice);
+            await context.SaveChangesAsync();
+
+            var result = await service.PreviewSalesClawbackAsync(new PreviewReturnRequest
+            {
+                SalesInvoiceID = 1,
+                IncludeSchemeCalculation = true,
+                Items = new List<ReturnItemInput>
+                {
+                    new ReturnItemInput { InvoiceItemID = 1, ProductID = 1, ProductUnitID = 1, Quantity = 1m }
+                }
+            });
+
+            Assert.True(result.Success);
+            Assert.Equal(1_000m, result.Data!.GrossReturnedValue);
+            Assert.Equal(50m, result.Data.ItemDiscountReleased);
+            Assert.Equal(0m, result.Data.DiscountClawback); // same as Manual — no threshold
+            Assert.Equal(950m, result.Data.NetRefundAmount);
+        }
+
+        [Fact]
         public async Task PartialQuantity_ReleasesProRata_AndFinalUsesRemainder()
         {
             var context = GetInMemoryDbContext("Partial_Qty");
@@ -403,6 +490,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "INV-P",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,
@@ -451,6 +539,7 @@ namespace InventorySystem.Tests
             context.DiscountRules.Add(new DiscountRule
             {
                 DiscountRuleID = 1,
+                CompanyID = 1,
                 RuleName = "5%",
                 MinimumOrderAmount = 1m,
                 DiscountType = "Percentage",
@@ -558,6 +647,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "INV-C",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,
@@ -667,6 +757,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "INV-MF",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,
@@ -840,6 +931,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "INV-R3",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,
@@ -895,6 +987,7 @@ namespace InventorySystem.Tests
             context.DiscountRules.Add(new DiscountRule
             {
                 DiscountRuleID = 1,
+                CompanyID = 1,
                 RuleName = "5%",
                 MinimumOrderAmount = 50_000m,
                 DiscountType = "Percentage",
@@ -1028,6 +1121,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "INV-15100",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,
@@ -1093,6 +1187,7 @@ namespace InventorySystem.Tests
             context.DiscountRules.Add(new DiscountRule
             {
                 DiscountRuleID = 1,
+                CompanyID = 1,
                 RuleName = "5% Off 15K+",
                 MinimumOrderAmount = 50_000m,
                 DiscountType = "Percentage",

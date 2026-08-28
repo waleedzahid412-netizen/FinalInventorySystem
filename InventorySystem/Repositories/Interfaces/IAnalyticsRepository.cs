@@ -48,10 +48,10 @@ namespace InventorySystem.Repositories.Interfaces
         Task<List<AnalyticsLookupItem>> GetWarehousesAsync(CancellationToken cancellationToken = default);
         Task<List<AnalyticsLookupItem>> GetCustomersAsync(CancellationToken cancellationToken = default);
         Task<List<AnalyticsLookupItem>> GetCategoriesAsync(CancellationToken cancellationToken = default);
-        Task<List<AnalyticsLookupItem>> GetBrokersAsync(CancellationToken cancellationToken = default);
+        Task<List<AnalyticsLookupItem>> GetBookersAsync(CancellationToken cancellationToken = default);
         Task<string?> GetCustomerNameAsync(int customerId, CancellationToken cancellationToken = default);
         Task<string?> GetProductNameAsync(int productId, CancellationToken cancellationToken = default);
-        Task<string?> GetBrokerNameAsync(int brokerId, CancellationToken cancellationToken = default);
+        Task<string?> GetBookerNameAsync(int bookerId, CancellationToken cancellationToken = default);
     }
 
     public class AnalyticsSalesInvoiceRow
@@ -62,8 +62,10 @@ namespace InventorySystem.Repositories.Interfaces
         public int CustomerID { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public int WarehouseID { get; set; }
-        public int? BrokerID { get; set; }
-        public string? BrokerName { get; set; }
+        public int CompanyID { get; set; }
+        public string CompanyName { get; set; } = string.Empty;
+        public int? BookerID { get; set; }
+        public string? BookerName { get; set; }
         public int? AreaID { get; set; }
         public string? AreaName { get; set; }
         public int? SubAreaID { get; set; }
@@ -99,7 +101,7 @@ namespace InventorySystem.Repositories.Interfaces
         public int CustomerID { get; set; }
         public int? InvoiceID { get; set; }
         public int? WarehouseID { get; set; }
-        public int? BrokerID { get; set; }
+        public int? BookerID { get; set; }
         public decimal NetRefundAmount { get; set; }
         public int? ProductID { get; set; }
         public int? CategoryID { get; set; }

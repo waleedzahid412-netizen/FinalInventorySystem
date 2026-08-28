@@ -76,6 +76,7 @@ namespace InventorySystem.Tests
                 InvoiceID = 1,
                 InvoiceNumber = "SI-DUAL-001",
                 CustomerID = 1,
+                CompanyID = 1,
                 Customer = customer,
                 WarehouseID = 1,
                 Warehouse = warehouse,

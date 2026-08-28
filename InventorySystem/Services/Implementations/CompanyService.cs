@@ -111,6 +111,7 @@ namespace InventorySystem.Services.Implementations
                     Address = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim(),
                     TaxID = string.IsNullOrWhiteSpace(dto.TaxID) ? null : dto.TaxID.Trim(),
                     CreditLimit = dto.CreditLimit,
+                    CompanyPercentage = dto.CompanyPercentage,
                     CreatedAt = now,
                     IsDeleted = false
                 };

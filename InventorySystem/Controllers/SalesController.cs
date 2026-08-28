@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
@@ -8,6 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using InventorySystem.DTOs.Sales;
+using InventorySystem.Filters;
+using InventorySystem.Helpers;
 using InventorySystem.Mappings;
 using InventorySystem.Services.Interfaces;
 using InventorySystem.ViewModels.Sales;
@@ -15,12 +19,14 @@ using InventorySystem.ViewModels.Sales;
 namespace InventorySystem.Controllers
 {
     [Authorize]
+    [RequireCompanyScope]
     public class SalesController : Controller
     {
         private readonly ISalesService _salesService;
         private readonly ILookupService _lookupService;
         private readonly IPromotionDiscountService _promotionDiscountService;
         private readonly IPdfService _pdfService;
+        private readonly ICompanyContext _companyContext;
         private readonly InventorySystem.Data.ApplicationDbContext _context;
         private readonly Microsoft.Extensions.Logging.ILogger<SalesController> _logger;
 
@@ -29,6 +35,7 @@ namespace InventorySystem.Controllers
             ILookupService lookupService,
             IPromotionDiscountService promotionDiscountService,
             IPdfService pdfService,
+            ICompanyContext companyContext,
             InventorySystem.Data.ApplicationDbContext context,
             Microsoft.Extensions.Logging.ILogger<SalesController> logger)
         {
@@ -36,6 +43,7 @@ namespace InventorySystem.Controllers
             _lookupService = lookupService;
             _promotionDiscountService = promotionDiscountService;
             _pdfService = pdfService;
+            _companyContext = companyContext;
             _context = context;
             _logger = logger;
         }
@@ -44,12 +52,25 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(SalesFilterViewModel filter, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            filter ??= new SalesFilterViewModel();
+
+            // Specific company: force ambient scope (ignore client). All Companies: leave null (show all).
+            if (_companyContext.HasCompany)
+            {
+                filter.CompanyID = _companyContext.CompanyID;
+            }
+            else
+            {
+                filter.CompanyID = null;
+            }
+
             var filterDto = filter.ToDto();
             var pagedResult = await _salesService.GetPagedSalesAsync(filterDto, cancellationToken);
 
             var customers = await _lookupService.GetCustomersAsync(cancellationToken);
             var warehouses = await _lookupService.GetWarehousesAsync(cancellationToken);
-            var deliveryPersons = await _lookupService.GetDeliveryPersonsAsync(cancellationToken);
+            var Suppliers = await _lookupService.GetSuppliersAsync(cancellationToken);
 
             var viewModel = new SalesListViewModel
             {
@@ -57,7 +78,7 @@ namespace InventorySystem.Controllers
                 Filter = filter,
                 Customers = new SelectList(customers, "Id", "Name", filter.CustomerID),
                 Warehouses = new SelectList(warehouses, "Id", "Name", filter.WarehouseID),
-                DeliveryPersons = new SelectList(deliveryPersons, "Id", "Name", filter.DeliveryPersonID),
+                Suppliers = new SelectList(Suppliers, "Id", "Name", filter.SupplierID),
                 PaymentStatuses = new SelectList(new[]
                 {
                     new { Value = "UNPAID", Text = "Unpaid" },
@@ -69,30 +90,21 @@ namespace InventorySystem.Controllers
             return View(viewModel);
         }
 
-        // GET: Sales/CreateQuick
-        [HttpGet]
-        public async Task<IActionResult> CreateQuick(CancellationToken cancellationToken)
-        {
-            int userId = GetCurrentUserId();
-            var viewModel = new CreateSalesViewModel
-            {
-                InvoiceDate = DateTime.Today,
-                SalespersonID = userId
-            };
-
-            await PopulateDropdownsAsync(viewModel, cancellationToken);
-            return View(viewModel);
-        }
-
         // GET: Sales/Create
         [HttpGet]
         public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
             int userId = GetCurrentUserId();
+            var mainWarehouseId = await _lookupService.GetMainWarehouseIdAsync(cancellationToken);
             var viewModel = new CreateSalesViewModel
             {
                 InvoiceDate = DateTime.Today,
-                SalespersonID = userId
+                SalespersonID = userId,
+                WarehouseID = mainWarehouseId ?? 0
             };
 
             await PopulateDropdownsAsync(viewModel, cancellationToken);
@@ -104,6 +116,10 @@ namespace InventorySystem.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateSalesViewModel model, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var blocked = CompanyScopeGuards.RedirectIfCannotCreate(this, _companyContext);
+            if (blocked != null) return blocked;
+
             if (!ModelState.IsValid)
             {
                 await PopulateDropdownsAsync(model, cancellationToken);
@@ -112,6 +128,9 @@ namespace InventorySystem.Controllers
 
             var dto = model.ToDto();
             int userId = GetCurrentUserId();
+            // Salesperson is always the logged-in user — never trust a posted value.
+            dto.SalespersonID = userId;
+            model.SalespersonID = userId;
 
             var result = await _salesService.CreateAndFinalizeSalesInvoiceAsync(dto, userId, cancellationToken);
 
@@ -133,11 +152,18 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Details(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var detailsDto = await _salesService.GetSalesDetailsAsync(id, cancellationToken);
             if (detailsDto == null)
             {
                 TempData["ErrorMessage"] = "Sales invoice not found.";
                 return RedirectToAction(nameof(Index));
+            }
+
+            if (CompanyScopeGuards.IsOutOfScope(_companyContext, detailsDto.Header.CompanyID ?? 0))
+            {
+                return NotFound();
             }
 
             var viewModel = detailsDto.ToViewModel();
@@ -148,6 +174,13 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> PaymentHistoryTab(int id, int pageNumber = 1, CancellationToken cancellationToken = default)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var details = await _salesService.GetSalesDetailsAsync(id, cancellationToken);
+            if (details == null || CompanyScopeGuards.IsOutOfScope(_companyContext, details.Header.CompanyID ?? 0))
+            {
+                return NotFound();
+            }
+
             var history = await _salesService.GetPaymentHistoryTabAsync(id, pageNumber, 10, cancellationToken);
             return PartialView("_PaymentHistoryTab", history);
         }
@@ -156,6 +189,13 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> LedgerTab(int id, int pageNumber = 1, CancellationToken cancellationToken = default)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            var details = await _salesService.GetSalesDetailsAsync(id, cancellationToken);
+            if (details == null || CompanyScopeGuards.IsOutOfScope(_companyContext, details.Header.CompanyID ?? 0))
+            {
+                return NotFound();
+            }
+
             var ledger = await _salesService.GetLedgerTabAsync(id, pageNumber, 10, cancellationToken);
             return PartialView("_LedgerTab", ledger);
         }
@@ -165,13 +205,25 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> GetProducts(CancellationToken cancellationToken)
         {
-            var products = await _lookupService.GetProductsAsync(cancellationToken);
+            await _companyContext.TryResolveAsync(cancellationToken);
+            if (!_companyContext.HasCompany)
+            {
+                return BadRequest(new { message = CompanyScopeGuards.SelectSpecificCompanyMessage });
+            }
+
+            var products = await _lookupService.GetProductsByCompanyAsync(_companyContext.CompanyID, cancellationToken);
             return Json(products);
         }
 
         [HttpGet]
         public async Task<IActionResult> GetProductUnitPrice(int productId, int productUnitId, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            if (!await ProductMatchesScopeAsync(productId, cancellationToken))
+            {
+                return NotFound();
+            }
+
             var priceInfo = await _lookupService.GetProductUnitPriceAsync(productId, productUnitId, cancellationToken);
             if (priceInfo == null)
             {
@@ -189,6 +241,12 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAvailableStock(int productId, int warehouseId, int productUnitId, int unitId, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            if (!await ProductMatchesScopeAsync(productId, cancellationToken))
+            {
+                return NotFound();
+            }
+
             int targetUnitId = productUnitId > 0 ? productUnitId : unitId;
             var stockInfo = await _lookupService.GetAvailableStockAsync(productId, warehouseId, targetUnitId, cancellationToken);
             return Json(stockInfo);
@@ -202,22 +260,17 @@ namespace InventorySystem.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetProductsByWarehouse(int warehouseId, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetSubAreas(int? areaId, CancellationToken cancellationToken)
         {
-            var products = await _context.Products
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && p.IsActive)
-                .OrderBy(p => p.ProductName)
-                .Select(p => new
-                {
-                    id = p.ProductID,
-                    productID = p.ProductID,
-                    name = string.IsNullOrWhiteSpace(p.SKU) ? p.ProductName : $"{p.ProductName} ({p.SKU})",
-                    productName = p.ProductName
-                })
-                .ToListAsync(cancellationToken);
+            var subAreas = await _lookupService.GetSubAreasAsync(areaId, cancellationToken);
+            return Json(subAreas);
+        }
 
-            return Json(products);
+        [HttpGet]
+        public async Task<IActionResult> GetCustomers(int? areaId, int? subAreaId, CancellationToken cancellationToken)
+        {
+            var customers = await _lookupService.GetCustomersAsync(areaId, subAreaId, cancellationToken);
+            return Json(customers);
         }
 
         [AllowAnonymous]
@@ -231,6 +284,12 @@ namespace InventorySystem.Controllers
 
             try
             {
+                await _companyContext.TryResolveAsync(cancellationToken);
+                if (!await ProductMatchesScopeAsync(productId, cancellationToken))
+                {
+                    return NotFound();
+                }
+
                 var productUnits = await _context.ProductUnits
                     .AsNoTracking()
                     .Include(pu => pu.Product)
@@ -261,10 +320,15 @@ namespace InventorySystem.Controllers
         }
 
 
-
         [HttpGet]
         public async Task<IActionResult> GetProductInfo(int productId, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+            if (!await ProductMatchesScopeAsync(productId, cancellationToken))
+            {
+                return NotFound();
+            }
+
             var info = await _lookupService.GetProductInfoAsync(productId, cancellationToken);
             return Json(info);
         }
@@ -273,6 +337,17 @@ namespace InventorySystem.Controllers
         [HttpPost]
         public async Task<IActionResult> EvaluatePromotionsAndDiscounts([FromBody] OrderContextDto context, CancellationToken cancellationToken)
         {
+            if (context == null)
+            {
+                return Json(new EvaluationResultDto());
+            }
+
+            // Never trust client CompanyID when a specific company is selected.
+            if (await _companyContext.TryResolveAsync(cancellationToken) && _companyContext.HasCompany)
+            {
+                context.CompanyID = _companyContext.CompanyID;
+            }
+
             var evaluation = await _promotionDiscountService.EvaluatePromotionsAndDiscountsAsync(context, cancellationToken);
             return Json(evaluation);
         }
@@ -280,8 +355,10 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> DownloadPdf(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var details = await _salesService.GetSalesDetailsAsync(id, cancellationToken);
-            if (details == null)
+            if (details == null || CompanyScopeGuards.IsOutOfScope(_companyContext, details.Header.CompanyID ?? 0))
             {
                 return NotFound();
             }
@@ -293,6 +370,8 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
             var checkResult = await _salesService.CanEditSalesInvoiceAsync(id, cancellationToken);
             if (!checkResult.Success)
             {
@@ -301,7 +380,7 @@ namespace InventorySystem.Controllers
             }
 
             var details = await _salesService.GetSalesDetailsAsync(id, cancellationToken);
-            if (details == null)
+            if (details == null || CompanyScopeGuards.IsOutOfScope(_companyContext, details.Header.CompanyID ?? 0))
             {
                 return NotFound();
             }
@@ -323,13 +402,15 @@ namespace InventorySystem.Controllers
             {
                 InvoiceID = details.Header.InvoiceID,
                 InvoiceNumber = details.Header.InvoiceNumber,
+                CompanyID = details.Header.CompanyID ?? 0,
+                CompanyName = details.Header.CompanyName ?? string.Empty,
                 CustomerID = details.Header.CustomerID,
                 CustomerName = details.Header.CustomerName,
-                BrokerID = details.Header.BrokerID ?? 0,
+                BookerID = details.Header.BookerID ?? 0,
                 SalespersonID = details.Header.SalespersonID ?? 0,
                 WarehouseID = details.Header.WarehouseID,
                 WarehouseName = details.Header.WarehouseName,
-                DeliveryPersonID = details.Header.DeliveryPersonID,
+                SupplierID = details.Header.SupplierID,
                 InvoiceDate = details.Header.InvoiceDate,
                 AppliedDiscountRuleID = details.Header.AppliedDiscountRuleID,
                 DiscountMode = string.IsNullOrWhiteSpace(details.Header.DiscountMode) ? "None" : details.Header.DiscountMode,
@@ -345,6 +426,14 @@ namespace InventorySystem.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(EditSalesViewModel model, CancellationToken cancellationToken)
         {
+            await _companyContext.TryResolveAsync(cancellationToken);
+
+            var existing = await _salesService.GetSalesDetailsAsync(model.InvoiceID, cancellationToken);
+            if (existing == null || CompanyScopeGuards.IsOutOfScope(_companyContext, existing.Header.CompanyID ?? 0))
+            {
+                return NotFound();
+            }
+
             if (string.IsNullOrWhiteSpace(model.EditReason))
             {
                 ModelState.AddModelError("EditReason", "An edit reason is required.");
@@ -374,10 +463,10 @@ namespace InventorySystem.Controllers
             var updateDto = new UpdateSalesInvoiceDto
             {
                 InvoiceID = model.InvoiceID,
-                BrokerID = model.BrokerID,
+                BookerID = model.BookerID,
                 SalespersonID = model.SalespersonID,
                 InvoiceDate = model.InvoiceDate,
-                DeliveryPersonID = model.DeliveryPersonID,
+                SupplierID = model.SupplierID,
                 Remarks = model.Remarks,
                 AppliedDiscountRuleID = model.AppliedDiscountRuleID,
                 DiscountMode = model.DiscountMode,
@@ -404,41 +493,111 @@ namespace InventorySystem.Controllers
 
         private async Task PopulateDropdownsAsync(CreateSalesViewModel model, CancellationToken cancellationToken)
         {
-            var customers = await _lookupService.GetCustomersAsync(cancellationToken);
-            var brokers = await _lookupService.GetBrokersAsync(cancellationToken);
+            await _companyContext.TryResolveAsync(cancellationToken);
+            int companyId = _companyContext.CompanyID;
+            model.CompanyName = _companyContext.CompanyName;
+
+            var areas = await _lookupService.GetAreasAsync(cancellationToken);
+            model.Areas = areas.Select(a => new SelectListItem
+            {
+                Value = a.Id.ToString(),
+                Text = a.Name,
+                Selected = a.Id == model.AreaID
+            }).ToList();
+
+            if (model.AreaID.HasValue && model.AreaID.Value > 0)
+            {
+                var subAreas = await _lookupService.GetSubAreasAsync(model.AreaID.Value, cancellationToken);
+                model.SubAreas = subAreas.Select(sa => new SelectListItem
+                {
+                    Value = sa.Id.ToString(),
+                    Text = sa.Name,
+                    Selected = sa.Id == model.SubAreaID
+                }).ToList();
+            }
+            else
+            {
+                model.SubAreas = new List<SelectListItem>();
+            }
+
+            if (model.SubAreaID.HasValue && model.SubAreaID.Value > 0)
+            {
+                var customers = await _lookupService.GetCustomersAsync(model.AreaID, model.SubAreaID, cancellationToken);
+                model.Customers = new SelectList(customers, "Id", "Name", model.CustomerID);
+            }
+            else
+            {
+                model.Customers = new SelectList(Enumerable.Empty<SelectListItem>());
+            }
+
+            var bookers = await _lookupService.GetBookersAsync(companyId, cancellationToken);
             var salespersons = await _lookupService.GetSalespersonsAsync(cancellationToken);
             var warehouses = await _lookupService.GetWarehousesAsync(cancellationToken);
-            var deliveryPersons = await _lookupService.GetDeliveryPersonsAsync(cancellationToken);
+            var Suppliers = await _lookupService.GetSuppliersAsync(cancellationToken);
+            var productsLookup = await _lookupService.GetProductsByCompanyAsync(companyId, cancellationToken);
 
-            // A single invoice may sell products from any number of suppliers, so the picker is never supplier-scoped.
-            var products = await _context.Products
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && p.IsActive)
-                .OrderBy(p => p.ProductName)
-                .Select(p => new SelectListItem
-                {
-                    Value = p.ProductID.ToString(),
-                    Text = string.IsNullOrWhiteSpace(p.SKU) ? p.ProductName : $"{p.ProductName} ({p.SKU})"
-                })
-                .ToListAsync(cancellationToken);
-
-            model.Customers = new SelectList(customers, "Id", "Name", model.CustomerID);
-            model.Brokers = new SelectList(brokers, "Id", "Name", model.BrokerID);
+            model.Bookers = new SelectList(bookers, "Id", "Name", model.BookerID);
             model.Salespersons = new SelectList(salespersons, "Id", "Name", model.SalespersonID);
             model.Warehouses = new SelectList(warehouses, "Id", "Name", model.WarehouseID);
-            model.DeliveryPersons = new SelectList(deliveryPersons, "Id", "Name", model.DeliveryPersonID);
-            model.Products = products;
+            model.Suppliers = new SelectList(Suppliers, "Id", "Name", model.SupplierID);
+            model.Products = productsLookup.Select(p => new SelectListItem
+            {
+                Value = p.Id.ToString(),
+                Text = p.Name
+            }).ToList();
         }
 
         private async Task PopulateEditDropdownsAsync(EditSalesViewModel model, CancellationToken cancellationToken)
         {
-            var brokers = await _lookupService.GetBrokersAsync(cancellationToken);
-            var salespersons = await _lookupService.GetSalespersonsAsync(cancellationToken);
-            var deliveryPersons = await _lookupService.GetDeliveryPersonsAsync(cancellationToken);
+            int companyId = model.CompanyID > 0
+                ? model.CompanyID
+                : (await _context.SalesInvoices.AsNoTracking()
+                    .Where(si => si.InvoiceID == model.InvoiceID)
+                    .Select(si => si.CompanyID)
+                    .FirstOrDefaultAsync(cancellationToken));
 
-            model.Brokers = new SelectList(brokers, "Id", "Name", model.BrokerID);
+            if (string.IsNullOrWhiteSpace(model.CompanyName) && companyId > 0)
+            {
+                model.CompanyName = await _context.Companies.AsNoTracking()
+                    .Where(c => c.CompanyID == companyId)
+                    .Select(c => c.CompanyName)
+                    .FirstOrDefaultAsync(cancellationToken) ?? string.Empty;
+            }
+
+            model.CompanyID = companyId;
+
+            var bookers = await _lookupService.GetBookersAsync(companyId, cancellationToken);
+            var salespersons = await _lookupService.GetSalespersonsAsync(cancellationToken);
+            var Suppliers = await _lookupService.GetSuppliersAsync(cancellationToken);
+
+            model.Bookers = new SelectList(bookers, "Id", "Name", model.BookerID);
             model.Salespersons = new SelectList(salespersons, "Id", "Name", model.SalespersonID);
-            model.DeliveryPersons = new SelectList(deliveryPersons, "Id", "Name", model.DeliveryPersonID);
+            model.Suppliers = new SelectList(Suppliers, "Id", "Name", model.SupplierID);
+        }
+
+        /// <summary>
+        /// When a specific company is selected, the product must belong to that company.
+        /// In All Companies mode the check is skipped (returns true if the product exists).
+        /// </summary>
+        private async Task<bool> ProductMatchesScopeAsync(int productId, CancellationToken cancellationToken)
+        {
+            if (productId <= 0)
+            {
+                return false;
+            }
+
+            var productCompanyId = await _context.Products
+                .AsNoTracking()
+                .Where(p => p.ProductID == productId && !p.IsDeleted)
+                .Select(p => (int?)p.CompanyID)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!productCompanyId.HasValue)
+            {
+                return false;
+            }
+
+            return !CompanyScopeGuards.IsOutOfScope(_companyContext, productCompanyId.Value);
         }
 
         private int GetCurrentUserId()

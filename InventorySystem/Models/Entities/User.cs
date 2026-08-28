@@ -53,6 +53,7 @@ namespace InventorySystem.Models.Entities
         public DateTime? DeletedAt { get; set; }
 
         // ===== RELATIONSHIPS =====
+        public virtual ICollection<UserCompany> UserCompanies { get; set; } = new List<UserCompany>();
         public virtual ICollection<Area> CreatedAreas { get; set; } = new List<Area>();
         public virtual ICollection<Customer> CreatedCustomers { get; set; } = new List<Customer>();
         public virtual ICollection<PurchaseInvoice> PurchaseInvoices { get; set; } = new List<PurchaseInvoice>();

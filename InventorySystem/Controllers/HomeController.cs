@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using InventorySystem.Data;
 using InventorySystem.Models;
+using InventorySystem.Services.Interfaces;
 using InventorySystem.ViewModels.Home;
 
 namespace InventorySystem.Controllers
@@ -16,11 +17,13 @@ namespace InventorySystem.Controllers
     public class HomeController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly ICompanyContext _companyContext;
         private readonly ILogger<HomeController> _logger;
 
-        public HomeController(ApplicationDbContext context, ILogger<HomeController> logger)
+        public HomeController(ApplicationDbContext context, ICompanyContext companyContext, ILogger<HomeController> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _companyContext = companyContext ?? throw new ArgumentNullException(nameof(companyContext));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -30,56 +33,77 @@ namespace InventorySystem.Controllers
             var today = DateTime.UtcNow.Date;
             var startOfMonth = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
+            await _companyContext.TryResolveAsync(cancellationToken);
+            // Follow navbar company scope only (no in-page All Companies override).
+            bool showAll = !_companyContext.HasCompany;
+            int? companyId = showAll ? null : _companyContext.CompanyID;
+
             // 1. Sales Totals
-            decimal salesToday = await _context.SalesInvoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.InvoiceDate >= today)
+            var salesQuery = _context.SalesInvoices.AsNoTracking().Where(i => !i.IsDeleted);
+            if (companyId.HasValue)
+                salesQuery = salesQuery.Where(i => i.CompanyID == companyId.Value);
+
+            decimal salesToday = await salesQuery
+                .Where(i => i.InvoiceDate >= today)
                 .SumAsync(i => (decimal?)i.GrandTotal, cancellationToken) ?? 0m;
 
-            decimal salesThisMonth = await _context.SalesInvoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.InvoiceDate >= startOfMonth)
+            decimal salesThisMonth = await salesQuery
+                .Where(i => i.InvoiceDate >= startOfMonth)
                 .SumAsync(i => (decimal?)i.GrandTotal, cancellationToken) ?? 0m;
 
             // 2. Purchases Totals
-            decimal purchasesToday = await _context.PurchaseInvoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.InvoiceDate >= today)
+            var purchaseQuery = _context.PurchaseInvoices.AsNoTracking().Where(i => !i.IsDeleted);
+            if (companyId.HasValue)
+                purchaseQuery = purchaseQuery.Where(i => i.CompanyID == companyId.Value);
+
+            decimal purchasesToday = await purchaseQuery
+                .Where(i => i.InvoiceDate >= today)
                 .SumAsync(i => (decimal?)i.GrandTotal, cancellationToken) ?? 0m;
 
-            decimal purchasesThisMonth = await _context.PurchaseInvoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.InvoiceDate >= startOfMonth)
+            decimal purchasesThisMonth = await purchaseQuery
+                .Where(i => i.InvoiceDate >= startOfMonth)
                 .SumAsync(i => (decimal?)i.GrandTotal, cancellationToken) ?? 0m;
 
             // 3. Outstanding Balances
-            decimal customerReceivables = await _context.SalesInvoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.PaymentStatus != "PAID")
+            decimal customerReceivables = await salesQuery
+                .Where(i => i.PaymentStatus != "PAID")
                 .SumAsync(i => (decimal?)(i.GrandTotal - i.PaidAmount), cancellationToken) ?? 0m;
 
-            decimal supplierPayables = await _context.PurchaseInvoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.PaymentStatus != "PAID")
+            decimal supplierPayables = await purchaseQuery
+                .Where(i => i.PaymentStatus != "PAID")
                 .SumAsync(i => (decimal?)(i.GrandTotal - i.PaidAmount), cancellationToken) ?? 0m;
 
             // 4. Inventory Valuation
-            decimal inventoryValue = await _context.InventoryStocks
+            var stockQuery = _context.InventoryStocks
                 .Include(s => s.Product)
                 .AsNoTracking()
-                .Where(s => !s.IsDeleted && s.Product != null && !s.Product.IsDeleted)
-                .SumAsync(s => (decimal?)(s.Quantity * s.Product.AveragePurchaseCost), cancellationToken) ?? 0m;
+                .Where(s => !s.IsDeleted && s.Product != null && !s.Product.IsDeleted);
+            if (companyId.HasValue)
+                stockQuery = stockQuery.Where(s => s.Product!.CompanyID == companyId.Value);
+
+            decimal inventoryValue = await stockQuery
+                .SumAsync(s => (decimal?)(s.Quantity * s.Product!.AveragePurchaseCost), cancellationToken) ?? 0m;
 
             // 5. Today Returns Count
-            int todayReturnsCount = await _context.SalesReturns
-                .AsNoTracking()
-                .Where(r => !r.IsDeleted && r.ReturnDate >= today)
+            var returnsQuery = _context.SalesReturns.AsNoTracking().Where(r => !r.IsDeleted);
+            if (companyId.HasValue)
+            {
+                int cid = companyId.Value;
+                returnsQuery = returnsQuery.Where(r =>
+                    (r.SalesInvoice != null && r.SalesInvoice.CompanyID == cid) ||
+                    (r.InvoiceID == null && r.Items.Any(i => i.Product != null && i.Product.CompanyID == cid)));
+            }
+
+            int todayReturnsCount = await returnsQuery
+                .Where(r => r.ReturnDate >= today)
                 .CountAsync(cancellationToken);
 
             // 6. Low Stock Products & Count
-            var productStocks = await _context.Products
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && p.IsActive)
+            var productQuery = _context.Products.AsNoTracking().Where(p => !p.IsDeleted && p.IsActive);
+            if (companyId.HasValue)
+                productQuery = productQuery.Where(p => p.CompanyID == companyId.Value);
+
+            var productStocks = await productQuery
                 .Select(p => new
                 {
                     ProductID = p.ProductID,
@@ -109,10 +133,8 @@ namespace InventorySystem.Controllers
                 .ToList();
 
             // 7. Recent Activity Lists
-            var recentSales = await _context.SalesInvoices
+            var recentSales = await salesQuery
                 .Include(i => i.Customer)
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(5)
                 .Select(i => new DashboardSaleItem
@@ -126,10 +148,8 @@ namespace InventorySystem.Controllers
                 })
                 .ToListAsync(cancellationToken);
 
-            var recentPurchases = await _context.PurchaseInvoices
+            var recentPurchases = await purchaseQuery
                 .Include(i => i.Company)
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(5)
                 .Select(i => new DashboardPurchaseItem
@@ -143,10 +163,8 @@ namespace InventorySystem.Controllers
                 })
                 .ToListAsync(cancellationToken);
 
-            var recentReturns = await _context.SalesReturns
+            var recentReturns = await returnsQuery
                 .Include(r => r.Customer)
-                .AsNoTracking()
-                .Where(r => !r.IsDeleted)
                 .OrderByDescending(r => r.CreatedAt)
                 .Take(5)
                 .Select(r => new DashboardReturnItem
@@ -174,7 +192,11 @@ namespace InventorySystem.Controllers
                 RecentSales = recentSales,
                 RecentPurchases = recentPurchases,
                 RecentReturns = recentReturns,
-                LowStockProducts = lowStockList
+                LowStockProducts = lowStockList,
+                ShowAllCompanies = showAll,
+                ScopedCompanyName = _companyContext.HasCompany ? _companyContext.CompanyName : (_companyContext.IsAllCompanies ? "All Companies" : string.Empty),
+                HasCompanyScope = _companyContext.HasCompany || _companyContext.IsAllCompanies,
+                ScopedCompanyId = _companyContext.HasCompany ? _companyContext.CompanyID : null
             };
 
             return View(viewModel);
@@ -186,6 +208,7 @@ namespace InventorySystem.Controllers
             return View();
         }
 
+        [AllowAnonymous]
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {

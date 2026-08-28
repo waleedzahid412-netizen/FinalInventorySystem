@@ -182,6 +182,8 @@ namespace InventorySystem.DTOs.Payments
         public string? PaymentType { get; set; } // Customer | Company | All
         public string? Status { get; set; } // Received | Cleared | Bounced | Cancelled
         public string? SearchTerm { get; set; } // Cheque # or Party or Invoice #
+        /// <summary>Soft-scope: customer cheques via SalesInvoice.CompanyID; company cheques via CompanyPayment.CompanyID.</summary>
+        public int? CompanyID { get; set; }
         public DateTime? DateFrom { get; set; }
         public DateTime? DateTo { get; set; }
         public int PageNumber { get; set; } = 1;

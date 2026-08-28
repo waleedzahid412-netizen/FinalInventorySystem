@@ -53,8 +53,8 @@ namespace InventorySystem.Tests
             db.Categories.AddRange(catA, catB);
             var unit = new Unit { UnitName = "Piece", IsActive = true };
             db.Units.Add(unit);
-            var broker = new Broker { Name = "Nadeem", IsActive = true };
-            db.Brokers.Add(broker);
+            var booker = new Booker { CompanyID = company.CompanyID, Name = "Nadeem", CNIC = "35202-1111111", IsActive = true };
+            db.Bookers.Add(booker);
             await db.SaveChangesAsync();
 
             var productA = new Product
@@ -87,14 +87,15 @@ namespace InventorySystem.Tests
             await db.SaveChangesAsync();
 
             return new SeedData(user.UserID, warehouseA.WarehouseID, warehouseB.WarehouseID, customerA.CustomerID, customerB.CustomerID,
-                catA.CategoryID, catB.CategoryID, productA.ProductID, productB.ProductID, broker.BrokerID, company.CompanyID, area.AreaID, sub.SubAreaID);
+                catA.CategoryID, catB.CategoryID, productA.ProductID, productB.ProductID, booker.BookerID, company.CompanyID, area.AreaID, sub.SubAreaID);
         }
 
-        private static SalesInvoice CreateInvoice(SeedData s, int customerId, int warehouseId, DateTime date, decimal grand, int? brokerId, string number)
+        private static SalesInvoice CreateInvoice(SeedData s, int customerId, int warehouseId, DateTime date, decimal grand, int? bookerId, string number)
         {
             return new SalesInvoice
             {
                 CustomerID = customerId,
+                CompanyID = s.CompanyId,
                 WarehouseID = warehouseId,
                 InvoiceNumber = number,
                 InvoiceDate = date,
@@ -104,7 +105,7 @@ namespace InventorySystem.Tests
                 PaymentStatus = "UNPAID",
                 DiscountMode = "None",
                 CreatedBy = s.UserId,
-                BrokerID = brokerId,
+                BookerID = bookerId,
                 AreaID = s.AreaId,
                 SubAreaID = s.SubAreaId
             };
@@ -220,34 +221,34 @@ namespace InventorySystem.Tests
         }
 
         [Fact]
-        public async Task BrokerFilter_UsesBrokerIdNotSalesperson()
+        public async Task BookerFilter_UsesBookerIdNotSalesperson()
         {
-            var db = CreateContext(nameof(BrokerFilter_UsesBrokerIdNotSalesperson));
+            var db = CreateContext(nameof(BookerFilter_UsesBookerIdNotSalesperson));
             var s = await SeedAsync(db);
-            var withBroker = CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 60m, s.BrokerId, "BR");
+            var withBooker = CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 60m, s.BookerId, "BR");
             var unassigned = CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 40m, null, "UN");
-            db.SalesInvoices.AddRange(withBroker, unassigned);
+            db.SalesInvoices.AddRange(withBooker, unassigned);
             await db.SaveChangesAsync();
-            db.SalesInvoiceItems.AddRange(CreateItem(withBroker.InvoiceID, s.ProductA, 1, 1, 60), CreateItem(unassigned.InvoiceID, s.ProductA, 1, 1, 40));
+            db.SalesInvoiceItems.AddRange(CreateItem(withBooker.InvoiceID, s.ProductA, 1, 1, 60), CreateItem(unassigned.InvoiceID, s.ProductA, 1, 1, 40));
             await db.SaveChangesAsync();
 
-            var kpi = await CreateService(db).GetKpiSummaryAsync(new AnalyticsFilterDto { Preset = "Today", BrokerID = s.BrokerId });
+            var kpi = await CreateService(db).GetKpiSummaryAsync(new AnalyticsFilterDto { Preset = "Today", BookerID = s.BookerId });
             Assert.Equal(60m, kpi.TotalSales.CurrentValue);
         }
 
         [Fact]
-        public async Task BrokerUnassigned_IsGroupedSeparately()
+        public async Task BookerUnassigned_IsGroupedSeparately()
         {
-            var db = CreateContext(nameof(BrokerUnassigned_IsGroupedSeparately));
+            var db = CreateContext(nameof(BookerUnassigned_IsGroupedSeparately));
             var s = await SeedAsync(db);
-            var withBroker = CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 60m, s.BrokerId, "BR");
+            var withBooker = CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 60m, s.BookerId, "BR");
             var unassigned = CreateInvoice(s, s.CustomerB, s.WarehouseA, DateTime.Today, 40m, null, "UN");
-            db.SalesInvoices.AddRange(withBroker, unassigned);
+            db.SalesInvoices.AddRange(withBooker, unassigned);
             await db.SaveChangesAsync();
 
-            var data = await CreateService(db).GetBrokerAnalyticsAsync(new AnalyticsFilterDto { Preset = "Today" });
-            Assert.Contains(data.Brokers, b => b.BrokerName == "Unassigned" && b.Revenue == 40m);
-            Assert.Contains(data.Brokers, b => b.BrokerID == s.BrokerId && b.Revenue == 60m);
+            var data = await CreateService(db).GetBookerAnalyticsAsync(new AnalyticsFilterDto { Preset = "Today" });
+            Assert.Contains(data.Bookers, b => b.BookerName == "Unassigned" && b.Revenue == 40m);
+            Assert.Contains(data.Bookers, b => b.BookerID == s.BookerId && b.Revenue == 60m);
         }
 
         [Fact]
@@ -409,17 +410,17 @@ namespace InventorySystem.Tests
         }
 
         [Fact]
-        public async Task BrokerDetail_Unassigned_UsesNullBroker()
+        public async Task BookerDetail_Unassigned_UsesNullBooker()
         {
-            var db = CreateContext(nameof(BrokerDetail_Unassigned_UsesNullBroker));
+            var db = CreateContext(nameof(BookerDetail_Unassigned_UsesNullBooker));
             var s = await SeedAsync(db);
             var inv = CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 15m, null, "UN2");
             db.SalesInvoices.Add(inv);
             await db.SaveChangesAsync();
 
-            var detail = await CreateService(db).GetBrokerDetailAsync(null, new AnalyticsFilterDto { Preset = "Today" });
+            var detail = await CreateService(db).GetBookerDetailAsync(null, new AnalyticsFilterDto { Preset = "Today" });
             Assert.NotNull(detail);
-            Assert.Equal("Unassigned", detail!.BrokerName);
+            Assert.Equal("Unassigned", detail!.BookerName);
             Assert.Equal(15m, detail.Revenue);
         }
 
@@ -433,6 +434,6 @@ namespace InventorySystem.Tests
 
         private sealed record SeedData(
             int UserId, int WarehouseA, int WarehouseB, int CustomerA, int CustomerB,
-            int CategoryA, int CategoryB, int ProductA, int ProductB, int BrokerId, int CompanyId, int AreaId, int SubAreaId);
+            int CategoryA, int CategoryB, int ProductA, int ProductB, int BookerId, int CompanyId, int AreaId, int SubAreaId);
     }
 }

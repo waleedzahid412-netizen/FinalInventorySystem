@@ -13,6 +13,7 @@ namespace InventorySystem.DTOs.Customers
         public int? SubAreaID { get; set; }
         public string? TaxID { get; set; }
         public decimal CreditLimit { get; set; } = 0;
+        public decimal? PreferredDiscountPercent { get; set; }
         public bool IsActive { get; set; } = true;
     }
 
@@ -27,6 +28,7 @@ namespace InventorySystem.DTOs.Customers
         public int? SubAreaID { get; set; }
         public string? TaxID { get; set; }
         public decimal CreditLimit { get; set; } = 0;
+        public decimal? PreferredDiscountPercent { get; set; }
         public bool IsActive { get; set; } = true;
     }
 

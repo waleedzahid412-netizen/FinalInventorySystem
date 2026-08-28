@@ -18,7 +18,7 @@
         </div>
     </div>
 
-    <form asp-action="Edit" asp-route-id="@Model.PromotionID" method="post" id="promotionForm">
+    <form asp-action="Edit" asp-route-id="@Model.PromotionID" method="post" id="promotionForm" data-unsaved-company-sensitive>
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="PromotionID" />
         <div asp-validation-summary="All" class="alert alert-danger shadow-sm mb-4" role="alert"></div>
@@ -29,6 +29,14 @@
             </div>
             <div class="card-body">
                 <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold text-secondary">Company</label>
+                        <div>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 fw-semibold px-3 py-2">
+                                <i class="bi bi-building me-1"></i>@Model.CompanyName
+                            </span>
+                        </div>
+                    </div>
                     <div class="col-md-6">
                         <label asp-for="Name" class="form-label fw-semibold text-secondary">Campaign Name <span class="text-danger">*</span></label>
                         <input asp-for="Name" class="form-control" required />

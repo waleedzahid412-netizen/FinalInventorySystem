@@ -26,6 +26,11 @@ namespace InventorySystem.Models.Entities
 
         public bool IsActive { get; set; } = true;
 
+        /// <summary>Required company scope — campaigns only evaluate on matching invoices (BR-047 companion).</summary>
+        [ForeignKey("Company")]
+        public int CompanyID { get; set; }
+        public virtual Company Company { get; set; } = null!;
+
         // ===== AUDIT FIELDS =====
         [ForeignKey("CreatedByUser")]
         public int CreatedBy { get; set; }

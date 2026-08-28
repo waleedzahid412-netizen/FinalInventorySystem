@@ -30,14 +30,21 @@ namespace InventorySystem.Services.Implementations
                 return result;
             }
 
-            // ===== 1. EVALUATE PROMOTIONS (Buy X Get Y Free) =====
+            if (context.CompanyID <= 0)
+            {
+                return result;
+            }
+
+            // ===== 1. EVALUATE PROMOTIONS (Buy X Get Y Free) — company-scoped =====
             var activeCampaigns = await _context.PromotionCampaigns
                 .AsNoTracking()
                 .Include(c => c.PromotionRules)
                     .ThenInclude(r => r.BuyProduct)
                 .Include(c => c.PromotionRules)
                     .ThenInclude(r => r.FreeProduct)
-                .Where(c => c.IsActive && !c.IsDeleted && c.StartDate <= now && c.EndDate >= now)
+                .Where(c => c.CompanyID == context.CompanyID
+                            && c.IsActive && !c.IsDeleted
+                            && c.StartDate <= now && c.EndDate >= now)
                 .ToListAsync(cancellationToken);
 
             // Fetch conversion factors for all cart items
@@ -66,6 +73,27 @@ namespace InventorySystem.Services.Implementations
                 foreach (var rule in campaign.PromotionRules)
                 {
                     if (rule.BuyQuantity <= 0 || rule.FreeQuantity <= 0) continue;
+
+                    // BR-047: free product must match buy product company (custom Other exempt)
+                    if (!rule.IsCustomFreeItem)
+                    {
+                        if (!rule.FreeProductID.HasValue || rule.FreeProductID.Value <= 0)
+                        {
+                            continue;
+                        }
+
+                        int? buyCompanyId = rule.BuyProduct?.CompanyID;
+                        int? freeCompanyId = rule.FreeProduct?.CompanyID;
+                        if (!buyCompanyId.HasValue || !freeCompanyId.HasValue || buyCompanyId.Value != freeCompanyId.Value)
+                        {
+                            continue;
+                        }
+
+                        if (buyCompanyId.Value != context.CompanyID)
+                        {
+                            continue;
+                        }
+                    }
 
                     if (cartProductBaseQuantities.TryGetValue(rule.BuyProductID, out decimal totalBuyBaseQty))
                     {
@@ -98,16 +126,11 @@ namespace InventorySystem.Services.Implementations
                                 continue;
                             }
 
-                            if (!rule.FreeProductID.HasValue || rule.FreeProductID.Value <= 0)
-                            {
-                                continue;
-                            }
-
                             // Fetch free product's default unit
                             var freeUnit = await _context.ProductUnits
                                 .AsNoTracking()
                                 .Include(pu => pu.Unit)
-                                .Where(pu => pu.ProductID == rule.FreeProductID.Value && !pu.IsDeleted && pu.IsActive)
+                                .Where(pu => pu.ProductID == rule.FreeProductID!.Value && !pu.IsDeleted && pu.IsActive)
                                 .OrderByDescending(pu => pu.IsDefaultSalesUnit)
                                 .ThenBy(pu => pu.ProductUnitID)
                                 .FirstOrDefaultAsync(cancellationToken);
@@ -139,10 +162,11 @@ namespace InventorySystem.Services.Implementations
                 }
             }
 
-            // ===== 2. EVALUATE ORDER DISCOUNTS =====
+            // ===== 2. EVALUATE ORDER DISCOUNTS — company-scoped =====
             var activeDiscountRules = await _context.DiscountRules
                 .AsNoTracking()
-                .Where(r => r.IsActive && !r.IsDeleted &&
+                .Where(r => r.CompanyID == context.CompanyID
+                            && r.IsActive && !r.IsDeleted &&
                             (r.StartDate == null || r.StartDate <= now) &&
                             (r.EndDate == null || r.EndDate >= now))
                 .OrderBy(r => r.Priority)

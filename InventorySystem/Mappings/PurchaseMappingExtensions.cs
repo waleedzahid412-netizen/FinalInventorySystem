@@ -14,7 +14,7 @@ namespace InventorySystem.Mappings
             {
                 CompanyID = vm.CompanyID,
                 WarehouseID = vm.WarehouseID,
-                InvoiceNumber = vm.InvoiceNumber,
+                SupplierInvoiceNumber = vm.SupplierInvoiceNumber,
                 InvoiceDate = vm.InvoiceDate,
                 Notes = vm.Notes,
                 Items = new List<CreatePurchaseItemDto>()

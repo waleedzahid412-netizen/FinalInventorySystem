@@ -18,6 +18,7 @@ namespace InventorySystem.DTOs.Purchases
     {
         public int PurchaseInvoiceID { get; set; }
         public string InvoiceNumber { get; set; } = string.Empty;
+        public string? SupplierInvoiceNumber { get; set; }
         public int CompanyID { get; set; }
         public string CompanyName { get; set; } = string.Empty;
         public int WarehouseID { get; set; }

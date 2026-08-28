@@ -1,4 +1,51 @@
-﻿// WIMS site scripts — Select2 searchable dropdowns + shared helpers.
+﻿// Redirect to login when the JWT session has expired (401 from AJAX / fetch).
+(function (window) {
+    'use strict';
+
+    var loginUrl = '/Auth/Login?expired=1';
+
+    function isAuthPath(url) {
+        if (!url) {
+            return false;
+        }
+        try {
+            var path = String(url);
+            return path.indexOf('/Auth/') !== -1;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function redirectToLogin() {
+        if (window.location.pathname.indexOf('/Auth') === 0) {
+            return;
+        }
+        window.location.href = loginUrl;
+    }
+
+    if (typeof window.fetch === 'function') {
+        var originalFetch = window.fetch.bind(window);
+        window.fetch = function (input, init) {
+            var url = typeof input === 'string' ? input : (input && input.url);
+            return originalFetch(input, init).then(function (response) {
+                if (response.status === 401 && !isAuthPath(url)) {
+                    redirectToLogin();
+                }
+                return response;
+            });
+        };
+    }
+
+    if (window.jQuery) {
+        window.jQuery(document).ajaxError(function (event, jqXHR) {
+            if (jqXHR && jqXHR.status === 401) {
+                redirectToLogin();
+            }
+        });
+    }
+})(window);
+
+// WIMS site scripts — Select2 searchable dropdowns + shared helpers.
 (function (window, $) {
     'use strict';
 
@@ -211,6 +258,34 @@
         sync: sync,
         destroy: destroy,
         cloneClean: cloneClean
+    };
+
+    window.WimsToast = {
+        show: function (message, type) {
+            type = type || 'danger';
+            var container = document.getElementById('wimsToastContainer');
+            if (!container || !window.bootstrap) {
+                return;
+            }
+
+            var toastEl = document.createElement('div');
+            toastEl.className = 'toast align-items-center text-bg-' + type + ' border-0 shadow';
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            toastEl.innerHTML =
+                '<div class="d-flex">' +
+                '<div class="toast-body">' + String(message || 'Something went wrong.') + '</div>' +
+                '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>' +
+                '</div>';
+
+            container.appendChild(toastEl);
+            var toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 4500 });
+            toastEl.addEventListener('hidden.bs.toast', function () {
+                toastEl.remove();
+            });
+            toast.show();
+        }
     };
 
     $(function () {

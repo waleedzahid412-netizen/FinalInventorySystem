@@ -43,6 +43,11 @@ namespace InventorySystem.Models.Entities
 
         public int Priority { get; set; } = 1;
 
+        /// <summary>Required company scope — rules only evaluate on matching invoices.</summary>
+        [ForeignKey("Company")]
+        public int CompanyID { get; set; }
+        public virtual Company Company { get; set; } = null!;
+
         // ===== AUDIT FIELDS =====
         [ForeignKey("CreatedByUser")]
         public int CreatedBy { get; set; }

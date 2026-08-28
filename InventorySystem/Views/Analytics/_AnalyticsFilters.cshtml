@@ -1,7 +1,7 @@
 @{
-    var showBroker = ViewBag.ShowBrokerFilter as bool? ?? true;
+    var showBooker = ViewBag.ShowBookerFilter as bool? ?? true;
     var hideCustomer = ViewData["HideCustomerFilter"] as bool? ?? false;
-    var hideBroker = ViewData["HideBrokerFilter"] as bool? ?? false;
+    var hideBooker = ViewData["HideBookerFilter"] as bool? ?? false;
     var showPdf = ViewData["ShowPdfExport"] as bool? ?? false;
 }
 <div class="card border-0 shadow-sm rounded-3 mb-4">
@@ -29,6 +29,12 @@
                     <input type="date" class="form-control form-control-sm" id="endDate" />
                 </div>
                 <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted">Company</label>
+                    <select class="form-select form-select-sm" id="companyId" asp-items="@(ViewBag.Companies as IEnumerable<SelectListItem>)">
+                        <option value="">All companies</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label small fw-bold text-muted">Warehouse</label>
                     <select class="form-select form-select-sm" id="warehouseId" asp-items="@(ViewBag.Warehouses as IEnumerable<SelectListItem>)">
                         <option value="">All Warehouses</option>
@@ -49,12 +55,12 @@
                         <option value="">All Categories</option>
                     </select>
                 </div>
-                @if (showBroker && !hideBroker)
+                @if (showBooker && !hideBooker)
                 {
                     <div class="col-md-3">
-                        <label class="form-label small fw-bold text-muted">Bookie</label>
-                        <select class="form-select form-select-sm" id="brokerId" asp-items="@(ViewBag.Brokers as IEnumerable<SelectListItem>)">
-                            <option value="">All Bookies</option>
+                        <label class="form-label small fw-bold text-muted">Booker</label>
+                        <select class="form-select form-select-sm" id="bookerId" asp-items="@(ViewBag.Bookers as IEnumerable<SelectListItem>)">
+                            <option value="">All Bookers</option>
                             <option value="-1">Unassigned</option>
                         </select>
                     </div>

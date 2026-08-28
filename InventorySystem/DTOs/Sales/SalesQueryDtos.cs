@@ -8,7 +8,9 @@ namespace InventorySystem.DTOs.Sales
         public string? InvoiceNumber { get; set; }
         public int? CustomerID { get; set; }
         public int? WarehouseID { get; set; }
-        public int? DeliveryPersonID { get; set; }
+        public int? SupplierID { get; set; }
+        /// <summary>When set (&gt; 0), restricts results to that company. Null/0 = all companies.</summary>
+        public int? CompanyID { get; set; }
         public DateTime? DateFrom { get; set; }
         public DateTime? DateTo { get; set; }
         public string? PaymentStatus { get; set; }
@@ -23,7 +25,7 @@ namespace InventorySystem.DTOs.Sales
         public string InvoiceNumber { get; set; } = string.Empty;
         public int CustomerID { get; set; }
         public string CustomerName { get; set; } = string.Empty;
-        public string? DeliveryPersonName { get; set; }
+        public string? SupplierName { get; set; }
         public DateTime InvoiceDate { get; set; }
         public decimal SubTotal { get; set; }
         public decimal DiscountTotal { get; set; }

@@ -75,6 +75,7 @@ namespace InventorySystem.Repositories.Implementations
                 {
                     PurchaseInvoiceID = p.PurchaseInvoiceID,
                     InvoiceNumber = p.InvoiceNumber,
+                    SupplierInvoiceNumber = p.SupplierInvoiceNumber,
                     CompanyID = p.CompanyID,
                     CompanyName = p.Company.CompanyName,
                     WarehouseID = p.WarehouseID,
@@ -115,6 +116,7 @@ namespace InventorySystem.Repositories.Implementations
                 {
                     PurchaseInvoiceID = p.PurchaseInvoiceID,
                     InvoiceNumber = p.InvoiceNumber,
+                    SupplierInvoiceNumber = p.SupplierInvoiceNumber,
                     CompanyID = p.CompanyID,
                     CompanyName = p.Company.CompanyName,
                     WarehouseID = p.WarehouseID,
