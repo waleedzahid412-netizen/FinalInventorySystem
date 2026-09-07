@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -20,7 +19,7 @@ namespace InventorySystem.Controllers
 {
     [Authorize]
     [RequireCompanyScope]
-    public class PromotionsController : Controller
+    public class PromotionsController : InventoryController
     {
         private readonly ApplicationDbContext _context;
         private readonly ILookupService _lookupService;
@@ -163,7 +162,7 @@ namespace InventorySystem.Controllers
                 return View(model);
             }
 
-            int userId = GetUserId();
+            int userId = GetCurrentUserId();
             var campaign = new PromotionCampaign
             {
                 Name = model.Name.Trim(),
@@ -423,16 +422,6 @@ namespace InventorySystem.Controllers
             existingRule.IsCustomFreeItem = ruleInput.IsCustomFreeItem;
             existingRule.CustomFreeItemName = ruleInput.IsCustomFreeItem ? ruleInput.CustomFreeItemName : null;
             existingRule.FreeQuantity = ruleInput.FreeQuantity;
-        }
-
-        private int GetUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1;
         }
     }
 }

@@ -51,7 +51,7 @@ namespace InventorySystem.ViewModels.Products
         public decimal BaseSellingPrice { get; set; }
 
         [Range(0, 100000000, ErrorMessage = "Average Purchase Cost cannot be negative.")]
-        [Display(Name = "Purchase Cost")]
+        [Display(Name = "Avg. Purchase Cost")]
         public decimal AveragePurchaseCost { get; set; }
 
         [Required(ErrorMessage = "Reorder Level is required.")]

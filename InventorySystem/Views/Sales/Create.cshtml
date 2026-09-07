@@ -3,29 +3,38 @@
     ViewData["Title"] = "Create Sales Invoice";
 }
 
-<div class="container-fluid px-4 py-3">
-    <!-- Breadcrumb & Header -->
-    <div class="mb-3">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item"><a asp-action="Index">Sales Invoices</a></li>
-                <li class="breadcrumb-item active">New Sales Invoice</li>
-            </ol>
-        </nav>
-        <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-receipt me-2 text-primary"></i> Create Sales Invoice</h1>
-        <p class="text-muted small mb-0">Select a customer, add products, verify trade prices and real-time inventory, then finalize the sale.</p>
-        @if (!string.IsNullOrWhiteSpace(Model.CompanyName))
-        {
-            <div class="mt-2">
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 fw-semibold px-3 py-2">
-                    <i class="bi bi-building me-1"></i>@Model.CompanyName
-                </span>
-                <span class="text-muted small ms-2">All products and bookers are scoped to this company.</span>
+@section Styles {
+    <link rel="stylesheet" href="~/css/invoice-form.css" asp-append-version="true" />
+}
+
+<div class="invoice-form">
+    <div class="if-page-head">
+        <div class="if-page-head-main">
+            <nav class="if-breadcrumb" aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a asp-action="Index">Sales Invoices</a></li>
+                    <li class="breadcrumb-item active">New Sales Invoice</li>
+                </ol>
+            </nav>
+            <div class="if-title-row mt-1">
+                <span class="if-title-icon" aria-hidden="true"><i class="bi bi-receipt"></i></span>
+                <h1 class="if-page-title">Create Sales Invoice</h1>
             </div>
-        }
+            @if (!string.IsNullOrWhiteSpace(Model.CompanyName))
+            {
+                <span class="if-company-chip"><i class="bi bi-building"></i>@Model.CompanyName</span>
+            }
+        </div>
+        <div class="if-page-actions">
+            <a asp-action="Index" class="if-btn if-btn-outline if-btn-sm">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <button type="button" class="if-btn if-btn-primary" id="btnOpenConfirmModalHeader" onclick="document.getElementById('btnOpenConfirmModal').click();">
+                <i class="bi bi-check-circle"></i> Finalize Invoice
+            </button>
+        </div>
     </div>
 
-    <!-- Form Validation Error Banner -->
     <div id="formValidationAlert" class="alert alert-danger shadow-sm d-none mb-3" role="alert">
         <i class="bi bi-exclamation-triangle-fill me-2"></i>
         <strong id="formValidationErrorText">Please select all required fields and resolve stock errors before finalizing.</strong>
@@ -39,45 +48,59 @@
         <input type="hidden" asp-for="ManualDiscountType" id="ManualDiscountType" />
         <input type="hidden" asp-for="ManualDiscountValue" id="ManualDiscountValue" />
         <input type="hidden" asp-for="ApplyPromotions" id="ApplyPromotions" />
+        <input type="hidden" asp-for="SalespersonID" />
 
         <div asp-validation-summary="ModelOnly" class="alert alert-danger shadow-sm" role="alert"></div>
 
-        <!-- Section 1: Customer & Warehouse Header -->
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white border-bottom py-3">
-                <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-person-bounding-box me-2"></i> Header Information</h5>
+        <!-- Invoice Details -->
+        <section class="if-card" aria-label="Invoice details">
+            <div class="if-card-head">
+                <h2 class="if-card-title"><i class="bi bi-calendar3"></i> Invoice Details</h2>
             </div>
-            <div class="card-body">
-                <input type="hidden" asp-for="SalespersonID" />
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label asp-for="InvoiceDate" class="form-label fw-semibold"></label>
+            <div class="if-card-body">
+                <div class="if-grid">
+                    <div class="if-field">
+                        <label asp-for="InvoiceDate" class="if-label"></label>
                         <input asp-for="InvoiceDate" class="form-control" type="date" required />
                         <div class="invalid-feedback">Please select a valid invoice date.</div>
                     </div>
+                    <div class="if-field">
+                        <label asp-for="SupplierID" class="if-label"></label>
+                        <select asp-for="SupplierID" asp-items="Model.Suppliers" class="form-select">
+                            <option value="">-- Select Supplier (Optional) --</option>
+                        </select>
+                        <span asp-validation-for="SupplierID" class="text-danger small"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-                    <div class="col-md-4">
-                        <label asp-for="AreaID" class="form-label fw-semibold"></label>
+        <!-- Customer & Logistics -->
+        <section class="if-card" aria-label="Customer and logistics">
+            <div class="if-card-head">
+                <h2 class="if-card-title"><i class="bi bi-geo-alt"></i> Customer &amp; Logistics</h2>
+            </div>
+            <div class="if-card-body">
+                <div class="if-grid">
+                    <div class="if-field">
+                        <label asp-for="AreaID" class="if-label"></label>
                         <select asp-for="AreaID" asp-items="Model.Areas" class="form-select" id="areaSelect">
                             <option value="">-- Select Area --</option>
                         </select>
                     </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="SubAreaID" class="form-label fw-semibold"></label>
+                    <div class="if-field">
+                        <label asp-for="SubAreaID" class="if-label"></label>
                         <select asp-for="SubAreaID" asp-items="Model.SubAreas" class="form-select" id="subAreaSelect">
                             <option value="">-- Select Sub-Area --</option>
                         </select>
                     </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="CustomerID" class="form-label fw-semibold"></label>
+                    <div class="if-field">
+                        <label asp-for="CustomerID" class="if-label"></label>
                         <select asp-for="CustomerID" asp-items="Model.Customers" class="form-select" id="customerSelect" required>
                             <option value="">-- Select Customer --</option>
                         </select>
                         <div class="invalid-feedback">Please select a customer.</div>
 
-                        <!-- Customer Info Card (AJAX loaded) -->
                         <div id="customerInfoCard" class="card bg-light border-0 mt-2 d-none">
                             <div class="card-body p-2 small">
                                 <div class="d-flex justify-content-between">
@@ -99,138 +122,125 @@
                             </div>
                         </div>
 
-                        <!-- Credit Limit Warning Alert (Non-blocking warning) -->
                         <div id="creditLimitAlert" class="alert alert-warning border-warning mt-2 p-2 small d-none mb-0">
                             <i class="bi bi-exclamation-triangle-fill me-1"></i>
                             <strong>Credit Warning:</strong> Customer balance exceeds credit limit. Sale is permitted.
                         </div>
                     </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="BookerID" class="form-label fw-semibold"></label>
+                    <div class="if-field">
+                        <label asp-for="BookerID" class="if-label"></label>
                         <select asp-for="BookerID" asp-items="Model.Bookers" class="form-select" id="bookerSelect" required>
                             <option value="">-- Select Booker --</option>
                         </select>
                         <span asp-validation-for="BookerID" class="text-danger small"></span>
                     </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="WarehouseID" class="form-label fw-semibold"></label>
+                    <div class="if-field">
+                        <label asp-for="WarehouseID" class="if-label"></label>
                         <select asp-for="WarehouseID" asp-items="Model.Warehouses" class="form-select" id="warehouseSelect" required>
                             <option value="">-- Select Warehouse --</option>
                         </select>
                         <div class="invalid-feedback">Please select a destination warehouse.</div>
-                        <div class="form-text small">Warehouse from which physical stock will be deducted.</div>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label asp-for="SupplierID" class="form-label fw-semibold"></label>
-                        <select asp-for="SupplierID" asp-items="Model.Suppliers" class="form-select">
-                            <option value="">-- Select Supplier (Optional) --</option>
-                        </select>
-                        <span asp-validation-for="SupplierID" class="text-danger small"></span>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <!-- Section 2: Line Items Grid -->
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
-                <h5 class="card-title h6 mb-0 text-primary fw-bold"><i class="bi bi-cart-check me-2"></i> Sold Line Items</h5>
-                <button type="button" class="btn btn-sm btn-success" id="btnAddRow">
-                    <i class="bi bi-plus-lg me-1"></i> Add Product
+        <!-- Line Items -->
+        <section class="if-card" aria-label="Line items">
+            <div class="if-card-head">
+                <h2 class="if-card-title"><i class="bi bi-cart-check"></i> Line Items</h2>
+                <button type="button" class="if-btn if-btn-success if-btn-sm" id="btnAddRow">
+                    <i class="bi bi-plus-lg"></i> Add Product
                 </button>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-bordered align-middle mb-0" id="itemsTable">
-                        <thead class="table-light">
+            <div class="if-card-body if-card-body--flush">
+                <div class="if-table-wrap table-responsive">
+                    <table class="table align-middle mb-0" id="itemsTable">
+                        <thead>
                             <tr>
                                 <th style="width: 32%;">Product <span class="text-danger">*</span></th>
                                 <th style="width: 22%;">Packaging Unit <span class="text-danger">*</span></th>
-                                <th style="width: 14%;">Quantity <span class="text-danger">*</span></th>
-                                <th style="width: 16%;">Unit Trade Price <span class="text-danger">*</span></th>
+                                <th style="width: 14%;" class="text-end">Quantity <span class="text-danger">*</span></th>
+                                <th style="width: 16%;" class="text-end">Unit Trade Price <span class="text-danger">*</span></th>
                                 <th style="width: 12%;" class="text-end">Total</th>
-                                <th style="width: 4%;" class="text-center">Action</th>
+                                <th style="width: 4%;" class="text-center"></th>
                             </tr>
                         </thead>
                         <tbody id="itemsTableBody">
-                            <!-- Dynamic Rows Inserted by JavaScript -->
                         </tbody>
                     </table>
                 </div>
             </div>
-            <div class="card-footer bg-white py-3">
-                <div class="row justify-content-end">
-                    <div class="col-md-5">
-                        <div class="d-flex justify-content-between mb-2 fs-6">
-                            <span class="fw-semibold">Subtotal:</span>
-                            <span id="lblSubTotal" class="fw-bold">PKR 0.00</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2 fs-6">
-                            <span class="fw-semibold">Applied Discount:</span>
-                            <span id="lblDiscountTotal" class="fw-bold text-success">PKR 0.00</span>
-                        </div>
-                        <div id="appliedDiscountBadgeContainer" class="mb-2 d-none">
-                            <div class="alert alert-success p-2 small d-flex justify-content-between align-items-center mb-0">
-                                <div>
-                                    <i class="bi bi-tag-fill me-1"></i> <strong id="lblAppliedDiscountName"></strong>
-                                    <span class="badge bg-secondary ms-1" id="lblDiscountModeBadge">Automatic</span>
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="btnRemoveDiscount">Remove</button>
+            <div class="if-summary-wrap">
+                <div class="if-summary">
+                    <div class="if-summary-row">
+                        <span>Subtotal</span>
+                        <strong id="lblSubTotal" class="if-summary-value">PKR 0.00</strong>
+                    </div>
+                    <div class="if-summary-row if-summary-row--discount">
+                        <span>Applied Discount</span>
+                        <strong id="lblDiscountTotal" class="if-summary-value">PKR 0.00</strong>
+                    </div>
+                    <div id="appliedDiscountBadgeContainer" class="mb-2 d-none">
+                        <div class="alert alert-success p-2 small d-flex justify-content-between align-items-center mb-0">
+                            <div>
+                                <i class="bi bi-tag-fill me-1"></i> <strong id="lblAppliedDiscountName"></strong>
+                                <span class="badge bg-secondary ms-1" id="lblDiscountModeBadge">Automatic</span>
                             </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="btnRemoveDiscount">Remove</button>
                         </div>
-                        <hr class="my-2" />
-                        <div class="d-flex justify-content-between fs-4 fw-bold text-primary">
-                            <span>Grand Total:</span>
-                            <span id="lblGrandTotal">PKR 0.00</span>
-                        </div>
+                    </div>
+                    <hr class="if-summary-divider" />
+                    <div class="if-summary-row if-summary-row--grand">
+                        <span>Grand Total</span>
+                        <strong id="lblGrandTotal" class="if-summary-value">PKR 0.00</strong>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <!-- Section 3: Promotions & Discounts Suggestions Engine Card -->
-        <div class="card shadow-sm border-0 mb-4" id="promotionsCard">
-            <div class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h5 class="card-title h6 mb-0 text-success fw-bold">
-                    <i class="bi bi-stars me-2"></i> Promotional & Discount Suggestions
-                </h5>
-                <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <span class="fw-semibold small text-muted mb-0">Discount Mode:</span>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Discount mode toggle">
-                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeNone" value="None" autocomplete="off">
-                        <label class="btn btn-outline-secondary" for="discountModeNone">None</label>
-                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeAutomatic" value="Automatic" autocomplete="off" checked>
-                        <label class="btn btn-outline-primary" for="discountModeAutomatic">Automatic</label>
-                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeManual" value="Manual" autocomplete="off">
-                        <label class="btn btn-outline-warning" for="discountModeManual">Manual</label>
-                        <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeCustomer" value="Customer" autocomplete="off" disabled>
-                        <label class="btn btn-outline-info" for="discountModeCustomer" id="discountModeCustomerLabel" title="Select a customer with a preferred discount">Customer</label>
+        <!-- Promotions & Discounts -->
+        <section class="if-card" id="promotionsCard" aria-label="Promotions and discounts">
+            <div class="if-card-head">
+                <h2 class="if-card-title if-card-title--success"><i class="bi bi-stars"></i> Promotions &amp; Discounts</h2>
+                <div class="if-controls">
+                    <div class="if-control-group">
+                        <span class="if-control-label">Discount Mode</span>
+                        <div class="if-segment" role="group" aria-label="Discount mode toggle">
+                            <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeNone" value="None" autocomplete="off">
+                            <label class="btn" for="discountModeNone">None</label>
+                            <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeAutomatic" value="Automatic" autocomplete="off" checked>
+                            <label class="btn" for="discountModeAutomatic">Automatic</label>
+                            <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeManual" value="Manual" autocomplete="off">
+                            <label class="btn" for="discountModeManual">Manual</label>
+                            <input type="radio" class="btn-check" name="discountModeToggle" id="discountModeCustomer" value="Customer" autocomplete="off" disabled>
+                            <label class="btn" for="discountModeCustomer" id="discountModeCustomerLabel" title="Select a customer with a preferred discount">Customer</label>
+                        </div>
                     </div>
-                    <span class="fw-semibold small text-muted mb-0">Apply Promotion:</span>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Apply promotions toggle">
-                        <input type="radio" class="btn-check" name="applyPromotionsToggle" id="applyPromotionsYes" value="true" autocomplete="off" checked>
-                        <label class="btn btn-outline-success" for="applyPromotionsYes">Yes</label>
-                        <input type="radio" class="btn-check" name="applyPromotionsToggle" id="applyPromotionsNo" value="false" autocomplete="off">
-                        <label class="btn btn-outline-secondary" for="applyPromotionsNo">No</label>
+                    <div class="if-control-group">
+                        <span class="if-control-label">Apply Promotion</span>
+                        <div class="if-segment if-segment--promo" role="group" aria-label="Apply promotions toggle">
+                            <input type="radio" class="btn-check" name="applyPromotionsToggle" id="applyPromotionsYes" value="true" autocomplete="off" checked>
+                            <label class="btn" for="applyPromotionsYes">Yes</label>
+                            <input type="radio" class="btn-check" name="applyPromotionsToggle" id="applyPromotionsNo" value="false" autocomplete="off">
+                            <label class="btn" for="applyPromotionsNo">No</label>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="card-body">
-                <div id="manualDiscountPanel" class="border rounded p-3 mb-3 bg-light d-none">
+            <div class="if-card-body">
+                <div id="manualDiscountPanel" class="if-panel-soft d-none">
                     <h6 class="fw-bold mb-2"><i class="bi bi-sliders me-1"></i> Manual Discount (no threshold)</h6>
                     <div class="row g-2 align-items-end">
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold mb-1">Type</label>
+                            <label class="if-label" for="manualDiscountTypeSelect">Type</label>
                             <select id="manualDiscountTypeSelect" class="form-select form-select-sm">
                                 <option value="Percentage" selected>Percentage (%)</option>
                                 <option value="FixedAmount">Fixed Amount (PKR)</option>
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold mb-1">Value</label>
+                            <label class="if-label" for="manualDiscountValueInput">Value</label>
                             <input type="number" id="manualDiscountValueInput" class="form-control form-control-sm" min="0" step="0.01" value="0" />
                         </div>
                         <div class="col-md-4">
@@ -238,7 +248,7 @@
                         </div>
                     </div>
                 </div>
-                <div id="customerPreferredDiscountPanel" class="border rounded p-3 mb-3 bg-light d-none">
+                <div id="customerPreferredDiscountPanel" class="if-panel-soft d-none">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <div>
                             <h6 class="fw-bold mb-1"><i class="bi bi-person-badge me-1"></i> Customer Preferred Discount</h6>
@@ -247,36 +257,37 @@
                                 <span class="ms-1">(seller must Apply; replaces Automatic/Manual)</span>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-info text-white" id="btnApplyCustomerPreferredDiscount">
-                            <i class="bi bi-check-circle me-1"></i> Apply
+                        <button type="button" class="if-btn if-btn-primary if-btn-sm" id="btnApplyCustomerPreferredDiscount">
+                            <i class="bi bi-check-circle"></i> Apply
                         </button>
                     </div>
                 </div>
-                <div id="promotionSuggestionsContainer">
-                    <div class="text-muted small">
-                        <i class="bi bi-info-circle me-1"></i> Add products to your cart to view eligible promotional schemes and order discount suggestions.
-                    </div>
-                </div>
+                <div id="promotionSuggestionsContainer" class="if-empty"></div>
             </div>
-        </div>
+        </section>
 
-        <!-- Form Actions -->
-        <div class="d-flex justify-content-between mb-5">
-            <a asp-action="Index" class="btn btn-outline-secondary px-4">
-                <i class="bi bi-arrow-left me-1"></i> Back to List
+        <div class="if-footer-bar">
+            <a asp-action="Index" class="if-btn if-btn-outline">
+                <i class="bi bi-arrow-left"></i> Back to List
             </a>
-            <button type="button" class="btn btn-primary btn-lg px-5 shadow" id="btnOpenConfirmModal">
-                <i class="bi bi-check-circle me-1"></i> Finalize Sales Invoice
-            </button>
+            <div class="if-footer-actions">
+                <div class="if-footer-total">
+                    <span class="if-footer-total-label">Grand Total</span>
+                    <span class="if-footer-total-value" id="lblGrandTotalFooter">PKR 0.00</span>
+                </div>
+                <button type="button" class="if-btn if-btn-primary if-btn-lg" id="btnOpenConfirmModal">
+                    <i class="bi bi-check-circle"></i> Finalize Sales Invoice
+                </button>
+            </div>
         </div>
     </form>
 </div>
 
 <!-- Finalize Confirmation Modal -->
-<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+<div class="modal fade if-modal" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow-lg border-0">
-            <div class="modal-header bg-primary text-white">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header if-modal-header-primary">
                 <h5 class="modal-title h6" id="confirmModalLabel"><i class="bi bi-shield-check me-2"></i> Finalize Sales Invoice Confirmation</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -294,7 +305,7 @@
                     <li>Increase Customer's <strong>Outstanding Balance</strong></li>
                 </ul>
             </div>
-            <div class="modal-footer bg-light">
+            <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary px-4" id="btnConfirmFinalize">
                     <span id="btnSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
@@ -1077,7 +1088,10 @@
                 }
 
                 const grandTotal = Math.max(0, subTotal - discountAmount);
-                document.getElementById('lblGrandTotal').textContent = 'PKR ' + grandTotal.toFixed(2);
+                const grandFormatted = 'PKR ' + grandTotal.toFixed(2);
+                document.getElementById('lblGrandTotal').textContent = grandFormatted;
+                const footerTotal = document.getElementById('lblGrandTotalFooter');
+                if (footerTotal) footerTotal.textContent = grandFormatted;
 
                 // Trigger debounced promotions evaluation
                 triggerPromotionsEvaluation(subTotal);
@@ -1143,8 +1157,7 @@
 
                 if (cartItems.length === 0) {
                     if (container) {
-                        container.innerHTML = `
-                        <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Add products to cart to view eligible promotional schemes.</div>`;
+                        container.innerHTML = '';
                     }
                     if (isApplyPromotionsEnabled()) {
                         syncFreeItemsWithEligiblePromotions([]);

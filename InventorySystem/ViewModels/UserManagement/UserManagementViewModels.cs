@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using InventorySystem.DTOs.Common;
 using InventorySystem.DTOs.UserManagement;
+using InventorySystem.Validation;
 
 namespace InventorySystem.ViewModels.UserManagement
 {
@@ -24,7 +25,7 @@ namespace InventorySystem.ViewModels.UserManagement
         public string Username { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Password is required.")]
-        [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
+        [PasswordPolicy]
         [DataType(DataType.Password)]
         public string Password { get; set; } = string.Empty;
 
@@ -57,7 +58,7 @@ namespace InventorySystem.ViewModels.UserManagement
         [Display(Name = "Username")]
         public string Username { get; set; } = string.Empty;
 
-        [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
+        [PasswordPolicy]
         [DataType(DataType.Password)]
         [Display(Name = "New Password")]
         public string? NewPassword { get; set; }

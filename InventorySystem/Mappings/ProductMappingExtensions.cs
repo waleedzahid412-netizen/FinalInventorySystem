@@ -21,7 +21,6 @@ namespace InventorySystem.Mappings
                 CompanyID = model.CompanyID,
                 BaseUnitID = model.BaseUnitID,
                 BaseSellingPrice = model.BaseSellingPrice,
-                AveragePurchaseCost = model.AveragePurchaseCost,
                 ReorderLevel = model.ReorderLevel,
                 IsActive = model.IsActive,
                 Units = model.Units.Select(u => u.ToDto()).ToList()
@@ -41,7 +40,6 @@ namespace InventorySystem.Mappings
                 CompanyID = model.CompanyID,
                 BaseUnitID = model.BaseUnitID,
                 BaseSellingPrice = model.BaseSellingPrice,
-                AveragePurchaseCost = model.AveragePurchaseCost,
                 ReorderLevel = model.ReorderLevel,
                 IsActive = model.IsActive,
                 Units = model.Units.Select(u => u.ToDto()).ToList()

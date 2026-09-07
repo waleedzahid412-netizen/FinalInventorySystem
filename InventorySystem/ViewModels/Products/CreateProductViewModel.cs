@@ -45,10 +45,6 @@ namespace InventorySystem.ViewModels.Products
         [Display(Name = "Base Selling Price")]
         public decimal BaseSellingPrice { get; set; }
 
-        [Range(0, 100000000, ErrorMessage = "Average Purchase Cost cannot be negative.")]
-        [Display(Name = "Purchase Cost")]
-        public decimal AveragePurchaseCost { get; set; }
-
         [Required(ErrorMessage = "Reorder Level is required.")]
         [Range(0, 100000, ErrorMessage = "Reorder Level cannot be negative.")]
         [Display(Name = "Reorder Stock Threshold")]

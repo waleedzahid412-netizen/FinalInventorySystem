@@ -1,128 +1,199 @@
 using System;
-using System.Collections.Generic;
+
 using System.Linq;
+
 using System.Threading;
+
 using System.Threading.Tasks;
+
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
+
 using Microsoft.AspNetCore.Mvc;
+
+using InventorySystem.Authorization;
+
 using InventorySystem.Helpers;
+
 using InventorySystem.Services.Implementations;
+
 using InventorySystem.Services.Interfaces;
-using InventorySystem.ViewModels.CompanyScope;
+
+
 
 namespace InventorySystem.Controllers
+
 {
+
     [Authorize]
+
+    [SkipPermissionCheck]
+
     public class CompanyScopeController : Controller
+
     {
+
         /// <summary>Posted companyId for ambient All Companies (not a real Company row).</summary>
+
         public const int AllCompaniesCompanyId = 0;
 
+
+
         private readonly ILookupService _lookupService;
-        private readonly ICompanyContext _companyContext;
+
         private readonly IUserCompanyAccessService _companyAccess;
 
+        private readonly ICompanyScopeCookieService _cookieService;
+
+
+
         public CompanyScopeController(
+
             ILookupService lookupService,
-            ICompanyContext companyContext,
-            IUserCompanyAccessService companyAccess)
+
+            IUserCompanyAccessService companyAccess,
+
+            ICompanyScopeCookieService cookieService)
+
         {
+
             _lookupService = lookupService;
-            _companyContext = companyContext;
+
             _companyAccess = companyAccess;
+
+            _cookieService = cookieService;
+
         }
 
-        [HttpGet]
-        public async Task<IActionResult> Select(string? returnUrl, CancellationToken cancellationToken)
-        {
-            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
-            await _companyContext.TryResolveAsync(cancellationToken);
 
-            var model = new CompanyScopeSelectViewModel
-            {
-                ReturnUrl = SanitizeReturnUrl(returnUrl),
-                Companies = companies
-                    .Select(c => new CompanyScopeOptionViewModel
-                    {
-                        CompanyID = c.Id,
-                        CompanyName = c.Name,
-                        IsCurrent = _companyContext.HasCompany && _companyContext.CompanyID == c.Id
-                    })
-                    .ToList()
-            };
-
-            return View(model);
-        }
 
         /// <summary>
-        /// Sets ambient scope. <paramref name="companyId"/> = positive ID for a company,
-        /// or <see cref="AllCompaniesCompanyId"/> (0) for All Companies.
+
+        /// Legacy deep-link fallback. Routine switching uses the navbar dropdown.
+
         /// </summary>
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Switch(int companyId, string? returnUrl, CancellationToken cancellationToken)
+
+        [HttpGet]
+
+        public IActionResult Select(string? returnUrl)
+
         {
+
+            TempData["ToastError"] = "Use the company dropdown in the top bar to switch companies.";
+
             var safeReturn = SanitizeReturnUrl(returnUrl);
-            bool switchingToSpecific = companyId != AllCompaniesCompanyId;
-
-            if (companyId == AllCompaniesCompanyId)
-            {
-                var userId = _companyAccess.GetCurrentUserId();
-                if (!userId.HasValue
-                    || !await _companyAccess.CanUseAllCompaniesModeAsync(userId.Value, cancellationToken))
-                {
-                    TempData["ErrorMessage"] = "You do not have permission to use All Companies mode.";
-                    return RedirectToAction(nameof(Select), new { returnUrl = safeReturn });
-                }
-
-                AppendScopeCookie(CompanyContext.AllCompaniesCookieValue);
-                return LocalRedirect(safeReturn);
-            }
-
-            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
-            var selected = companies.FirstOrDefault(c => c.Id == companyId);
-            if (selected == null)
-            {
-                TempData["ErrorMessage"] = "That company is not available. Choose another.";
-                return RedirectToAction(nameof(Select), new { returnUrl = safeReturn });
-            }
-
-            AppendScopeCookie(companyId.ToString());
-
-            // Company list/create/edit are All-Companies-only — don't bounce back there after picking a company.
-            if (switchingToSpecific && CompanyScopeGuards.IsCompanyManagementPath(safeReturn))
-            {
-                return RedirectToAction("Index", "Home");
-            }
 
             return LocalRedirect(safeReturn);
+
         }
 
-        private void AppendScopeCookie(string value)
-        {
-            Response.Cookies.Append(
-                CompanyContext.CookieName,
-                value,
-                new CookieOptions
-                {
-                    HttpOnly = true,
-                    IsEssential = true,
-                    SameSite = SameSiteMode.Lax,
-                    Secure = Request.IsHttps,
-                    Expires = DateTimeOffset.UtcNow.AddDays(30),
-                    Path = "/"
-                });
-        }
 
-        private string SanitizeReturnUrl(string? returnUrl)
+
+        /// <summary>
+
+        /// Sets ambient scope. <paramref name="companyId"/> = positive ID for a company,
+
+        /// or <see cref="AllCompaniesCompanyId"/> (0) for All Companies.
+
+        /// </summary>
+
+        [HttpPost]
+
+        [ValidateAntiForgeryToken]
+
+        public async Task<IActionResult> Switch(int companyId, string? returnUrl, CancellationToken cancellationToken)
+
         {
-            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+
+            var safeReturn = SanitizeReturnUrl(returnUrl);
+
+            bool switchingToSpecific = companyId != AllCompaniesCompanyId;
+
+
+
+            if (companyId == AllCompaniesCompanyId)
+
             {
-                return returnUrl;
+
+                var userId = _companyAccess.GetCurrentUserId()
+
+                    ?? throw new MissingUserIdentityException();
+
+                if (!await _companyAccess.CanUseAllCompaniesModeAsync(userId, cancellationToken))
+
+                {
+
+                    TempData["ToastError"] = "You do not have permission to use All Companies mode.";
+
+                    return LocalRedirect(safeReturn);
+
+                }
+
+
+
+                _cookieService.SetScopeCookie(Response, Request, CompanyContext.AllCompaniesCookieValue);
+
+                return LocalRedirect(safeReturn);
+
             }
 
-            return Url.Action("Index", "Home") ?? "/";
+
+
+            var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
+
+            var selected = companies.FirstOrDefault(c => c.Id == companyId);
+
+            if (selected == null)
+
+            {
+
+                TempData["ToastError"] = "That company is not available. Choose another.";
+
+                return LocalRedirect(safeReturn);
+
+            }
+
+
+
+            _cookieService.SetScopeCookie(Response, Request, companyId.ToString());
+
+
+
+            if (switchingToSpecific && CompanyScopeGuards.IsCompanyManagementPath(safeReturn))
+
+            {
+
+                return RedirectToAction("Index", "Home");
+
+            }
+
+
+
+            return LocalRedirect(safeReturn);
+
         }
+
+
+
+        private string SanitizeReturnUrl(string? returnUrl)
+
+        {
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+
+            {
+
+                return returnUrl;
+
+            }
+
+
+
+            return Url.Action("Index", "Home") ?? "/";
+
+        }
+
     }
+
 }
+
+

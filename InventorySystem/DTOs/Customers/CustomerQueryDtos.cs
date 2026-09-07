@@ -42,7 +42,9 @@ namespace InventorySystem.DTOs.Customers
         public decimal TotalCredits { get; set; }
         public decimal OutstandingReceivable { get; set; }
         public decimal CreditLimit { get; set; }
-        public bool IsCreditLimitExceeded => CreditLimit > 0 && OutstandingReceivable > CreditLimit;
+        public decimal CustomerReceivable => Math.Max(0m, OutstandingReceivable);
+        public decimal AmountOwedToCustomer => Math.Max(0m, -OutstandingReceivable);
+        public bool IsCreditLimitExceeded => CreditLimit > 0 && CustomerReceivable > CreditLimit;
         public int PendingInvoicesCount { get; set; }
         public DateTime? LastSaleDate { get; set; }
         public DateTime? LastPaymentDate { get; set; }
@@ -78,6 +80,7 @@ namespace InventorySystem.DTOs.Customers
         public string? Description { get; set; }
         public decimal DebitAmount { get; set; }
         public decimal CreditAmount { get; set; }
+        public decimal RunningBalance { get; set; }
         public decimal NetChange => DebitAmount - CreditAmount;
     }
 }

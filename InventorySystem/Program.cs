@@ -1,9 +1,12 @@
 using System;
 using System.Text;
+using System.Threading.RateLimiting;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +14,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using InventorySystem.Configuration;
 using InventorySystem.Data;
+using InventorySystem.Helpers;
+using InventorySystem.Middleware;
 using InventorySystem.Repositories.Implementations;
 using InventorySystem.Repositories.Interfaces;
 using InventorySystem.Services.Implementations;
@@ -31,6 +36,42 @@ builder.Services.Configure<JwtSettings>(jwtSettingsSection);
 var jwtSettings = jwtSettingsSection.Get<JwtSettings>() ?? new JwtSettings();
 builder.Services.Configure<InvoicePrintSettings>(
     builder.Configuration.GetSection(InvoicePrintSettings.SectionName));
+builder.Services.Configure<SecuritySettings>(
+    builder.Configuration.GetSection(SecuritySettings.SectionName));
+var securitySettings = builder.Configuration.GetSection(SecuritySettings.SectionName).Get<SecuritySettings>()
+    ?? new SecuritySettings();
+
+builder.Services.AddSingleton<IPasswordPolicyValidator, PasswordPolicyValidator>();
+
+builder.Services.AddRateLimiter(options =>
+{
+    var loginRateLimit = securitySettings.LoginRateLimit;
+
+    options.AddPolicy("login", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = loginRateLimit.PermitLimit,
+                Window = TimeSpan.FromSeconds(loginRateLimit.WindowSeconds),
+                QueueLimit = 0
+            }));
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var http = context.HttpContext;
+        if (http.Request.Method == HttpMethods.Post &&
+            http.Request.Path.StartsWithSegments("/Auth/Login"))
+        {
+            http.Response.Redirect("/Auth/Login?rateLimited=1");
+            return;
+        }
+
+        http.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await http.Response.WriteAsync(UserFacingErrorMessages.LoginRateLimited, cancellationToken);
+    };
+});
 
 // ===== AUTHENTICATION & AUTHORIZATION =====
 builder.Services.AddAuthentication(options =>
@@ -99,6 +140,11 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddMemoryCache();
 
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "RequestVerificationToken";
+});
+
 // ===== DEPENDENCY INJECTION =====
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IRoleManagementService, RoleManagementService>();
@@ -115,10 +161,15 @@ builder.Services.AddScoped<ICompanyRepository, CompanyRepository>();
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IUnitRepository, UnitRepository>();
+builder.Services.AddScoped<IUnitService, UnitService>();
+builder.Services.AddScoped<IWarehouseRepository, WarehouseRepository>();
+builder.Services.AddScoped<IWarehouseService, WarehouseService>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IPurchaseRepository, PurchaseRepository>();
 builder.Services.AddScoped<IPurchaseService, PurchaseService>();
+builder.Services.AddScoped<IFifoCostingService, FifoCostingService>();
 builder.Services.AddScoped<ISalesRepository, SalesRepository>();
 builder.Services.AddScoped<ISalesService, SalesService>();
 builder.Services.AddScoped<IPromotionDiscountService, PromotionDiscountService>();
@@ -138,6 +189,7 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<ILoadSheetService, LoadSheetService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICompanyContext, CompanyContext>();
+builder.Services.AddScoped<ICompanyScopeCookieService, CompanyScopeCookieService>();
 
 // Configure QuestPDF License
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
@@ -145,24 +197,12 @@ QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 // Add MVC Controllers & Views
 builder.Services.AddControllersWithViews(options =>
 {
+    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
     options.Filters.Add<InventorySystem.Filters.PermissionAuthorizationFilter>();
+    options.Filters.Add<InventorySystem.Filters.MissingUserIdentityExceptionFilter>();
 });
 
 var app = builder.Build();
-
-// ===== SEED DATABASE =====
-using (var scope = app.Services.CreateScope())
-{
-    try
-    {
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await DbInitializer.SeedAsync(dbContext);
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Database seeding skipped or error: {ex.Message}");
-    }
-}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -176,7 +216,10 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+app.UseRateLimiter();
+
 app.UseAuthentication();
+app.UseMiddleware<CompanyScopeAutoDefaultMiddleware>();
 app.UseAuthorization();
 
 app.MapControllerRoute(

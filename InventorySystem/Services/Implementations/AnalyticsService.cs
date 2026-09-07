@@ -13,11 +13,16 @@ namespace InventorySystem.Services.Implementations
     public class AnalyticsService : IAnalyticsService
     {
         private readonly IAnalyticsRepository _repository;
+        private readonly IFifoCostingService _fifoCostingService;
         private readonly ILogger<AnalyticsService> _logger;
 
-        public AnalyticsService(IAnalyticsRepository repository, ILogger<AnalyticsService> logger)
+        public AnalyticsService(
+            IAnalyticsRepository repository,
+            IFifoCostingService fifoCostingService,
+            ILogger<AnalyticsService> logger)
         {
             _repository = repository;
+            _fifoCostingService = fifoCostingService;
             _logger = logger;
         }
 
@@ -44,14 +49,18 @@ namespace InventorySystem.Services.Implementations
             var prev = await BuildPeriodFinancialsAsync(filter, prevStart, prevEnd, cancellationToken);
 
             decimal receivables = await _repository.GetCustomerReceivablesAsync(
-                AnalyticsFilterHelper.HasCustomer(filter) ? filter.CustomerID : null, cancellationToken);
-            decimal payables = await _repository.GetCompanyPayablesAsync(cancellationToken);
+                AnalyticsFilterHelper.HasCustomer(filter) ? filter.CustomerID : null,
+                AnalyticsFilterHelper.HasCompany(filter) ? filter.CompanyID : null,
+                cancellationToken);
+            decimal payables = await _repository.GetCompanyPayablesAsync(
+                AnalyticsFilterHelper.HasCompany(filter) ? filter.CompanyID : null,
+                cancellationToken);
 
             return new AnalyticsKpiSummaryDto
             {
                 TotalSales = BuildMetric("Total Sales", curr.Sales, prev.Sales),
                 TotalPurchases = BuildMetric("Total Purchases", curr.Purchases, prev.Purchases),
-                EstimatedGrossProfit = BuildMetric("Estimated Gross Profit (Avg Cost)", curr.Profit, prev.Profit),
+                EstimatedGrossProfit = BuildMetric("Gross Profit (FIFO)", curr.Profit, prev.Profit),
                 TotalDiscounts = BuildMetric("Total Discounts", curr.Discounts, prev.Discounts),
                 TotalReturns = BuildMetric("Total Returns", curr.Returns, prev.Returns),
                 NetSales = BuildMetric("Net Sales", curr.NetSales, prev.NetSales),
@@ -142,7 +151,7 @@ namespace InventorySystem.Services.Implementations
                     CategoryName = g.Key.CategoryName,
                     QuantitySold = g.Sum(i => i.ConvertedQuantity),
                     Revenue = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)),
-                    EstimatedProfit = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount) - (i.ConvertedQuantity * i.AveragePurchaseCost))
+                    EstimatedProfit = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount) - AnalyticsFilterHelper.LineCogs(i.ConvertedQuantity, i.AveragePurchaseCost, i.CostOfGoodsSold))
                 });
 
             bool byQty = string.Equals(sortBy, "Quantity", StringComparison.OrdinalIgnoreCase);
@@ -195,8 +204,12 @@ namespace InventorySystem.Services.Implementations
             var custPayments = await _repository.GetCustomerPaymentsAsync(filter, start, end, cancellationToken);
             var compPayments = await _repository.GetCompanyPaymentsAsync(filter, start, end, cancellationToken);
             var receivables = await _repository.GetCustomerReceivablesAsync(
-                AnalyticsFilterHelper.HasCustomer(filter) ? filter.CustomerID : null, cancellationToken);
-            var payables = await _repository.GetCompanyPayablesAsync(cancellationToken);
+                AnalyticsFilterHelper.HasCustomer(filter) ? filter.CustomerID : null,
+                AnalyticsFilterHelper.HasCompany(filter) ? filter.CompanyID : null,
+                cancellationToken);
+            var payables = await _repository.GetCompanyPayablesAsync(
+                AnalyticsFilterHelper.HasCompany(filter) ? filter.CompanyID : null,
+                cancellationToken);
 
             var statuses = invoices
                 .Select(i => new
@@ -256,27 +269,31 @@ namespace InventorySystem.Services.Implementations
         {
             var stocks = await _repository.GetStockRowsAsync(filter, cancellationToken);
             var productStock = stocks
-                .GroupBy(s => new { s.ProductID, s.ProductName, s.ReorderLevel, s.AveragePurchaseCost, s.CategoryName })
+                .GroupBy(s => new { s.ProductID, s.ProductName, s.ReorderLevel, s.CategoryName })
                 .Select(g => new
                 {
                     g.Key.CategoryName,
                     TotalStock = g.Sum(s => s.Quantity),
-                    ReorderLevel = g.Key.ReorderLevel,
-                    StockValue = g.Sum(s => s.Quantity * g.Key.AveragePurchaseCost)
+                    ReorderLevel = g.Key.ReorderLevel
                 })
                 .ToList();
 
-            decimal totalValue = productStock.Sum(p => Math.Max(0m, p.StockValue));
-            var categoryGrouped = productStock
-                .GroupBy(p => p.CategoryName)
-                .Select(g => new CategoryInventoryValueDto
+            int? companyId = AnalyticsFilterHelper.HasCompany(filter) ? filter.CompanyID : null;
+            int? warehouseId = AnalyticsFilterHelper.HasWarehouse(filter) ? filter.WarehouseID : null;
+            int? categoryId = AnalyticsFilterHelper.HasCategory(filter) ? filter.CategoryID : null;
+
+            decimal totalValue = await _fifoCostingService.GetInventoryValueAsync(companyId, warehouseId, cancellationToken);
+            var fifoByCategory = await _fifoCostingService.GetInventoryValueByCategoryAsync(
+                companyId, warehouseId, categoryId, cancellationToken);
+
+            var categoryGrouped = fifoByCategory
+                .Select(c => new CategoryInventoryValueDto
                 {
-                    CategoryName = g.Key,
-                    TotalValue = g.Sum(p => Math.Max(0m, p.StockValue)),
-                    ProductCount = g.Count(),
+                    CategoryName = c.CategoryName,
+                    TotalValue = Math.Max(0m, c.TotalValue),
+                    ProductCount = c.ProductCount,
                     Percentage = 0m
                 })
-                .OrderByDescending(c => c.TotalValue)
                 .ToList();
 
             foreach (var c in categoryGrouped)
@@ -559,7 +576,10 @@ namespace InventorySystem.Services.Implementations
             var items = await _repository.GetSalesItemRowsAsync(filter, start, end, cancellationToken);
             var returns = await _repository.GetReturnRowsAsync(filter, start, end, cancellationToken);
             var payments = await _repository.GetCustomerPaymentsAsync(filter, start, end, cancellationToken);
-            var outstanding = await _repository.GetCustomerReceivablesAsync(customerId, cancellationToken);
+            var outstanding = await _repository.GetCustomerReceivablesAsync(
+                customerId,
+                AnalyticsFilterHelper.HasCompany(filter) ? filter.CompanyID : null,
+                cancellationToken);
             var trend = await GetSalesTrendAsync(filter, "Daily", cancellationToken);
 
             bool byCategory = AnalyticsFilterHelper.HasCategory(filter);
@@ -577,7 +597,7 @@ namespace InventorySystem.Services.Implementations
                     CategoryName = g.Key.CategoryName,
                     QuantitySold = g.Sum(i => i.ConvertedQuantity),
                     Revenue = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount)),
-                    EstimatedProfit = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount) - (i.ConvertedQuantity * i.AveragePurchaseCost))
+                    EstimatedProfit = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount) - AnalyticsFilterHelper.LineCogs(i.ConvertedQuantity, i.AveragePurchaseCost, i.CostOfGoodsSold))
                 })
                 .OrderByDescending(p => p.Revenue)
                 .Take(10)
@@ -620,7 +640,7 @@ namespace InventorySystem.Services.Implementations
                 {
                     decimal qty = g.Sum(i => i.ConvertedQuantity);
                     decimal revenue = g.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount));
-                    decimal cost = g.Sum(i => i.ConvertedQuantity * i.AveragePurchaseCost);
+                    decimal cost = g.Sum(i => AnalyticsFilterHelper.LineCogs(i.ConvertedQuantity, i.AveragePurchaseCost, i.CostOfGoodsSold));
                     decimal stock = stockByProduct.TryGetValue(g.Key.ProductID ?? 0, out var s) ? s : 0m;
                     return new ProductRankedDto
                     {
@@ -717,7 +737,7 @@ namespace InventorySystem.Services.Implementations
 
             decimal qty = items.Sum(i => i.ConvertedQuantity);
             decimal revenue = items.Sum(i => AnalyticsFilterHelper.LineRevenue(i.Quantity, i.UnitPrice, i.DiscountAmount));
-            decimal cost = items.Sum(i => i.ConvertedQuantity * i.AveragePurchaseCost);
+            decimal cost = items.Sum(i => AnalyticsFilterHelper.LineCogs(i.ConvertedQuantity, i.AveragePurchaseCost, i.CostOfGoodsSold));
             decimal stock = stocks.Sum(s => s.Quantity);
             decimal reorder = stocks.Select(s => s.ReorderLevel).FirstOrDefault();
 
@@ -871,7 +891,7 @@ namespace InventorySystem.Services.Implementations
             decimal purchases = byCategory
                 ? (await _repository.GetPurchaseItemRowsAsync(filter, start, end, cancellationToken)).Sum(p => p.TotalCost)
                 : (await _repository.GetPurchaseInvoiceRowsAsync(filter, start, end, cancellationToken)).Sum(p => p.GrandTotal);
-            decimal cogs = items.Sum(i => i.ConvertedQuantity * i.AveragePurchaseCost);
+            decimal cogs = items.Sum(i => AnalyticsFilterHelper.LineCogs(i.ConvertedQuantity, i.AveragePurchaseCost, i.CostOfGoodsSold));
             decimal netSales = sales - returnAmt;
             decimal profit = netSales - cogs;
             return (sales, purchases, discounts, returnAmt, netSales, profit);
@@ -947,6 +967,17 @@ namespace InventorySystem.Services.Implementations
                         Icon = "bi-arrow-return-left"
                     });
                 }
+            }
+
+            if (kpi.NetSales.CurrentValue > 0m && kpi.EstimatedGrossProfit.CurrentValue < 0m)
+            {
+                insights.Add(new BusinessInsightDto
+                {
+                    Type = "WARNING",
+                    Title = "Negative Gross Margin",
+                    Message = $"FIFO cost of goods sold exceeds net sales for this period. Selling prices may be below inventory cost, or legacy sale lines may need COGS review.",
+                    Icon = "bi-currency-exchange"
+                });
             }
 
             if (!insights.Any())

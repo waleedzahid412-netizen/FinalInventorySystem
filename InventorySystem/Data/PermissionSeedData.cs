@@ -41,7 +41,9 @@ namespace InventorySystem.Data
                 {
                     (PageKeys.Companies, "Companies", "Companies", "Index", 1),
                     (PageKeys.Bookers, "Bookers", "Bookers", "Index", 2),
-                    (PageKeys.Suppliers, "Suppliers", "Suppliers", "Index", 3)
+                    (PageKeys.Suppliers, "Suppliers", "Suppliers", "Index", 3),
+                    (PageKeys.Units, "Units", "Units", "Index", 4),
+                    (PageKeys.Warehouses, "Warehouses", "Warehouses", "Index", 5)
                 }),
                 ("Promotions", "Promotions", 6, new List<(string, string, string?, string?, int)>
                 {

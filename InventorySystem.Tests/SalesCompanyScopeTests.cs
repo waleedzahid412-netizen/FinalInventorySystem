@@ -57,6 +57,7 @@ namespace InventorySystem.Tests
                 db,
                 new PromotionDiscountService(db),
                 new FakeCompanyContext(scopeCompanyId, scopeCompanyId == 1 ? "Company A" : "Company B"),
+                TestFifoHelper.CreateFifo(db),
                 NullLogger<SalesService>.Instance);
 
             return (service, db);

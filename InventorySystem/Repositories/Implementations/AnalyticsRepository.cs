@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using InventorySystem.Data;
 using InventorySystem.DTOs.Analytics;
+using InventorySystem.Helpers;
 using InventorySystem.Repositories.Interfaces;
 using InventorySystem.Services;
 
@@ -80,7 +81,8 @@ namespace InventorySystem.Repositories.Implementations
                 ConvertedQuantity = i.ConvertedQuantity,
                 UnitPrice = i.UnitPrice,
                 DiscountAmount = i.DiscountAmount,
-                AveragePurchaseCost = i.Product != null ? i.Product.AveragePurchaseCost : 0m
+                AveragePurchaseCost = i.Product != null ? i.Product.AveragePurchaseCost : 0m,
+                CostOfGoodsSold = i.CostOfGoodsSold
             }).ToListAsync(cancellationToken);
         }
 
@@ -90,45 +92,17 @@ namespace InventorySystem.Repositories.Implementations
             var query = _context.SalesReturns.AsNoTracking()
                 .Where(r => r.ReturnDate >= startDate && r.ReturnDate <= endDate);
 
-            if (AnalyticsFilterHelper.HasWarehouse(filter))
-            {
-                int warehouseId = filter.WarehouseID!.Value;
-                query = query.Where(r => r.WarehouseID == warehouseId || (r.SalesInvoice != null && r.SalesInvoice.WarehouseID == warehouseId));
-            }
-
-            if (AnalyticsFilterHelper.HasCustomer(filter))
-                query = query.Where(r => r.CustomerID == filter.CustomerID!.Value);
-
-            if (AnalyticsFilterHelper.HasBooker(filter))
-            {
-                if (filter.BookerID == -1)
-                    query = query.Where(r => r.SalesInvoice != null && r.SalesInvoice.BookerID == null);
-                else
-                    query = query.Where(r => r.SalesInvoice != null && r.SalesInvoice.BookerID == filter.BookerID);
-            }
+            query = ApplySalesReturnFilters(query, filter);
 
             if (AnalyticsFilterHelper.HasCategory(filter))
             {
                 int categoryId = filter.CategoryID!.Value;
-                bool hasWarehouse = AnalyticsFilterHelper.HasWarehouse(filter);
-                int warehouseId = filter.WarehouseID ?? 0;
-                bool hasCustomer = AnalyticsFilterHelper.HasCustomer(filter);
-                int customerId = filter.CustomerID ?? 0;
-                bool hasBooker = AnalyticsFilterHelper.HasBooker(filter);
-                int bookerId = filter.BookerID ?? 0;
 
                 var itemQuery = _context.SalesReturnItems.AsNoTracking()
                     .Where(i => i.SalesReturn.ReturnDate >= startDate && i.SalesReturn.ReturnDate <= endDate
                         && i.ProductID != null && i.Product != null && i.Product.CategoryID == categoryId);
 
-                if (hasWarehouse)
-                    itemQuery = itemQuery.Where(i => i.SalesReturn.WarehouseID == warehouseId || (i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.WarehouseID == warehouseId));
-                if (hasCustomer)
-                    itemQuery = itemQuery.Where(i => i.SalesReturn.CustomerID == customerId);
-                if (hasBooker && bookerId == -1)
-                    itemQuery = itemQuery.Where(i => i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.BookerID == null);
-                else if (hasBooker)
-                    itemQuery = itemQuery.Where(i => i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.BookerID == bookerId);
+                itemQuery = ApplySalesReturnItemFilters(itemQuery, filter);
 
                 return await itemQuery
                     .Select(i => new AnalyticsReturnRow
@@ -237,6 +211,9 @@ namespace InventorySystem.Repositories.Implementations
                     query = query.Where(p => p.SalesInvoice.BookerID == filter.BookerID);
             }
 
+            if (AnalyticsFilterHelper.HasCompany(filter))
+                query = query.Where(p => p.SalesInvoice.CompanyID == filter.CompanyID);
+
             return await query.SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
         }
 
@@ -252,22 +229,27 @@ namespace InventorySystem.Repositories.Implementations
             return await query.SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
         }
 
-        public async Task<decimal> GetCustomerReceivablesAsync(int? customerId, CancellationToken cancellationToken = default)
+        public async Task<decimal> GetCustomerReceivablesAsync(int? customerId, int? companyId, CancellationToken cancellationToken = default)
         {
-            var query = _context.CustomerLedgers.AsNoTracking()
-                .Where(l => l.Customer != null && !l.Customer.IsDeleted);
+            var salesQuery = _context.SalesInvoices.AsNoTracking().Where(i => !i.IsDeleted);
+
+            if (companyId.HasValue && companyId.Value > 0)
+                salesQuery = salesQuery.Where(i => i.CompanyID == companyId.Value);
 
             if (customerId.HasValue && customerId.Value > 0)
-                query = query.Where(l => l.CustomerID == customerId.Value);
+                salesQuery = salesQuery.Where(i => i.CustomerID == customerId.Value);
 
-            return await query.SumAsync(l => (decimal?)(l.DebitAmount - l.CreditAmount), cancellationToken) ?? 0m;
+            return await DashboardMetricsHelper.SumCustomerReceivablesAsync(salesQuery, cancellationToken);
         }
 
-        public async Task<decimal> GetCompanyPayablesAsync(CancellationToken cancellationToken = default)
+        public async Task<decimal> GetCompanyPayablesAsync(int? companyId, CancellationToken cancellationToken = default)
         {
-            return await _context.CompanyLedgers.AsNoTracking()
-                .Where(l => l.Company != null && !l.Company.IsDeleted)
-                .SumAsync(l => (decimal?)(l.CreditAmount - l.DebitAmount), cancellationToken) ?? 0m;
+            var purchaseQuery = _context.PurchaseInvoices.AsNoTracking().Where(i => !i.IsDeleted);
+
+            if (companyId.HasValue && companyId.Value > 0)
+                purchaseQuery = purchaseQuery.Where(i => i.CompanyID == companyId.Value);
+
+            return await DashboardMetricsHelper.SumCompanyPayablesAsync(purchaseQuery, cancellationToken);
         }
 
         public async Task<Dictionary<int, decimal>> GetCustomerLedgerBalancesAsync(IEnumerable<int> customerIds, CancellationToken cancellationToken = default)
@@ -340,6 +322,9 @@ namespace InventorySystem.Repositories.Implementations
             if (AnalyticsFilterHelper.HasCategory(filter))
                 query = query.Where(t => t.Product.CategoryID == filter.CategoryID);
 
+            if (AnalyticsFilterHelper.HasCompany(filter))
+                query = query.Where(t => t.Product.CompanyID == filter.CompanyID);
+
             return await query
                 .GroupBy(t => t.TransactionType)
                 .Select(g => new AnalyticsMovementRow
@@ -369,6 +354,9 @@ namespace InventorySystem.Repositories.Implementations
                 else
                     query = query.Where(p => p.SalesInvoice.BookerID == filter.BookerID);
             }
+
+            if (AnalyticsFilterHelper.HasCompany(filter))
+                query = query.Where(p => p.SalesInvoice.CompanyID == filter.CompanyID);
 
             return await query.SumAsync(p => (decimal?)p.DiscountAmount, cancellationToken) ?? 0m;
         }
@@ -450,6 +438,69 @@ namespace InventorySystem.Repositories.Implementations
                     query = query.Where(i => i.SalesInvoice.BookerID == null);
                 else
                     query = query.Where(i => i.SalesInvoice.BookerID == filter.BookerID);
+            }
+
+            return query;
+        }
+
+        private static IQueryable<Models.Entities.SalesReturn> ApplySalesReturnFilters(
+            IQueryable<Models.Entities.SalesReturn> query, AnalyticsFilterDto filter)
+        {
+            if (AnalyticsFilterHelper.HasWarehouse(filter))
+            {
+                int warehouseId = filter.WarehouseID!.Value;
+                query = query.Where(r => r.WarehouseID == warehouseId || (r.SalesInvoice != null && r.SalesInvoice.WarehouseID == warehouseId));
+            }
+
+            if (AnalyticsFilterHelper.HasCustomer(filter))
+                query = query.Where(r => r.CustomerID == filter.CustomerID!.Value);
+
+            if (AnalyticsFilterHelper.HasBooker(filter))
+            {
+                if (filter.BookerID == -1)
+                    query = query.Where(r => r.SalesInvoice != null && r.SalesInvoice.BookerID == null);
+                else
+                    query = query.Where(r => r.SalesInvoice != null && r.SalesInvoice.BookerID == filter.BookerID);
+            }
+
+            if (AnalyticsFilterHelper.HasCompany(filter))
+            {
+                int companyId = filter.CompanyID!.Value;
+                query = query.Where(r =>
+                    (r.SalesInvoice != null && r.SalesInvoice.CompanyID == companyId) ||
+                    (r.InvoiceID == null && r.Items.Any(i => i.Product != null && i.Product.CompanyID == companyId)));
+            }
+
+            return query;
+        }
+
+        private static IQueryable<Models.Entities.SalesReturnItem> ApplySalesReturnItemFilters(
+            IQueryable<Models.Entities.SalesReturnItem> query, AnalyticsFilterDto filter)
+        {
+            if (AnalyticsFilterHelper.HasWarehouse(filter))
+            {
+                int warehouseId = filter.WarehouseID!.Value;
+                query = query.Where(i => i.SalesReturn.WarehouseID == warehouseId
+                    || (i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.WarehouseID == warehouseId));
+            }
+
+            if (AnalyticsFilterHelper.HasCustomer(filter))
+                query = query.Where(i => i.SalesReturn.CustomerID == filter.CustomerID!.Value);
+
+            if (AnalyticsFilterHelper.HasBooker(filter))
+            {
+                if (filter.BookerID == -1)
+                    query = query.Where(i => i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.BookerID == null);
+                else
+                    query = query.Where(i => i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.BookerID == filter.BookerID);
+            }
+
+            if (AnalyticsFilterHelper.HasCompany(filter))
+            {
+                int companyId = filter.CompanyID!.Value;
+                query = query.Where(i =>
+                    (i.SalesReturn.SalesInvoice != null && i.SalesReturn.SalesInvoice.CompanyID == companyId) ||
+                    (i.SalesReturn.InvoiceID == null && i.SalesReturn.Items.Any(x => x.Product != null && x.Product.CompanyID == companyId)));
             }
 
             return query;

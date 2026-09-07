@@ -173,25 +173,15 @@
 @section Scripts {
     <script>
         $(document).ready(function () {
-            const productsList = [
-                @foreach (var p in Model.Products)
-                {
-                    <text>{ id: @p.Value, text: '@Html.Raw(p.Text)' },</text>
-                }
-            ];
+            const productsList = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.Products.Select(p => new { id = p.Value, text = p.Text })
+            ));
 
             function addProductRow() {
-                let optionsHtml = '<option value="">-- Select Product --</option>';
-                productsList.forEach(p => {
-                    optionsHtml += `<option value="${p.id}">${p.text}</option>`;
-                });
-
-                const rowHtml = `
+                const $row = $(`
                     <tr class="item-row">
                         <td>
-                            <select class="form-select form-select-sm select-product" required>
-                                ${optionsHtml}
-                            </select>
+                            <select class="form-select form-select-sm select-product" required></select>
                         </td>
                         <td>
                             <select class="form-select form-select-sm select-unit" required disabled>
@@ -211,8 +201,15 @@
                             </button>
                         </td>
                     </tr>
-                `;
-                $('#manualItemsTable tbody').append(rowHtml);
+                `);
+
+                const $productSelect = $row.find('.select-product');
+                $productSelect.append($('<option value="">-- Select Product --</option>'));
+                productsList.forEach(p => {
+                    $productSelect.append($('<option></option>').attr('value', p.id).text(p.text));
+                });
+
+                $('#manualItemsTable tbody').append($row);
                 recalculateTotals();
             }
 
@@ -233,7 +230,7 @@
                     $unitSelect.empty();
                     if (units && units.length > 0) {
                         units.forEach(u => {
-                            $unitSelect.append(`<option value="${u.productUnitId}">${u.unitName}</option>`);
+                            $unitSelect.append($('<option></option>').attr('value', u.productUnitId).text(u.unitName));
                         });
                         $unitSelect.prop('disabled', false);
                     } else {

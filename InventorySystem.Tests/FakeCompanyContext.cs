@@ -70,5 +70,9 @@ namespace InventorySystem.Tests
             HasResolvedScope = _resolveSpecific;
             return Task.FromResult(_resolveSpecific);
         }
+
+        public void ReapplyFromHttpContext()
+        {
+        }
     }
 }

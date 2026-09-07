@@ -1,4 +1,8 @@
 @model InventorySystem.DTOs.Common.PagedResult<InventorySystem.DTOs.Customers.CustomerLedgerEntryDto>
+@{
+    decimal customerReceivable = ViewBag.CustomerReceivable ?? 0m;
+    decimal amountOwedToCustomer = ViewBag.AmountOwedToCustomer ?? 0m;
+}
 
 @if (Model == null || !Model.Items.Any())
 {
@@ -8,6 +12,33 @@
 }
 else
 {
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm @(customerReceivable > 0 ? "bg-danger" : "bg-light") @(customerReceivable > 0 ? "text-white" : "") h-100">
+                <div class="card-body py-3">
+                    <div class="@(customerReceivable > 0 ? "text-white-50" : "text-muted") small fw-semibold text-uppercase">Customer Receivables</div>
+                    <div class="fs-4 fw-bold mt-1">PKR @customerReceivable.ToString("N2")</div>
+                    <div class="@(customerReceivable > 0 ? "text-white-50" : "text-muted") small mt-1">Amount the customer owes you</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm @(amountOwedToCustomer > 0 ? "bg-success" : "bg-light") @(amountOwedToCustomer > 0 ? "text-white" : "") h-100">
+                <div class="card-body py-3">
+                    <div class="@(amountOwedToCustomer > 0 ? "text-white-50" : "text-muted") small fw-semibold text-uppercase">Amount Owed to Customer</div>
+                    <div class="fs-4 fw-bold mt-1">PKR @amountOwedToCustomer.ToString("N2")</div>
+                    <div class="@(amountOwedToCustomer > 0 ? "text-white-50" : "text-muted") small mt-1">Amount you owe the customer</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-light border small mb-3">
+        <i class="bi bi-info-circle me-1 text-primary"></i>
+        <strong>Running Balance</strong> is cumulative by event time (newest at top).
+        Positive = customer owes you; negative = you owe the customer.
+    </div>
+
     <div class="table-responsive my-3">
         <table class="table table-hover align-middle border">
             <thead class="table-light">
@@ -18,7 +49,7 @@ else
                     <th>Description</th>
                     <th class="text-end">Debit (Receivable +)</th>
                     <th class="text-end">Credit (Received -)</th>
-                    <th class="text-end">Net Change</th>
+                    <th class="text-end">Running Balance</th>
                 </tr>
             </thead>
             <tbody>
@@ -46,10 +77,10 @@ else
                             }
                         </td>
                         <td>@(l.Description ?? "-")</td>
-                        <td class="text-end fw-semibold text-danger">@(l.DebitAmount > 0 ? l.DebitAmount.ToString("N2") : "-")</td>
-                        <td class="text-end fw-semibold text-success">@(l.CreditAmount > 0 ? l.CreditAmount.ToString("N2") : "-")</td>
-                        <td class="text-end fw-bold @(l.NetChange >= 0 ? "text-danger" : "text-success")">
-                            @(l.NetChange >= 0 ? "+" + l.NetChange.ToString("N2") : l.NetChange.ToString("N2"))
+                        <td class="text-end fw-semibold text-danger">@l.DebitAmount.ToString("N2")</td>
+                        <td class="text-end fw-semibold text-success">@l.CreditAmount.ToString("N2")</td>
+                        <td class="text-end fw-bold @(l.RunningBalance >= 0 ? "text-danger" : "text-success")">
+                            @(l.RunningBalance >= 0 ? "+" + l.RunningBalance.ToString("N2") : l.RunningBalance.ToString("N2"))
                         </td>
                     </tr>
                 }

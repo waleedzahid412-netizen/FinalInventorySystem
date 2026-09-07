@@ -358,16 +358,11 @@ namespace InventorySystem.Repositories.Implementations
             int? companyId = null,
             CancellationToken cancellationToken = default)
         {
-            var query = ScopeCustomerLedger(
+            var entries = await ScopeCustomerLedger(
                     _context.CustomerLedgers.AsNoTracking().Where(l => l.CustomerID == customerId),
                     companyId)
-                .OrderByDescending(l => l.TransactionDate)
-                .ThenByDescending(l => l.CustomerLedgerID);
-
-            int totalCount = await query.CountAsync(cancellationToken);
-            var items = await query
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
+                .OrderBy(l => l.TransactionDate)
+                .ThenBy(l => l.CustomerLedgerID)
                 .Select(l => new CustomerLedgerEntryDto
                 {
                     CustomerLedgerID = l.CustomerLedgerID,
@@ -378,6 +373,21 @@ namespace InventorySystem.Repositories.Implementations
                     CreditAmount = l.CreditAmount
                 })
                 .ToListAsync(cancellationToken);
+
+            decimal runningBalance = 0m;
+            foreach (var entry in entries)
+            {
+                runningBalance += entry.DebitAmount - entry.CreditAmount;
+                entry.RunningBalance = runningBalance;
+            }
+
+            int totalCount = entries.Count;
+            var items = entries
+                .OrderByDescending(l => l.TransactionDate)
+                .ThenByDescending(l => l.CustomerLedgerID)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
 
             return new PagedResult<CustomerLedgerEntryDto>(items, totalCount, pageNumber, pageSize);
         }

@@ -1,5 +1,4 @@
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +11,7 @@ using InventorySystem.ViewModels.Roles;
 namespace InventorySystem.Controllers
 {
     [Authorize]
-    public class RoleManagementController : Controller
+    public class RoleManagementController : InventoryController
     {
         private readonly IRoleManagementService _roleManagementService;
 
@@ -295,12 +294,6 @@ namespace InventorySystem.Controllers
                     CanDelete = p.CanDelete
                 })
                 .ToList();
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            return claim != null && int.TryParse(claim.Value, out var userId) ? userId : 0;
         }
     }
 }

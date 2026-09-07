@@ -34,5 +34,10 @@ namespace InventorySystem.Services.Interfaces
         /// (specific company or All Companies). Returns false when unscoped.
         /// </summary>
         Task<bool> TryResolveAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Re-applies scope from <see cref="HttpContext.Items"/> after it was seeded mid-request.
+        /// </summary>
+        void ReapplyFromHttpContext();
     }
 }

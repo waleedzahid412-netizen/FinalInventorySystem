@@ -23,5 +23,6 @@ namespace InventorySystem.Services.Interfaces
         Task<PagedResult<CustomerSalesHistoryDto>> GetSalesHistoryAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
         Task<PagedResult<CustomerPaymentHistoryDto>> GetPaymentHistoryAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
         Task<PagedResult<CustomerLedgerEntryDto>> GetLedgerAsync(int customerId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+        Task<CustomerFinancialSummaryDto?> GetFinancialSummaryAsync(int customerId, CancellationToken cancellationToken = default);
     }
 }

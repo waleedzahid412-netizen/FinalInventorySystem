@@ -38,7 +38,7 @@
         function buildFilter() {
             const b = $('#bookerId').val();
             return { Preset: currentPreset, StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null, EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
-                CompanyID: parseInt($('#companyId').val()) || null, WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null,
+                CompanyID: window.getAnalyticsCompanyId(), WarehouseID: parseInt($('#warehouseId').val()) || null, CustomerID: parseInt($('#customerId').val()) || null, CategoryID: parseInt($('#categoryId').val()) || null,
                 BookerID: b === '-1' ? -1 : (parseInt(b) || null) };
         }
         $(function () {

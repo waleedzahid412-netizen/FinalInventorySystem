@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using InventorySystem.Authorization;
 using InventorySystem.Constants;
+using InventorySystem.Helpers;
 using InventorySystem.Services.Interfaces;
 
 namespace InventorySystem.Filters
@@ -53,9 +54,9 @@ namespace InventorySystem.Filters
                 return;
             }
 
-            if (!int.TryParse(context.HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            if (!CurrentUserHelper.TryGetUserId(context.HttpContext.User, out var userId))
             {
-                context.Result = new ForbidResult();
+                context.Result = MissingUserIdentityExceptionFilter.CreateUnauthorizedResult(context.HttpContext.Request);
                 return;
             }
 
@@ -75,6 +76,7 @@ namespace InventorySystem.Filters
                 var page = await _permissionService.ResolvePageAsync(descriptor.ControllerName, descriptor.ActionName, context.HttpContext.RequestAborted);
                 if (page == null)
                 {
+                    DenyAccess(context);
                     return;
                 }
 
@@ -132,23 +134,6 @@ namespace InventorySystem.Filters
 
         private static bool HasSkipPermission(ControllerActionDescriptor descriptor)
         {
-            if (descriptor.ControllerName.Equals("Auth", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (descriptor.ControllerName.Equals("CompanyScope", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (descriptor.ControllerName.Equals("Home", StringComparison.OrdinalIgnoreCase) &&
-                (descriptor.ActionName.Equals("Privacy", StringComparison.OrdinalIgnoreCase) ||
-                 descriptor.ActionName.Equals("Error", StringComparison.OrdinalIgnoreCase)))
-            {
-                return true;
-            }
-
             return descriptor.MethodInfo.GetCustomAttribute<SkipPermissionCheckAttribute>(inherit: true) != null
                 || descriptor.ControllerTypeInfo.GetCustomAttribute<SkipPermissionCheckAttribute>(inherit: true) != null;
         }

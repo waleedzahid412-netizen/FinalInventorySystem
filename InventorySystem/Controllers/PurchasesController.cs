@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +19,7 @@ namespace InventorySystem.Controllers
 {
     [Authorize]
     [RequireCompanyScope]
-    public class PurchasesController : Controller
+    public class PurchasesController : InventoryController
     {
         private readonly IPurchaseService _purchaseService;
         private readonly ILookupService _lookupService;
@@ -356,16 +355,6 @@ namespace InventorySystem.Controllers
             model.CompanyName = _companyContext.CompanyName;
             model.Companies = new SelectList(Enumerable.Empty<SelectListItem>());
             model.Warehouses = new SelectList(warehouses, "Id", "Name", model.WarehouseID);
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1; // Default Admin fallback
         }
     }
 }

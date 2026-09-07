@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -15,7 +14,7 @@ using InventorySystem.ViewModels.Customers;
 namespace InventorySystem.Controllers
 {
     [Authorize]
-    public class CustomersController : Controller
+    public class CustomersController : InventoryController
     {
         private readonly ICustomerService _customerService;
         private readonly ILookupService _lookupService;
@@ -175,7 +174,10 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> LedgerTab(int id, int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             var ledger = await _customerService.GetLedgerAsync(id, pageNumber, pageSize, cancellationToken);
+            var summary = await _customerService.GetFinancialSummaryAsync(id, cancellationToken);
             ViewBag.CustomerID = id;
+            ViewBag.CustomerReceivable = summary?.CustomerReceivable ?? 0m;
+            ViewBag.AmountOwedToCustomer = summary?.AmountOwedToCustomer ?? 0m;
             return PartialView("_LedgerTab", ledger);
         }
 
@@ -249,16 +251,6 @@ namespace InventorySystem.Controllers
                 : new System.Collections.Generic.List<DTOs.Common.LookupItemDto>();
 
             model.SubAreas = subAreas.Select(sa => new SelectListItem { Value = sa.Id.ToString(), Text = sa.Name, Selected = sa.Id == model.SubAreaID }).ToList();
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1; // System Admin default fallback
         }
     }
 }

@@ -47,7 +47,6 @@ namespace InventorySystem.DTOs.Products
         public int CompanyID { get; set; }
         public int BaseUnitID { get; set; }
         public decimal BaseSellingPrice { get; set; }
-        public decimal AveragePurchaseCost { get; set; }
         public int ReorderLevel { get; set; }
         public bool IsActive { get; set; } = true;
 
@@ -66,6 +65,7 @@ namespace InventorySystem.DTOs.Products
         public int CompanyID { get; set; }
         public int BaseUnitID { get; set; }
         public decimal BaseSellingPrice { get; set; }
+        /// <summary>Read-only display cache from open FIFO layers; not accepted on update.</summary>
         public decimal AveragePurchaseCost { get; set; }
         public int ReorderLevel { get; set; }
         public bool IsActive { get; set; }

@@ -266,6 +266,12 @@ namespace InventorySystem.Services.Implementations
             return await _customerRepository.GetLedgerAsync(customerId, pageNumber, pageSize, companyId, cancellationToken);
         }
 
+        public async Task<CustomerFinancialSummaryDto?> GetFinancialSummaryAsync(int customerId, CancellationToken cancellationToken = default)
+        {
+            int? companyId = await ResolveSoftCompanyIdAsync(cancellationToken);
+            return await _customerRepository.GetFinancialSummaryAsync(customerId, companyId, cancellationToken);
+        }
+
         /// <summary>
         /// Null or &lt;= 0 → unset (null). Values must be in (0, 100].
         /// </summary>

@@ -116,5 +116,43 @@ namespace InventorySystem.Repositories.Implementations
         {
             await _context.SaveChangesAsync();
         }
+
+        public async Task<bool> RecordFailedLoginAsync(
+            int userId,
+            int maxFailedAttempts,
+            int lockoutMinutes,
+            CancellationToken cancellationToken = default)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == userId, cancellationToken);
+            if (user == null)
+            {
+                return false;
+            }
+
+            user.AccessFailedCount++;
+            var isLocked = false;
+
+            if (user.AccessFailedCount >= maxFailedAttempts)
+            {
+                user.LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(lockoutMinutes);
+                isLocked = true;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            return isLocked;
+        }
+
+        public async Task ResetLoginFailuresAsync(int userId, CancellationToken cancellationToken = default)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == userId, cancellationToken);
+            if (user == null)
+            {
+                return;
+            }
+
+            user.AccessFailedCount = 0;
+            user.LockoutEnd = null;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

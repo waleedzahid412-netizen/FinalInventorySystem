@@ -862,6 +862,121 @@ namespace InventorySystem.Migrations
                     b.ToTable("DiscountRules", "dbo");
                 });
 
+            modelBuilder.Entity("InventorySystem.Models.Entities.InventoryCostConsumption", b =>
+                {
+                    b.Property<int>("ConsumptionID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ConsumptionID"));
+
+                    b.Property<int>("CostLayerID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int?>("SalesInvoiceItemID")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("UnitCostInBase")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("ConsumptionID");
+
+                    b.HasIndex("CostLayerID");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("SalesInvoiceItemID");
+
+                    b.ToTable("InventoryCostConsumptions", "dbo");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.InventoryCostLayer", b =>
+                {
+                    b.Property<int>("CostLayerID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CostLayerID"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("OriginalQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int>("ProductID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PurchaseInvoiceItemID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("RemainingQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int?>("SalesReturnItemID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<decimal>("UnitCostInBase")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("WarehouseID")
+                        .HasColumnType("int");
+
+                    b.HasKey("CostLayerID");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("PurchaseInvoiceItemID");
+
+                    b.HasIndex("SalesReturnItemID");
+
+                    b.HasIndex("WarehouseID");
+
+                    b.HasIndex("ProductID", "WarehouseID", "ReceivedAt");
+
+                    b.ToTable("InventoryCostLayers", "dbo");
+                });
+
             modelBuilder.Entity("InventorySystem.Models.Entities.InventoryStock", b =>
                 {
                     b.Property<int>("InventoryStockID")
@@ -1996,6 +2111,9 @@ namespace InventorySystem.Migrations
                     b.Property<decimal>("ConvertedQuantity")
                         .HasColumnType("decimal(18,3)");
 
+                    b.Property<decimal>("CostOfGoodsSold")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -2040,6 +2158,9 @@ namespace InventorySystem.Migrations
 
                     b.Property<decimal>("Quantity")
                         .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("UnitCostInBase")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(18,2)");
@@ -2375,6 +2496,9 @@ namespace InventorySystem.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserID"));
 
+                    b.Property<int>("AccessFailedCount")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -2394,6 +2518,9 @@ namespace InventorySystem.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("LockoutEnd")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -2819,6 +2946,72 @@ namespace InventorySystem.Migrations
                     b.Navigation("Company");
 
                     b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.InventoryCostConsumption", b =>
+                {
+                    b.HasOne("InventorySystem.Models.Entities.InventoryCostLayer", "CostLayer")
+                        .WithMany("Consumptions")
+                        .HasForeignKey("CostLayerID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.SalesInvoiceItem", "SalesInvoiceItem")
+                        .WithMany()
+                        .HasForeignKey("SalesInvoiceItemID")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("CostLayer");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("SalesInvoiceItem");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.InventoryCostLayer", b =>
+                {
+                    b.HasOne("InventorySystem.Models.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("InventorySystem.Models.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.PurchaseInvoiceItem", "PurchaseInvoiceItem")
+                        .WithMany()
+                        .HasForeignKey("PurchaseInvoiceItemID")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("InventorySystem.Models.Entities.SalesReturnItem", "SalesReturnItem")
+                        .WithMany()
+                        .HasForeignKey("SalesReturnItemID")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("InventorySystem.Models.Entities.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("PurchaseInvoiceItem");
+
+                    b.Navigation("SalesReturnItem");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("InventorySystem.Models.Entities.InventoryStock", b =>
@@ -3749,6 +3942,11 @@ namespace InventorySystem.Migrations
             modelBuilder.Entity("InventorySystem.Models.Entities.DiscountRule", b =>
                 {
                     b.Navigation("InvoiceDiscounts");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.InventoryCostLayer", b =>
+                {
+                    b.Navigation("Consumptions");
                 });
 
             modelBuilder.Entity("InventorySystem.Models.Entities.Product", b =>

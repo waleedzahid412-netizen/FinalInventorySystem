@@ -86,6 +86,7 @@ namespace InventorySystem.Services.Implementations
             yield return PageKeys.Companies;
             yield return PageKeys.Bookers;
             yield return PageKeys.Suppliers;
+            yield return PageKeys.Units;
             yield return PageKeys.Promotions;
             yield return PageKeys.DiscountRules;
             yield return PageKeys.CustomerLedger;

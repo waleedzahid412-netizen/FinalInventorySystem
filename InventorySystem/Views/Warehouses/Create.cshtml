@@ -1,0 +1,69 @@
+@model InventorySystem.ViewModels.Warehouses.CreateWarehouseViewModel
+@{
+    ViewData["Title"] = "Add Warehouse";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">
+                <i class="bi bi-building-fill-gear me-2 text-primary"></i>Add Warehouse
+            </h1>
+            <p class="text-muted small mb-0">Create an inventory location available on purchase and sales forms.</p>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to List
+            </a>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm col-lg-8 mx-auto">
+        <div class="card-body p-4">
+            <form asp-action="Create" method="post">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <label asp-for="Name" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                        <input asp-for="Name" class="form-control" placeholder="e.g. Main Warehouse, North Depot" required />
+                        <span asp-validation-for="Name" class="text-danger small"></span>
+                        <div class="form-text small">Warehouse names must be unique.</div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label asp-for="Address" class="form-label fw-semibold"></label>
+                        <input asp-for="Address" class="form-control" placeholder="Optional physical address" />
+                        <span asp-validation-for="Address" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-check form-switch">
+                            <input asp-for="IsActive" class="form-check-input" />
+                            <label asp-for="IsActive" class="form-check-label fw-semibold"></label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-check form-switch">
+                            <input asp-for="IsMain" class="form-check-input" />
+                            <label asp-for="IsMain" class="form-check-label fw-semibold"></label>
+                        </div>
+                        <div class="form-text small">Main warehouse is the default on create forms. Only one can be main.</div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                    <a asp-action="Index" class="btn btn-light border px-4">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                        <i class="bi bi-save me-1"></i>Save Warehouse
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

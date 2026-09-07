@@ -203,6 +203,44 @@ namespace InventorySystem.Repositories.Implementations
             return await query.AnyAsync(p => p.InvoiceNumber.ToLower() == term, cancellationToken);
         }
 
+        public async Task<string> GenerateNextPurchaseInvoiceNumberAsync(CancellationToken cancellationToken = default)
+        {
+            string datePart = DateTime.UtcNow.ToString("yyyyMMdd");
+            string prefix = $"PINV-{datePart}-";
+
+            var existingNumbers = await _context.PurchaseInvoices
+                .AsNoTracking()
+                .Where(pi => !pi.IsDeleted && pi.InvoiceNumber.StartsWith(prefix))
+                .Select(pi => pi.InvoiceNumber)
+                .ToListAsync(cancellationToken);
+
+            int maxSequence = 0;
+            foreach (var invoiceNumber in existingNumbers)
+            {
+                if (invoiceNumber.Length <= prefix.Length)
+                {
+                    continue;
+                }
+
+                string suffix = invoiceNumber[prefix.Length..];
+                int separatorIndex = suffix.IndexOf('-');
+                if (separatorIndex >= 0)
+                {
+                    suffix = suffix[..separatorIndex];
+                }
+
+                if (int.TryParse(suffix, out int sequence) && sequence > maxSequence)
+                {
+                    maxSequence = sequence;
+                }
+            }
+
+            int nextSequence = maxSequence + 1;
+            return nextSequence <= 9999
+                ? $"{prefix}{nextSequence:D4}"
+                : $"{prefix}{nextSequence}";
+        }
+
         public async Task<bool> CompanyExistsAsync(int companyId, CancellationToken cancellationToken = default)
         {
             return await _context.Companies

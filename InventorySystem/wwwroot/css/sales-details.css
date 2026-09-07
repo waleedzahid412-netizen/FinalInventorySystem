@@ -1,0 +1,554 @@
+/* Invoice Details — shared skin for Sales & Purchase details pages */
+
+:is(.sales-details-page, .purchase-details-page) {
+  --sd-ink: #2f3437;
+  --sd-muted: #787774;
+  --sd-border: #eaeaea;
+  --sd-surface: #ffffff;
+  --sd-canvas: #f7f6f3;
+  --sd-accent: #111111;
+  --sd-accent-hover: #333333;
+  --sd-pastel-red-bg: #fdebec;
+  --sd-pastel-red-text: #9f2f2d;
+  --sd-pastel-green-bg: #edf3ec;
+  --sd-pastel-green-text: #346538;
+  --sd-pastel-yellow-bg: #fbf3db;
+  --sd-pastel-yellow-text: #956400;
+  --sd-pastel-blue-bg: #e1f3fe;
+  --sd-pastel-blue-text: #1f6c9f;
+  max-width: 1440px;
+  color: var(--sd-ink);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-breadcrumb .breadcrumb {
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-breadcrumb .breadcrumb-item a {
+  color: var(--sd-muted);
+  text-decoration: none;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-breadcrumb .breadcrumb-item a:hover {
+  color: var(--sd-ink);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-breadcrumb .breadcrumb-item.active {
+  color: var(--sd-ink);
+  font-weight: 600;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-page-title {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--sd-ink);
+  margin: 0;
+  line-height: 1.2;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-page-subtitle {
+  font-size: 0.82rem;
+  color: var(--sd-muted);
+  margin-top: 0.25rem;
+}
+
+/* Toolbar */
+:is(.sales-details-page, .purchase-details-page) .sd-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-toolbar-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-toolbar-divider {
+  width: 1px;
+  height: 1.5rem;
+  background: var(--sd-border);
+  margin: 0 0.15rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.52rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+  box-shadow: none;
+  white-space: nowrap;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-btn:active {
+  transform: scale(0.98);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-btn-primary {
+  background: var(--sd-accent);
+  border-color: var(--sd-accent);
+  color: #ffffff;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-btn-primary:hover {
+  background: var(--sd-accent-hover);
+  border-color: var(--sd-accent-hover);
+  color: #ffffff;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-btn-outline {
+  background: var(--sd-surface);
+  border-color: var(--sd-border);
+  color: var(--sd-ink);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-btn-outline:hover {
+  background: var(--sd-canvas);
+  border-color: #d8d8d8;
+  color: var(--sd-ink);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-btn-link {
+  background: transparent;
+  border-color: transparent;
+  color: var(--sd-muted);
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-btn-link:hover {
+  color: var(--sd-ink);
+  background: transparent;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-lock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: var(--sd-canvas);
+  color: var(--sd-muted);
+  border: 1px solid var(--sd-border);
+}
+
+/* Locked banner */
+:is(.sales-details-page, .purchase-details-page) .sd-lock-banner {
+  background: var(--sd-pastel-yellow-bg);
+  border: 1px solid rgba(149, 100, 0, 0.15);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  color: var(--sd-pastel-yellow-text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-lock-banner i {
+  font-size: 1.1rem;
+  opacity: 0.85;
+}
+
+/* KPI bento grid */
+:is(.sales-details-page, .purchase-details-page) .sd-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-kpi {
+  background: var(--sd-surface);
+  border: 1px solid var(--sd-border);
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-kpi-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sd-muted);
+  margin-bottom: 0.35rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-kpi-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--sd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-kpi-value--emphasis {
+  color: var(--sd-pastel-red-text);
+}
+
+/* Status pills */
+:is(.sales-details-page, .purchase-details-page) .sd-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-status--paid {
+  background: var(--sd-pastel-green-bg);
+  color: var(--sd-pastel-green-text);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-status--partial {
+  background: var(--sd-pastel-yellow-bg);
+  color: var(--sd-pastel-yellow-text);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-status--unpaid {
+  background: var(--sd-pastel-red-bg);
+  color: var(--sd-pastel-red-text);
+}
+
+/* Section cards */
+:is(.sales-details-page, .purchase-details-page) .sd-section {
+  background: var(--sd-surface);
+  border: 1px solid var(--sd-border);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-section-header {
+  padding: 0.85rem 1.15rem;
+  border-bottom: 1px solid var(--sd-border);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--sd-ink);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-section-body {
+  padding: 1.15rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-section-body--flush {
+  padding: 0;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-field-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--sd-muted);
+  margin-bottom: 0.2rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-field-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--sd-ink);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-field-value--mono {
+  font-family: var(--erp-mono, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+/* Table refinements */
+:is(.sales-details-page, .purchase-details-page) .sd-table thead th {
+  background: var(--sd-canvas);
+  border-bottom: 1px solid var(--sd-border);
+  color: var(--sd-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.65rem 1rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-table tbody td {
+  border-bottom: 1px solid var(--sd-border);
+  font-size: 0.84rem;
+  padding: 0.75rem 1rem;
+  color: var(--sd-ink);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.015);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-table tfoot td {
+  background: var(--sd-canvas);
+  border-top: 1px solid var(--sd-border);
+  font-size: 0.84rem;
+  padding: 0.65rem 1rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  background: var(--sd-canvas);
+  border: 1px solid var(--sd-border);
+  color: var(--sd-ink);
+  font-family: var(--erp-mono, "JetBrains Mono", ui-monospace, monospace);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-unit-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: var(--sd-canvas);
+  color: var(--sd-muted);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-grand-total {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--sd-ink);
+}
+
+/* Tabs */
+:is(.sales-details-page, .purchase-details-page) .sd-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--sd-border);
+  padding: 0 0.5rem;
+  gap: 0.25rem;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 0.85rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--sd-muted);
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-tab:hover {
+  color: var(--sd-ink);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-tab.active {
+  color: var(--sd-ink);
+  border-bottom-color: var(--sd-accent);
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-tab-pane {
+  padding: 1rem 1.15rem 1.25rem;
+}
+
+/* Modal (scoped) — Sales + Purchase payment modals */
+:is(.sales-details-page, .purchase-details-page) ~ .modal .sd-modal-content,
+#recordPaymentModal .sd-modal-content,
+#recordCompanyPaymentModal .sd-modal-content {
+  border: 1px solid var(--sd-border, #eaeaea);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+#recordPaymentModal .sd-modal-header,
+#recordCompanyPaymentModal .sd-modal-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--sd-border, #eaeaea);
+  padding: 1rem 1.15rem;
+}
+
+#recordPaymentModal .sd-modal-header .modal-title,
+#recordCompanyPaymentModal .sd-modal-header .modal-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--sd-ink, #2f3437);
+}
+
+#recordPaymentModal .sd-modal-footer,
+#recordCompanyPaymentModal .sd-modal-footer {
+  background: var(--sd-canvas, #f7f6f3);
+  border-top: 1px solid var(--sd-border, #eaeaea);
+  padding: 0.85rem 1.15rem;
+}
+
+#recordPaymentModal .sd-summary,
+#recordCompanyPaymentModal .sd-summary {
+  background: var(--sd-canvas, #f7f6f3);
+  border: 1px solid var(--sd-border, #eaeaea);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  font-size: 0.82rem;
+}
+
+#recordPaymentModal .sd-summary-row,
+#recordCompanyPaymentModal .sd-summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.2rem 0;
+}
+
+#recordPaymentModal .sd-summary-row + .sd-summary-row,
+#recordCompanyPaymentModal .sd-summary-row + .sd-summary-row {
+  margin-top: 0.15rem;
+}
+
+#recordPaymentModal .form-control,
+#recordPaymentModal .form-select,
+#recordCompanyPaymentModal .form-control,
+#recordCompanyPaymentModal .form-select {
+  border-color: var(--sd-border, #eaeaea);
+  border-radius: 6px;
+  font-size: 0.84rem;
+}
+
+#recordPaymentModal .form-control:focus,
+#recordPaymentModal .form-select:focus,
+#recordCompanyPaymentModal .form-control:focus,
+#recordCompanyPaymentModal .form-select:focus {
+  border-color: #bbb;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+
+#recordPaymentModal #payAmount,
+#recordCompanyPaymentModal #payCompanyAmount {
+  color: var(--sd-ink, #2f3437);
+  font-weight: 600;
+}
+
+#recordPaymentModal .sd-cheque-panel,
+#recordCompanyPaymentModal .sd-cheque-panel {
+  background: var(--sd-canvas, #f7f6f3);
+  border: 1px solid var(--sd-border, #eaeaea);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+#recordPaymentModal .sd-btn,
+#recordCompanyPaymentModal .sd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.52rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+  box-shadow: none;
+}
+
+#recordPaymentModal .sd-btn:active,
+#recordCompanyPaymentModal .sd-btn:active {
+  transform: scale(0.98);
+}
+
+#recordPaymentModal .sd-btn-primary,
+#recordCompanyPaymentModal .sd-btn-primary {
+  background: #111111;
+  border-color: #111111;
+  color: #ffffff;
+}
+
+#recordPaymentModal .sd-btn-primary:hover,
+#recordCompanyPaymentModal .sd-btn-primary:hover {
+  background: #333333;
+  border-color: #333333;
+  color: #ffffff;
+}
+
+#recordPaymentModal .sd-btn-outline,
+#recordCompanyPaymentModal .sd-btn-outline {
+  background: #ffffff;
+  border-color: #eaeaea;
+  color: #2f3437;
+}
+
+#recordPaymentModal .sd-btn-outline:hover,
+#recordCompanyPaymentModal .sd-btn-outline:hover {
+  background: #f7f6f3;
+  border-color: #d8d8d8;
+  color: #2f3437;
+}
+
+/* Bootstrap tab bridge */
+:is(.sales-details-page, .purchase-details-page) .sd-tabs .nav-link {
+  background: transparent;
+  color: #787774;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-tabs .nav-link.active {
+  background: transparent;
+  color: #2f3437;
+  border-bottom: 2px solid #111111;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-tabs .nav-link:focus,
+:is(.sales-details-page, .purchase-details-page) .sd-tabs .nav-link:hover {
+  color: #2f3437;
+  border-color: transparent;
+}
+
+:is(.sales-details-page, .purchase-details-page) .sd-tabs .nav-link.active:focus,
+:is(.sales-details-page, .purchase-details-page) .sd-tabs .nav-link.active:hover {
+  border-bottom-color: #111111;
+}
+
+@media (max-width: 991.98px) {
+  :is(.sales-details-page, .purchase-details-page) .sd-page-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 1rem;
+  }
+
+  :is(.sales-details-page, .purchase-details-page) .sd-toolbar {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  :is(.sales-details-page, .purchase-details-page) .sd-toolbar-divider {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  :is(.sales-details-page, .purchase-details-page) .sd-toolbar-group {
+    width: 100%;
+  }
+
+  :is(.sales-details-page, .purchase-details-page) .sd-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}

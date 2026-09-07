@@ -33,7 +33,7 @@ namespace InventorySystem.Tests
         {
             var context = GetInMemoryDbContext(dbName);
             var repository = new ReturnRepository(context);
-            var service = new ReturnService(repository, context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(repository, context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
 
             var customer = new Customer { CustomerID = 1, ShopName = "Test Shop", Address = "123 St" };
             var warehouse = new Warehouse { WarehouseID = 1, Name = "Main Warehouse" };

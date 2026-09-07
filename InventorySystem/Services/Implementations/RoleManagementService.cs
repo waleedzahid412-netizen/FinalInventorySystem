@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using InventorySystem.Constants;
 using InventorySystem.DTOs.Common;
 using InventorySystem.DTOs.Roles;
+using InventorySystem.Helpers;
 using InventorySystem.Models.Entities;
 using InventorySystem.Repositories.Interfaces;
 using InventorySystem.Services.Interfaces;
@@ -127,7 +128,7 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to create role {RoleName}", dto.RoleName);
-                return OperationResult<int>.Fail($"Failed to create role: {ex.Message}");
+                return OperationResult<int>.Fail(UserFacingErrorMessages.RoleCreateFailed);
             }
         }
 
@@ -172,7 +173,7 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to update role {RoleID}", dto.RoleID);
-                return OperationResult.Fail($"Failed to update role: {ex.Message}");
+                return OperationResult.Fail(UserFacingErrorMessages.RoleUpdateFailed);
             }
         }
 

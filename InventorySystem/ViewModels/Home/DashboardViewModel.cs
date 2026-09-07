@@ -6,8 +6,8 @@ namespace InventorySystem.ViewModels.Home
     public class DashboardViewModel
     {
         // KPI Totals
-        public decimal TotalSalesToday { get; set; }
-        public decimal TotalSalesThisMonth { get; set; }
+        public decimal NetSalesToday { get; set; }
+        public decimal NetSalesThisMonth { get; set; }
         public decimal TotalPurchasesToday { get; set; }
         public decimal TotalPurchasesThisMonth { get; set; }
         public decimal CustomerReceivables { get; set; }
@@ -22,8 +22,14 @@ namespace InventorySystem.ViewModels.Home
         public List<DashboardReturnItem> RecentReturns { get; set; } = new List<DashboardReturnItem>();
         public List<DashboardLowStockProduct> LowStockProducts { get; set; } = new List<DashboardLowStockProduct>();
 
-        /// <summary>True when dashboard shows all companies (override or unscoped).</summary>
+        /// <summary>True when dashboard shows consolidated figures (All Companies or unscoped).</summary>
         public bool ShowAllCompanies { get; set; }
+
+        /// <summary>True when ambient scope is deliberate All Companies.</summary>
+        public bool IsAllCompaniesMode { get; set; }
+
+        /// <summary>True when no company or All Companies scope is resolved.</summary>
+        public bool IsUnscoped { get; set; }
 
         public bool HasCompanyScope { get; set; }
 

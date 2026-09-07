@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -15,7 +14,7 @@ using InventorySystem.ViewModels.Companies;
 namespace InventorySystem.Controllers
 {
     [Authorize]
-    public class CompaniesController : Controller
+    public class CompaniesController : InventoryController
     {
         private readonly ICompanyService _companyService;
         private readonly ICompanyContext _companyContext;
@@ -257,16 +256,6 @@ namespace InventorySystem.Controllers
         {
             bool isUnique = await _companyService.ValidatePhoneAsync(phone, excludeCompanyId, cancellationToken);
             return Json(isUnique);
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1; // Default fallback to system admin
         }
     }
 }

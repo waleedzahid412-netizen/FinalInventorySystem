@@ -24,10 +24,10 @@
                         <td><span class="badge bg-secondary">@item.TransactionType</span></td>
                         <td>@item.Description</td>
                         <td class="text-end text-success">
-                            @(item.DebitAmount > 0 ? $"PKR {item.DebitAmount:N2}" : "-")
+                            PKR @item.DebitAmount.ToString("N2")
                         </td>
                         <td class="text-end text-danger fw-bold">
-                            @(item.CreditAmount > 0 ? $"PKR {item.CreditAmount:N2}" : "-")
+                            PKR @item.CreditAmount.ToString("N2")
                         </td>
                         <td>@item.CreatedByName</td>
                     </tr>

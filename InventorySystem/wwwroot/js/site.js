@@ -1,8 +1,39 @@
-﻿// Redirect to login when the JWT session has expired (401 from AJAX / fetch).
+﻿// CSRF header for cookie-authenticated JSON POSTs + redirect on expired session (401).
 (function (window) {
     'use strict';
 
     var loginUrl = '/Auth/Login?expired=1';
+    var csrfHeaderName = 'RequestVerificationToken';
+
+    function getCsrfToken() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    function isUnsafeMethod(method) {
+        var normalized = String(method || 'GET').toUpperCase();
+        return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH' || normalized === 'DELETE';
+    }
+
+    function withCsrfHeaders(headers) {
+        var token = getCsrfToken();
+        if (!token) {
+            return headers;
+        }
+
+        if (headers instanceof Headers) {
+            if (!headers.has(csrfHeaderName)) {
+                headers.set(csrfHeaderName, token);
+            }
+            return headers;
+        }
+
+        var next = headers ? Object.assign({}, headers) : {};
+        if (!next[csrfHeaderName]) {
+            next[csrfHeaderName] = token;
+        }
+        return next;
+    }
 
     function isAuthPath(url) {
         if (!url) {
@@ -23,10 +54,21 @@
         window.location.href = loginUrl;
     }
 
+    window.WimsCsrf = {
+        headerName: csrfHeaderName,
+        getToken: getCsrfToken
+    };
+
     if (typeof window.fetch === 'function') {
         var originalFetch = window.fetch.bind(window);
         window.fetch = function (input, init) {
+            init = init || {};
             var url = typeof input === 'string' ? input : (input && input.url);
+
+            if (isUnsafeMethod(init.method)) {
+                init.headers = withCsrfHeaders(init.headers);
+            }
+
             return originalFetch(input, init).then(function (response) {
                 if (response.status === 401 && !isAuthPath(url)) {
                     redirectToLogin();
@@ -37,6 +79,22 @@
     }
 
     if (window.jQuery) {
+        window.jQuery.ajaxPrefilter(function (options) {
+            if (!isUnsafeMethod(options.type || options.method)) {
+                return;
+            }
+
+            var token = getCsrfToken();
+            if (!token) {
+                return;
+            }
+
+            options.headers = options.headers || {};
+            if (!options.headers[csrfHeaderName]) {
+                options.headers[csrfHeaderName] = token;
+            }
+        });
+
         window.jQuery(document).ajaxError(function (event, jqXHR) {
             if (jqXHR && jqXHR.status === 401) {
                 redirectToLogin();
@@ -74,6 +132,42 @@
             return $modal;
         }
         return $(document.body);
+    }
+
+    // Select2 can misplace the dropdown on the first open when the select was
+    // just injected (e.g. dynamic grid rows) before layout has settled.
+    function fixDropdownPosition($el) {
+        var inst = $el.data('select2');
+        if (!inst || !inst.dropdown || typeof inst.dropdown._positionDropdown !== 'function') {
+            return;
+        }
+        inst.dropdown._positionDropdown();
+    }
+
+    function attachDropdownOpenFix($el) {
+        $el.off('select2:open.wimsPosFix').on('select2:open.wimsPosFix', function () {
+            fixDropdownPosition($el);
+            requestAnimationFrame(function () {
+                fixDropdownPosition($el);
+            });
+        });
+    }
+
+    function initAfterLayout(el, options, done) {
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                if (!document.body.contains(el)) {
+                    if (typeof done === 'function') {
+                        done();
+                    }
+                    return;
+                }
+                initOne(el, options);
+                if (typeof done === 'function') {
+                    done();
+                }
+            });
+        });
     }
 
     function shouldSkip(el) {
@@ -151,6 +245,7 @@
         }, options || {});
 
         $el.select2(opts);
+        attachDropdownOpenFix($el);
         watchOptionMutations(el);
 
         // Keep unobtrusive validation in sync when Select2 changes value
@@ -161,7 +256,7 @@
         });
     }
 
-    function refresh(el) {
+    function refresh(el, options) {
         if (!el || shouldSkip(el)) {
             return;
         }
@@ -169,18 +264,30 @@
             return;
         }
         refreshing.add(el);
-        try {
-            var $el = $(el);
-            var val = $el.val();
-            destroy(el);
-            initOne(el);
-            if (val !== undefined && val !== null) {
-                $el.val(val);
-                sync(el);
+
+        var $el = $(el);
+        var val = $el.val();
+        var deferLayout = $el.closest('table').length > 0;
+        destroy(el);
+
+        function finishRefresh() {
+            try {
+                if (val !== undefined && val !== null) {
+                    $el.val(val);
+                    sync(el);
+                }
+            } finally {
+                refreshing.delete(el);
             }
-        } finally {
-            refreshing.delete(el);
         }
+
+        if (deferLayout) {
+            initAfterLayout(el, options, finishRefresh);
+            return;
+        }
+
+        initOne(el, options);
+        finishRefresh();
     }
 
     function sync(el) {
@@ -244,7 +351,13 @@
             }
             clearTimeout(timer);
             timer = setTimeout(function () {
-                init(root);
+                $(root).find('select').each(function () {
+                    if (this.closest('table')) {
+                        initAfterLayout(this);
+                    } else {
+                        initOne(this);
+                    }
+                });
             }, 30);
         });
         obs.observe(root, { childList: true, subtree: true });
@@ -280,7 +393,7 @@
                 '</div>';
 
             container.appendChild(toastEl);
-            var toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 4500 });
+            var toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3000 });
             toastEl.addEventListener('hidden.bs.toast', function () {
                 toastEl.remove();
             });
@@ -288,8 +401,34 @@
         }
     };
 
+    /**
+     * Auto-dismiss flash banners (success, error, warning, etc.) after a short delay.
+     * Only targets .alert-dismissible so form validation / static info alerts stay put.
+     */
+    function autoDismissAlerts(delayMs) {
+        delayMs = typeof delayMs === 'number' ? delayMs : 3000;
+        if (!window.bootstrap || !bootstrap.Alert) {
+            return;
+        }
+
+        document.querySelectorAll('.alert.alert-dismissible').forEach(function (el) {
+            if (el.dataset.wimsAutoDismiss === '1') {
+                return;
+            }
+            el.dataset.wimsAutoDismiss = '1';
+            window.setTimeout(function () {
+                if (!document.body.contains(el)) {
+                    return;
+                }
+                var instance = bootstrap.Alert.getOrCreateInstance(el);
+                instance.close();
+            }, delayMs);
+        });
+    }
+
     $(function () {
         init(document);
         observeNewSelects();
+        autoDismissAlerts(3000);
     });
 })(window, window.jQuery);

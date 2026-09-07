@@ -21,6 +21,7 @@ namespace InventorySystem.Services.Implementations
         private readonly ApplicationDbContext _context;
         private readonly IPromotionDiscountService _promotionDiscountService;
         private readonly ICompanyContext _companyContext;
+        private readonly IFifoCostingService _fifoCostingService;
         private readonly ILogger<SalesService> _logger;
 
         public SalesService(
@@ -28,12 +29,14 @@ namespace InventorySystem.Services.Implementations
             ApplicationDbContext context,
             IPromotionDiscountService promotionDiscountService,
             ICompanyContext companyContext,
+            IFifoCostingService fifoCostingService,
             ILogger<SalesService> logger)
         {
             _salesRepository = salesRepository;
             _context = context;
             _promotionDiscountService = promotionDiscountService;
             _companyContext = companyContext;
+            _fifoCostingService = fifoCostingService;
             _logger = logger;
         }
 
@@ -116,17 +119,18 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult<int>.Fail(headerValidation.Message);
             }
 
-            // Auto-generate Invoice Number if blank or default text
-            string invoiceNumber = dto.InvoiceNumber?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(invoiceNumber) || string.Equals(invoiceNumber, "Auto-generated on save", StringComparison.OrdinalIgnoreCase))
+            // Invoice number: auto-generate sequentially per day, or validate a manual value.
+            string? manualInvoiceNumber = dto.InvoiceNumber?.Trim();
+            bool autoGenerateInvoiceNumber = string.IsNullOrWhiteSpace(manualInvoiceNumber)
+                || string.Equals(manualInvoiceNumber, "Auto-generated on save", StringComparison.OrdinalIgnoreCase);
+
+            if (!autoGenerateInvoiceNumber
+                && await _salesRepository.ExistsByInvoiceNumberAsync(manualInvoiceNumber!, null, cancellationToken))
             {
-                invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
+                return OperationResult<int>.Fail($"Invoice number '{manualInvoiceNumber}' is already in use.");
             }
 
-            if (await _salesRepository.ExistsByInvoiceNumberAsync(invoiceNumber, null, cancellationToken))
-            {
-                invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
-            }
+            string invoiceNumber = manualInvoiceNumber ?? string.Empty;
 
             // Ignore client FREE lines — only NORMAL cart items are trusted (same approach as UpdateSalesInvoiceAsync)
             var normalInputItems = dto.Items
@@ -290,9 +294,17 @@ namespace InventorySystem.Services.Implementations
             decimal invoiceGrandTotal = Math.Max(0m, invoiceSubTotal - invoiceDiscountTotal);
 
             // ===== ATOMIC TRANSACTION EXECUTION =====
-            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-            try
+            const int maxInvoiceNumberAttempts = 5;
+            for (int attempt = 1; attempt <= maxInvoiceNumberAttempts; attempt++)
             {
+                if (autoGenerateInvoiceNumber)
+                {
+                    invoiceNumber = await _salesRepository.GenerateNextSalesInvoiceNumberAsync(cancellationToken);
+                }
+
+                using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+                try
+                {
                 var now = DateTime.UtcNow;
 
                 // Step 1: STOCK AVAILABILITY CHECK & INVENTORY DEDUCTION (BR-007, BR-009)
@@ -410,6 +422,24 @@ namespace InventorySystem.Services.Implementations
                     };
 
                     await _salesRepository.AddInventoryTransactionAsync(invTransaction, cancellationToken);
+
+                    // FIFO cost consumption (BR-004)
+                    var fifoResult = await _fifoCostingService.ConsumeForSaleAsync(
+                        pItem.Dto.ProductID,
+                        dto.WarehouseID,
+                        pItem.ConvertedQty,
+                        invoiceItem.InvoiceItemID,
+                        userId,
+                        cancellationToken);
+
+                    if (!fifoResult.Success)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return OperationResult<int>.Fail(fifoResult.ErrorMessage!);
+                    }
+
+                    invoiceItem.CostOfGoodsSold = fifoResult.TotalCost;
+                    invoiceItem.UnitCostInBase = fifoResult.UnitCostInBase;
                 }
 
                 // Step 4: INSERT Order Discount Snapshot in InvoiceDiscounts (BR-031)
@@ -453,13 +483,29 @@ namespace InventorySystem.Services.Implementations
 
                 _logger.LogInformation("Sales Invoice #{InvoiceNumber} finalized successfully with ID {InvoiceID}", invoice.InvoiceNumber, invoice.InvoiceID);
                 return OperationResult<int>.Ok(invoice.InvoiceID, "Sales Invoice finalized successfully.");
+                }
+                catch (Exception ex) when (autoGenerateInvoiceNumber
+                    && attempt < maxInvoiceNumberAttempts
+                    && DbExceptionHelper.IsUniqueConstraintViolation(ex))
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    _context.ChangeTracker.Clear();
+                    _logger.LogWarning(
+                        ex,
+                        "Invoice number collision on {InvoiceNumber}; retrying ({Attempt}/{MaxAttempts})",
+                        invoiceNumber,
+                        attempt,
+                        maxInvoiceNumberAttempts);
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    _logger.LogError(ex, "Failed to finalize Sales Invoice #{InvoiceNumber}", invoiceNumber);
+                    return OperationResult<int>.Fail(UserFacingErrorMessages.SalesFinalizeFailed);
+                }
             }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                _logger.LogError(ex, "Failed to finalize Sales Invoice #{InvoiceNumber}", invoiceNumber);
-                return OperationResult<int>.Fail($"Failed to finalize sales invoice: {ex.Message}");
-            }
+
+            return OperationResult<int>.Fail("Could not assign a unique invoice number. Please try again.");
         }
 
         public async Task<OperationResult> CanEditSalesInvoiceAsync(int salesInvoiceId, CancellationToken cancellationToken = default)
@@ -471,6 +517,12 @@ namespace InventorySystem.Services.Implementations
             if (invoice == null)
             {
                 return OperationResult.Fail($"Sales Invoice #{salesInvoiceId} not found.");
+            }
+
+            if (invoice.IsLocked)
+            {
+                return OperationResult.Fail(
+                    "This invoice is locked and cannot be edited. Use Returns to correct finalized invoices.");
             }
 
             if (invoice.PaidAmount > 0)
@@ -694,7 +746,7 @@ namespace InventorySystem.Services.Implementations
             using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                // Step 1: REVERSE PREVIOUS STOCK DEDUCTIONS
+                // Step 1: REVERSE PREVIOUS STOCK DEDUCTIONS & FIFO CONSUMPTIONS
                 var oldActiveItems = invoice.Items.Where(i => !i.IsDeleted).ToList();
                 foreach (var oldItem in oldActiveItems)
                 {
@@ -702,6 +754,9 @@ namespace InventorySystem.Services.Implementations
                     {
                         continue; // custom FREE — no stock to restore
                     }
+
+                    await _fifoCostingService.RestoreConsumptionsForSalesItemAsync(
+                        oldItem.InvoiceItemID, userId, cancellationToken);
 
                     var stock = await _salesRepository.GetInventoryStockTrackedAsync(oldItem.ProductID.Value, invoice.WarehouseID, cancellationToken);
                     if (stock != null)
@@ -803,6 +858,23 @@ namespace InventorySystem.Services.Implementations
                         IsActive = true
                     };
                     await _salesRepository.AddInventoryTransactionAsync(newTx, cancellationToken);
+
+                    var fifoResult = await _fifoCostingService.ConsumeForSaleAsync(
+                        itemTuple.Dto.ProductID,
+                        invoice.WarehouseID,
+                        itemTuple.ConvertedQty,
+                        newInvoiceItem.InvoiceItemID,
+                        userId,
+                        cancellationToken);
+
+                    if (!fifoResult.Success)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return OperationResult<int>.Fail(fifoResult.ErrorMessage!);
+                    }
+
+                    newInvoiceItem.CostOfGoodsSold = fifoResult.TotalCost;
+                    newInvoiceItem.UnitCostInBase = fifoResult.UnitCostInBase;
                 }
 
                 // Step 6: UPDATE INVOICE HEADER & METADATA
@@ -845,14 +917,13 @@ namespace InventorySystem.Services.Implementations
                     });
                 }
 
-                // Step 7: UPDATE CUSTOMER LEDGER
-                var ledgerEntry = await _context.CustomerLedgers
-                    .FirstOrDefaultAsync(l => l.SalesInvoiceID == invoice.InvoiceID && l.TransactionType == "SALE", cancellationToken);
-
-                if (ledgerEntry != null)
+                // Step 7: APPEND-ONLY CUSTOMER LEDGER CORRECTION (BR-002 — never mutate original SALE row)
+                var ledgerCorrections = new List<CustomerLedger>();
+                LedgerAppendHelper.AppendSalesInvoiceCorrection(
+                    invoice, oldGrandTotal, newGrandTotal, dto.InvoiceDate, userId, now, ledgerCorrections);
+                foreach (var entry in ledgerCorrections)
                 {
-                    ledgerEntry.DebitAmount = newGrandTotal;
-                    ledgerEntry.TransactionDate = dto.InvoiceDate;
+                    await _context.CustomerLedgers.AddAsync(entry, cancellationToken);
                 }
 
                 // Step 8: LOG AUDIT RECORD
@@ -892,7 +963,7 @@ namespace InventorySystem.Services.Implementations
             {
                 await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Failed to update Sales Invoice #{InvoiceNumber}", invoice.InvoiceNumber);
-                return OperationResult<int>.Fail($"An error occurred while updating the invoice: {ex.Message}");
+                return OperationResult<int>.Fail(UserFacingErrorMessages.SalesUpdateFailed);
             }
         }
 

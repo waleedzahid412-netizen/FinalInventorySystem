@@ -65,6 +65,18 @@ namespace InventorySystem.Models.Entities
         public decimal DiscountAmount { get; set; } = 0;
 
         /// <summary>
+        /// Total FIFO cost of goods sold for this line (base units × layer costs). Set at sale finalize.
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal CostOfGoodsSold { get; set; } = 0;
+
+        /// <summary>
+        /// Weighted-average FIFO unit cost in base units for this line (COGS / ConvertedQuantity).
+        /// </summary>
+        [Column(TypeName = "decimal(18,4)")]
+        public decimal UnitCostInBase { get; set; } = 0;
+
+        /// <summary>
         /// NORMAL = regular sale item.
         /// FREE = promotional free item (UnitPrice=0, linked to a PromotionCampaign).
         /// </summary>

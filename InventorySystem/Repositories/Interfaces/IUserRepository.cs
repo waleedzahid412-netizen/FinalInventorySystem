@@ -18,5 +18,7 @@ namespace InventorySystem.Repositories.Interfaces
         Task<List<Role>> GetAssignableRolesAsync(CancellationToken cancellationToken = default);
         Task AddUserAsync(User user);
         Task SaveChangesAsync();
+        Task<bool> RecordFailedLoginAsync(int userId, int maxFailedAttempts, int lockoutMinutes, CancellationToken cancellationToken = default);
+        Task ResetLoginFailuresAsync(int userId, CancellationToken cancellationToken = default);
     }
 }

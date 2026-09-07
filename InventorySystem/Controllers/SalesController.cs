@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +19,7 @@ namespace InventorySystem.Controllers
 {
     [Authorize]
     [RequireCompanyScope]
-    public class SalesController : Controller
+    public class SalesController : InventoryController
     {
         private readonly ISalesService _salesService;
         private readonly ILookupService _lookupService;
@@ -273,7 +272,6 @@ namespace InventorySystem.Controllers
             return Json(customers);
         }
 
-        [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> GetProductUnits(int productId, CancellationToken cancellationToken)
         {
@@ -333,7 +331,6 @@ namespace InventorySystem.Controllers
             return Json(info);
         }
 
-        [AllowAnonymous]
         [HttpPost]
         public async Task<IActionResult> EvaluatePromotionsAndDiscounts([FromBody] OrderContextDto context, CancellationToken cancellationToken)
         {
@@ -346,6 +343,11 @@ namespace InventorySystem.Controllers
             if (await _companyContext.TryResolveAsync(cancellationToken) && _companyContext.HasCompany)
             {
                 context.CompanyID = _companyContext.CompanyID;
+            }
+
+            if (context.CompanyID <= 0)
+            {
+                return Json(new EvaluationResultDto());
             }
 
             var evaluation = await _promotionDiscountService.EvaluatePromotionsAndDiscountsAsync(context, cancellationToken);
@@ -579,35 +581,7 @@ namespace InventorySystem.Controllers
         /// When a specific company is selected, the product must belong to that company.
         /// In All Companies mode the check is skipped (returns true if the product exists).
         /// </summary>
-        private async Task<bool> ProductMatchesScopeAsync(int productId, CancellationToken cancellationToken)
-        {
-            if (productId <= 0)
-            {
-                return false;
-            }
-
-            var productCompanyId = await _context.Products
-                .AsNoTracking()
-                .Where(p => p.ProductID == productId && !p.IsDeleted)
-                .Select(p => (int?)p.CompanyID)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (!productCompanyId.HasValue)
-            {
-                return false;
-            }
-
-            return !CompanyScopeGuards.IsOutOfScope(_companyContext, productCompanyId.Value);
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1; // Default System/Admin User ID fallback
-        }
+        private Task<bool> ProductMatchesScopeAsync(int productId, CancellationToken cancellationToken) =>
+            ProductScopeHelper.ProductMatchesScopeAsync(_context, _companyContext, productId, cancellationToken);
     }
 }

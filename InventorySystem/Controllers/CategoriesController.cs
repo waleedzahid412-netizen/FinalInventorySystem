@@ -1,5 +1,4 @@
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -16,7 +15,7 @@ namespace InventorySystem.Controllers
 {
     [Authorize]
     [RequireCompanyScope]
-    public class CategoriesController : Controller
+    public class CategoriesController : InventoryController
     {
         private readonly ICategoryService _categoryService;
         private readonly ILookupService _lookupService;
@@ -218,16 +217,6 @@ namespace InventorySystem.Controllers
             }
 
             return RedirectToAction(nameof(Index));
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1;
         }
     }
 }

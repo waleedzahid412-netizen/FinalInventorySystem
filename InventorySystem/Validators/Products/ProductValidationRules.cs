@@ -31,11 +31,6 @@ namespace InventorySystem.Validators.Products
                 errors.Add("Base Selling Price cannot be negative.");
             }
 
-            if (model.AveragePurchaseCost < 0)
-            {
-                errors.Add("Purchase Cost cannot be negative.");
-            }
-
             if (model.ReorderLevel < 0)
             {
                 errors.Add("Reorder Level cannot be negative.");
@@ -63,11 +58,6 @@ namespace InventorySystem.Validators.Products
             if (model.BaseSellingPrice < 0)
             {
                 errors.Add("Base Selling Price cannot be negative.");
-            }
-
-            if (model.AveragePurchaseCost < 0)
-            {
-                errors.Add("Purchase Cost cannot be negative.");
             }
 
             if (model.ReorderLevel < 0)

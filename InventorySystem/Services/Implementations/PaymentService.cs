@@ -4,9 +4,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using InventorySystem.Data;
 using InventorySystem.DTOs.Common;
 using InventorySystem.DTOs.Payments;
+using InventorySystem.Helpers;
 using InventorySystem.Models.Entities;
 using InventorySystem.Services.Interfaces;
 
@@ -16,20 +18,25 @@ namespace InventorySystem.Services.Implementations
     {
         private readonly ApplicationDbContext _context;
         private readonly ICompanyContext _companyContext;
+        private readonly ILogger<PaymentService> _logger;
 
-        public PaymentService(ApplicationDbContext context, ICompanyContext companyContext)
+        public PaymentService(ApplicationDbContext context, ICompanyContext companyContext, ILogger<PaymentService> logger)
         {
             _context = context;
             _companyContext = companyContext;
+            _logger = logger;
         }
 
-        public async Task<CustomerPaymentDto> RecordCustomerPaymentAsync(RecordCustomerPaymentRequest request, int userId, CancellationToken cancellationToken = default)
+        public async Task<OperationResult<CustomerPaymentDto>> RecordCustomerPaymentAsync(RecordCustomerPaymentRequest request, int userId, CancellationToken cancellationToken = default)
         {
-            if (request == null) throw new ArgumentNullException(nameof(request));
+            if (request == null)
+            {
+                return OperationResult<CustomerPaymentDto>.Fail("Invalid request payload.");
+            }
 
             if (request.Amount <= 0)
             {
-                throw new InvalidOperationException("Payment amount must be greater than zero.");
+                return OperationResult<CustomerPaymentDto>.Fail("Payment amount must be greater than zero.");
             }
 
             bool isCheque = string.Equals(request.PaymentMethod, "Cheque", StringComparison.OrdinalIgnoreCase);
@@ -37,248 +44,260 @@ namespace InventorySystem.Services.Implementations
             if ((string.Equals(request.PaymentMethod, "Bank", StringComparison.OrdinalIgnoreCase) || isCheque) &&
                 string.IsNullOrWhiteSpace(request.ReferenceNumber) && string.IsNullOrWhiteSpace(request.ChequeNumber))
             {
-                throw new InvalidOperationException($"Reference / Cheque number is required for {request.PaymentMethod} payments.");
+                return OperationResult<CustomerPaymentDto>.Fail($"Reference / Cheque number is required for {request.PaymentMethod} payments.");
             }
 
-            var customer = await _context.Customers.FirstOrDefaultAsync(c => c.CustomerID == request.CustomerID && !c.IsDeleted, cancellationToken);
-            if (customer == null)
-            {
-                throw new KeyNotFoundException($"Customer ID #{request.CustomerID} not found.");
-            }
-
-            if (isCheque)
-            {
-                string chqNum = (request.ChequeNumber ?? request.ReferenceNumber ?? string.Empty).Trim();
-                string bankName = (request.BankName ?? string.Empty).Trim();
-
-                if (!string.IsNullOrEmpty(chqNum) && !string.IsNullOrEmpty(bankName))
-                {
-                    bool isDuplicate = await _context.CustomerPayments.AnyAsync(cp =>
-                        !cp.IsDeleted &&
-                        cp.CustomerID == request.CustomerID &&
-                        cp.ChequeNumber != null && cp.ChequeNumber.ToLower() == chqNum.ToLower() &&
-                        cp.BankName != null && cp.BankName.ToLower() == bankName.ToLower(),
-                        cancellationToken);
-
-                    if (isDuplicate)
-                    {
-                        throw new InvalidOperationException($"Duplicate Cheque Detected: Cheque #{chqNum} from Bank '{bankName}' has already been recorded for this customer.");
-                    }
-                }
-            }
-
-            SalesInvoice? targetInvoice = null;
-            if (request.InvoiceID.HasValue && request.InvoiceID.Value > 0)
-            {
-                targetInvoice = await _context.SalesInvoices
-                    .Include(s => s.Customer)
-                    .FirstOrDefaultAsync(s => s.InvoiceID == request.InvoiceID.Value && !s.IsDeleted, cancellationToken);
-
-                if (targetInvoice == null)
-                {
-                    throw new KeyNotFoundException($"Sales Invoice ID #{request.InvoiceID.Value} not found.");
-                }
-            }
-            else
-            {
-                var openInvoices = await _context.SalesInvoices
-                    .Include(s => s.Customer)
-                    .Where(s => s.CustomerID == request.CustomerID && !s.IsDeleted && s.PaymentStatus != "PAID")
-                    .OrderBy(s => s.InvoiceDate)
-                    .ThenBy(s => s.InvoiceID)
-                    .ToListAsync(cancellationToken);
-
-                targetInvoice = openInvoices.FirstOrDefault();
-            }
-
-            int targetInvoiceId = targetInvoice?.InvoiceID ?? 0;
-            string invoiceNumber = targetInvoice?.InvoiceNumber ?? "UNASSIGNED";
-            string customerName = targetInvoice?.Customer?.ShopName ?? targetInvoice?.Customer?.OwnerName ?? customer.ShopName ?? customer.OwnerName ?? string.Empty;
-
-            // If Cheque, default status is "Received" and DO NOT post to ledger or update invoice paid amount yet!
-            if (isCheque)
-            {
-                var chequePayment = new CustomerPayment
-                {
-                    CustomerID = request.CustomerID,
-                    InvoiceID = targetInvoiceId > 0 ? targetInvoiceId : 0,
-                    PaymentDate = request.PaymentDate == default ? DateTime.UtcNow : request.PaymentDate,
-                    Amount = request.Amount,
-                    PaymentMethod = "Cheque",
-                    ReferenceNumber = request.ReferenceNumber ?? request.ChequeNumber,
-                    Notes = request.Remarks,
-                    ReceivedBy = userId,
-                    ChequeNumber = request.ChequeNumber ?? request.ReferenceNumber,
-                    BankName = request.BankName,
-                    IssueDate = request.IssueDate,
-                    ChequeDate = request.ChequeDate ?? request.PaymentDate,
-                    ChequeStatus = "Received",
-                    CreatedAt = DateTime.UtcNow,
-                    IsDeleted = false
-                };
-
-                await _context.CustomerPayments.AddAsync(chequePayment, cancellationToken);
-
-                // Audit Log for Cheque Creation
-                var audit = new ChequeStatusAudit
-                {
-                    PaymentType = "Customer",
-                    PaymentID = chequePayment.CustomerPaymentID,
-                    PreviousStatus = "None",
-                    NewStatus = "Received",
-                    Remarks = "Cheque received and logged into system pending clearance.",
-                    UpdatedBy = userId,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                await _context.ChequeStatusAudits.AddAsync(audit, cancellationToken);
-
-                await _context.SaveChangesAsync(cancellationToken);
-
-                var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
-
-                return new CustomerPaymentDto
-                {
-                    CustomerPaymentID = chequePayment.CustomerPaymentID,
-                    PaymentNumber = $"PAY-{chequePayment.CustomerPaymentID:D6}",
-                    CustomerID = request.CustomerID,
-                    CustomerName = customerName,
-                    InvoiceID = chequePayment.InvoiceID,
-                    InvoiceNumber = invoiceNumber,
-                    PaymentDate = chequePayment.PaymentDate,
-                    Amount = chequePayment.Amount,
-                    PaymentMethod = chequePayment.PaymentMethod,
-                    ReferenceNumber = chequePayment.ReferenceNumber,
-                    Notes = chequePayment.Notes,
-                    ReceivedBy = userId,
-                    ReceivedByUserName = user?.FullName ?? user?.Username ?? "System",
-                    ChequeNumber = chequePayment.ChequeNumber,
-                    BankName = chequePayment.BankName,
-                    IssueDate = chequePayment.IssueDate,
-                    ChequeDate = chequePayment.ChequeDate,
-                    ChequeStatus = chequePayment.ChequeStatus,
-                    CreatedAt = chequePayment.CreatedAt
-                };
-            }
-
-            // Cash, Bank Transfer, or Online Payments: Execute immediate clearance and ledger posting
-            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                List<SalesInvoice> openInvoicesToUpdate = new List<SalesInvoice>();
+                var customer = await _context.Customers.FirstOrDefaultAsync(c => c.CustomerID == request.CustomerID && !c.IsDeleted, cancellationToken);
+                if (customer == null)
+                {
+                    return OperationResult<CustomerPaymentDto>.Fail($"Customer ID #{request.CustomerID} not found.");
+                }
+
+                if (isCheque)
+                {
+                    string chqNum = (request.ChequeNumber ?? request.ReferenceNumber ?? string.Empty).Trim();
+                    string bankName = (request.BankName ?? string.Empty).Trim();
+
+                    if (!string.IsNullOrEmpty(chqNum) && !string.IsNullOrEmpty(bankName))
+                    {
+                        bool isDuplicate = await _context.CustomerPayments.AnyAsync(cp =>
+                            !cp.IsDeleted &&
+                            cp.CustomerID == request.CustomerID &&
+                            cp.ChequeNumber != null && cp.ChequeNumber.ToLower() == chqNum.ToLower() &&
+                            cp.BankName != null && cp.BankName.ToLower() == bankName.ToLower(),
+                            cancellationToken);
+
+                        if (isDuplicate)
+                        {
+                            return OperationResult<CustomerPaymentDto>.Fail($"Duplicate Cheque Detected: Cheque #{chqNum} from Bank '{bankName}' has already been recorded for this customer.");
+                        }
+                    }
+                }
+
+                SalesInvoice? targetInvoice = null;
                 if (request.InvoiceID.HasValue && request.InvoiceID.Value > 0)
                 {
-                    openInvoicesToUpdate.Add(targetInvoice!);
+                    targetInvoice = await _context.SalesInvoices
+                        .Include(s => s.Customer)
+                        .FirstOrDefaultAsync(s => s.InvoiceID == request.InvoiceID.Value && !s.IsDeleted, cancellationToken);
+
+                    if (targetInvoice == null)
+                    {
+                        return OperationResult<CustomerPaymentDto>.Fail($"Sales Invoice ID #{request.InvoiceID.Value} not found.");
+                    }
                 }
                 else
                 {
-                    openInvoicesToUpdate = await _context.SalesInvoices
+                    var openInvoices = await _context.SalesInvoices
                         .Include(s => s.Customer)
                         .Where(s => s.CustomerID == request.CustomerID && !s.IsDeleted && s.PaymentStatus != "PAID")
                         .OrderBy(s => s.InvoiceDate)
                         .ThenBy(s => s.InvoiceID)
                         .ToListAsync(cancellationToken);
 
-                    if (!openInvoicesToUpdate.Any())
+                    targetInvoice = openInvoices.FirstOrDefault();
+                }
+
+                int targetInvoiceId = targetInvoice?.InvoiceID ?? 0;
+                string invoiceNumber = targetInvoice?.InvoiceNumber ?? "UNASSIGNED";
+                string customerName = targetInvoice?.Customer?.ShopName ?? targetInvoice?.Customer?.OwnerName ?? customer.ShopName ?? customer.OwnerName ?? string.Empty;
+
+                // If Cheque, default status is "Received" and DO NOT post to ledger or update invoice paid amount yet!
+                if (isCheque)
+                {
+                    var chequePayment = new CustomerPayment
                     {
-                        throw new InvalidOperationException("This customer has no open unpaid invoices.");
+                        CustomerID = request.CustomerID,
+                        InvoiceID = targetInvoiceId > 0 ? targetInvoiceId : 0,
+                        PaymentDate = request.PaymentDate == default ? DateTime.UtcNow : request.PaymentDate,
+                        Amount = request.Amount,
+                        PaymentMethod = "Cheque",
+                        ReferenceNumber = request.ReferenceNumber ?? request.ChequeNumber,
+                        Notes = request.Remarks,
+                        ReceivedBy = userId,
+                        ChequeNumber = request.ChequeNumber ?? request.ReferenceNumber,
+                        BankName = request.BankName,
+                        IssueDate = request.IssueDate,
+                        ChequeDate = request.ChequeDate ?? request.PaymentDate,
+                        ChequeStatus = "Received",
+                        CreatedAt = DateTime.UtcNow,
+                        IsDeleted = false
+                    };
+
+                    await _context.CustomerPayments.AddAsync(chequePayment, cancellationToken);
+
+                    // Audit Log for Cheque Creation
+                    var audit = new ChequeStatusAudit
+                    {
+                        PaymentType = "Customer",
+                        PaymentID = chequePayment.CustomerPaymentID,
+                        PreviousStatus = "None",
+                        NewStatus = "Received",
+                        Remarks = "Cheque received and logged into system pending clearance.",
+                        UpdatedBy = userId,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    await _context.ChequeStatusAudits.AddAsync(audit, cancellationToken);
+
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
+
+                    return OperationResult<CustomerPaymentDto>.Ok(new CustomerPaymentDto
+                    {
+                        CustomerPaymentID = chequePayment.CustomerPaymentID,
+                        PaymentNumber = $"PAY-{chequePayment.CustomerPaymentID:D6}",
+                        CustomerID = request.CustomerID,
+                        CustomerName = customerName,
+                        InvoiceID = chequePayment.InvoiceID,
+                        InvoiceNumber = invoiceNumber,
+                        PaymentDate = chequePayment.PaymentDate,
+                        Amount = chequePayment.Amount,
+                        PaymentMethod = chequePayment.PaymentMethod,
+                        ReferenceNumber = chequePayment.ReferenceNumber,
+                        Notes = chequePayment.Notes,
+                        ReceivedBy = userId,
+                        ReceivedByUserName = user?.FullName ?? user?.Username ?? "System",
+                        ChequeNumber = chequePayment.ChequeNumber,
+                        BankName = chequePayment.BankName,
+                        IssueDate = chequePayment.IssueDate,
+                        ChequeDate = chequePayment.ChequeDate,
+                        ChequeStatus = chequePayment.ChequeStatus,
+                        CreatedAt = chequePayment.CreatedAt
+                    });
+                }
+
+                // Cash, Bank Transfer, or Online Payments: Execute immediate clearance and ledger posting
+                using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+                try
+                {
+                    List<SalesInvoice> openInvoicesToUpdate = new List<SalesInvoice>();
+                    if (request.InvoiceID.HasValue && request.InvoiceID.Value > 0)
+                    {
+                        openInvoicesToUpdate.Add(targetInvoice!);
                     }
-                    targetInvoice = openInvoicesToUpdate.First();
+                    else
+                    {
+                        openInvoicesToUpdate = await _context.SalesInvoices
+                            .Include(s => s.Customer)
+                            .Where(s => s.CustomerID == request.CustomerID && !s.IsDeleted && s.PaymentStatus != "PAID")
+                            .OrderBy(s => s.InvoiceDate)
+                            .ThenBy(s => s.InvoiceID)
+                            .ToListAsync(cancellationToken);
+
+                        if (!openInvoicesToUpdate.Any())
+                        {
+                            return OperationResult<CustomerPaymentDto>.Fail("This customer has no open unpaid invoices.");
+                        }
+                        targetInvoice = openInvoicesToUpdate.First();
+                    }
+
+                    var payment = new CustomerPayment
+                    {
+                        CustomerID = request.CustomerID,
+                        InvoiceID = targetInvoice!.InvoiceID,
+                        PaymentDate = request.PaymentDate == default ? DateTime.UtcNow : request.PaymentDate,
+                        Amount = request.Amount,
+                        PaymentMethod = request.PaymentMethod,
+                        ReferenceNumber = request.ReferenceNumber,
+                        Notes = request.Remarks,
+                        ReceivedBy = userId,
+                        ChequeStatus = "Cleared",
+                        ClearedAt = DateTime.UtcNow,
+                        ClearedBy = userId,
+                        CreatedAt = DateTime.UtcNow,
+                        IsDeleted = false
+                    };
+
+                    await _context.CustomerPayments.AddAsync(payment, cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    // Allocate payment amount across target invoice(s)
+                    decimal remainingToAllocate = request.Amount;
+                    foreach (var inv in openInvoicesToUpdate)
+                    {
+                        if (remainingToAllocate <= 0) break;
+                        decimal invOpenBal = inv.GrandTotal - inv.PaidAmount;
+                        if (invOpenBal <= 0) continue;
+
+                        decimal alloc = Math.Min(remainingToAllocate, invOpenBal);
+                        inv.PaidAmount += alloc;
+                        inv.PaymentStatus = (inv.GrandTotal - inv.PaidAmount <= 0.001m) ? "PAID" : "PARTIAL";
+                        inv.IsLocked = true;
+
+                        remainingToAllocate -= alloc;
+                    }
+
+                    // Insert Credit entry into CustomerLedger
+                    var ledger = new CustomerLedger
+                    {
+                        CustomerID = request.CustomerID,
+                        TransactionDate = payment.PaymentDate,
+                        TransactionType = "PAYMENT",
+                        DebitAmount = 0.00m,
+                        CreditAmount = request.Amount,
+                        SalesInvoiceID = targetInvoice.InvoiceID,
+                        CustomerPaymentID = payment.CustomerPaymentID,
+                        Description = request.InvoiceID.HasValue && request.InvoiceID.Value > 0
+                            ? $"Payment received for Sales Invoice #{targetInvoice.InvoiceNumber} ({request.PaymentMethod})"
+                            : $"Payment received (Auto-allocated to open invoices) ({request.PaymentMethod})",
+                        CreatedBy = userId,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    await _context.CustomerLedgers.AddAsync(ledger, cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    await transaction.CommitAsync(cancellationToken);
+
+                    var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
+
+                    return OperationResult<CustomerPaymentDto>.Ok(new CustomerPaymentDto
+                    {
+                        CustomerPaymentID = payment.CustomerPaymentID,
+                        PaymentNumber = $"PAY-{payment.CustomerPaymentID:D6}",
+                        CustomerID = request.CustomerID,
+                        CustomerName = customerName,
+                        InvoiceID = targetInvoice.InvoiceID,
+                        InvoiceNumber = targetInvoice.InvoiceNumber,
+                        PaymentDate = payment.PaymentDate,
+                        Amount = payment.Amount,
+                        PaymentMethod = payment.PaymentMethod,
+                        ReferenceNumber = payment.ReferenceNumber,
+                        Notes = payment.Notes,
+                        ReceivedBy = userId,
+                        ReceivedByUserName = user?.FullName ?? user?.Username ?? "System",
+                        ChequeStatus = "Cleared",
+                        ClearedAt = payment.ClearedAt,
+                        CreatedAt = payment.CreatedAt
+                    });
                 }
-
-                var payment = new CustomerPayment
+                catch (Exception ex)
                 {
-                    CustomerID = request.CustomerID,
-                    InvoiceID = targetInvoice!.InvoiceID,
-                    PaymentDate = request.PaymentDate == default ? DateTime.UtcNow : request.PaymentDate,
-                    Amount = request.Amount,
-                    PaymentMethod = request.PaymentMethod,
-                    ReferenceNumber = request.ReferenceNumber,
-                    Notes = request.Remarks,
-                    ReceivedBy = userId,
-                    ChequeStatus = "Cleared",
-                    ClearedAt = DateTime.UtcNow,
-                    ClearedBy = userId,
-                    CreatedAt = DateTime.UtcNow,
-                    IsDeleted = false
-                };
-
-                await _context.CustomerPayments.AddAsync(payment, cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
-
-                // Allocate payment amount across target invoice(s)
-                decimal remainingToAllocate = request.Amount;
-                foreach (var inv in openInvoicesToUpdate)
-                {
-                    if (remainingToAllocate <= 0) break;
-                    decimal invOpenBal = inv.GrandTotal - inv.PaidAmount;
-                    if (invOpenBal <= 0) continue;
-
-                    decimal alloc = Math.Min(remainingToAllocate, invOpenBal);
-                    inv.PaidAmount += alloc;
-                    inv.PaymentStatus = (inv.GrandTotal - inv.PaidAmount <= 0.001m) ? "PAID" : "PARTIAL";
-                    inv.IsLocked = true;
-
-                    remainingToAllocate -= alloc;
+                    await transaction.RollbackAsync(cancellationToken);
+                    _logger.LogError(ex, "RecordCustomerPayment transaction failed for CustomerID {CustomerID}", request.CustomerID);
+                    return OperationResult<CustomerPaymentDto>.Fail(UserFacingErrorMessages.RecordCustomerPaymentFailed);
                 }
-
-                // Insert Credit entry into CustomerLedger
-                var ledger = new CustomerLedger
-                {
-                    CustomerID = request.CustomerID,
-                    TransactionDate = payment.PaymentDate,
-                    TransactionType = "PAYMENT",
-                    DebitAmount = 0.00m,
-                    CreditAmount = request.Amount,
-                    SalesInvoiceID = targetInvoice.InvoiceID,
-                    CustomerPaymentID = payment.CustomerPaymentID,
-                    Description = request.InvoiceID.HasValue && request.InvoiceID.Value > 0
-                        ? $"Payment received for Sales Invoice #{targetInvoice.InvoiceNumber} ({request.PaymentMethod})"
-                        : $"Payment received (Auto-allocated to open invoices) ({request.PaymentMethod})",
-                    CreatedBy = userId,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                await _context.CustomerLedgers.AddAsync(ledger, cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
-
-                await transaction.CommitAsync(cancellationToken);
-
-                var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
-
-                return new CustomerPaymentDto
-                {
-                    CustomerPaymentID = payment.CustomerPaymentID,
-                    PaymentNumber = $"PAY-{payment.CustomerPaymentID:D6}",
-                    CustomerID = request.CustomerID,
-                    CustomerName = customerName,
-                    InvoiceID = targetInvoice.InvoiceID,
-                    InvoiceNumber = targetInvoice.InvoiceNumber,
-                    PaymentDate = payment.PaymentDate,
-                    Amount = payment.Amount,
-                    PaymentMethod = payment.PaymentMethod,
-                    ReferenceNumber = payment.ReferenceNumber,
-                    Notes = payment.Notes,
-                    ReceivedBy = userId,
-                    ReceivedByUserName = user?.FullName ?? user?.Username ?? "System",
-                    ChequeStatus = "Cleared",
-                    ClearedAt = payment.ClearedAt,
-                    CreatedAt = payment.CreatedAt
-                };
             }
-            catch
+            catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                throw;
+                _logger.LogError(ex, "RecordCustomerPayment failed for CustomerID {CustomerID}", request.CustomerID);
+                return OperationResult<CustomerPaymentDto>.Fail(UserFacingErrorMessages.RecordCustomerPaymentFailed);
             }
         }
 
-        public async Task<CompanyPaymentDto> RecordCompanyPaymentAsync(RecordCompanyPaymentRequest request, int userId, CancellationToken cancellationToken = default)
+        public async Task<OperationResult<CompanyPaymentDto>> RecordCompanyPaymentAsync(RecordCompanyPaymentRequest request, int userId, CancellationToken cancellationToken = default)
         {
-            if (request == null) throw new ArgumentNullException(nameof(request));
+            if (request == null)
+            {
+                return OperationResult<CompanyPaymentDto>.Fail("Invalid request payload.");
+            }
 
             if (request.Amount <= 0)
             {
-                throw new InvalidOperationException("Payment amount must be greater than zero.");
+                return OperationResult<CompanyPaymentDto>.Fail("Payment amount must be greater than zero.");
             }
 
             bool isCheque = string.Equals(request.PaymentMethod, "Cheque", StringComparison.OrdinalIgnoreCase);
@@ -286,230 +305,239 @@ namespace InventorySystem.Services.Implementations
             if ((string.Equals(request.PaymentMethod, "Bank", StringComparison.OrdinalIgnoreCase) || isCheque) &&
                 string.IsNullOrWhiteSpace(request.ReferenceNumber) && string.IsNullOrWhiteSpace(request.ChequeNumber))
             {
-                throw new InvalidOperationException($"Reference / Cheque number is required for {request.PaymentMethod} payments.");
+                return OperationResult<CompanyPaymentDto>.Fail($"Reference / Cheque number is required for {request.PaymentMethod} payments.");
             }
 
-            var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyID == request.CompanyID && !c.IsDeleted, cancellationToken);
-            if (company == null)
-            {
-                throw new KeyNotFoundException($"Company ID #{request.CompanyID} not found.");
-            }
-
-            if (isCheque)
-            {
-                string chqNum = (request.ChequeNumber ?? request.ReferenceNumber ?? string.Empty).Trim();
-                string bankName = (request.BankName ?? string.Empty).Trim();
-
-                if (!string.IsNullOrEmpty(chqNum) && !string.IsNullOrEmpty(bankName))
-                {
-                    bool isDuplicate = await _context.CompanyPayments.AnyAsync(cp =>
-                        !cp.IsDeleted &&
-                        cp.CompanyID == request.CompanyID &&
-                        cp.ChequeNumber != null && cp.ChequeNumber.ToLower() == chqNum.ToLower() &&
-                        cp.BankName != null && cp.BankName.ToLower() == bankName.ToLower(),
-                        cancellationToken);
-
-                    if (isDuplicate)
-                    {
-                        throw new InvalidOperationException($"Duplicate Cheque Detected: Vendor cheque with Cheque # '{chqNum}' from Bank '{bankName}' has already been recorded for this vendor.");
-                    }
-                }
-            }
-
-            PurchaseInvoice? targetInvoice = null;
-            if (request.PurchaseInvoiceID.HasValue && request.PurchaseInvoiceID.Value > 0)
-            {
-                targetInvoice = await _context.PurchaseInvoices
-                    .Include(p => p.Company)
-                    .FirstOrDefaultAsync(p => p.PurchaseInvoiceID == request.PurchaseInvoiceID.Value && !p.IsDeleted, cancellationToken);
-
-                if (targetInvoice == null)
-                {
-                    throw new KeyNotFoundException($"Purchase Invoice ID #{request.PurchaseInvoiceID.Value} not found.");
-                }
-            }
-            else
-            {
-                var openInvoices = await _context.PurchaseInvoices
-                    .Include(p => p.Company)
-                    .Where(p => p.CompanyID == request.CompanyID && !p.IsDeleted && p.PaymentStatus != "PAID")
-                    .OrderBy(p => p.InvoiceDate)
-                    .ThenBy(p => p.PurchaseInvoiceID)
-                    .ToListAsync(cancellationToken);
-
-                targetInvoice = openInvoices.FirstOrDefault();
-            }
-
-            int targetInvoiceId = targetInvoice?.PurchaseInvoiceID ?? 0;
-            string invoiceNumber = targetInvoice?.InvoiceNumber ?? "UNASSIGNED";
-            string companyName = targetInvoice?.Company?.CompanyName ?? company.CompanyName;
-
-            if (isCheque)
-            {
-                var chequePayment = new CompanyPayment
-                {
-                    CompanyID = request.CompanyID,
-                    PurchaseInvoiceID = targetInvoiceId > 0 ? targetInvoiceId : 0,
-                    PaymentDate = request.PaymentDate == default ? DateTime.UtcNow : request.PaymentDate,
-                    Amount = request.Amount,
-                    PaymentMethod = "Cheque",
-                    ReferenceNumber = request.ReferenceNumber ?? request.ChequeNumber,
-                    PaidBy = userId,
-                    ChequeNumber = request.ChequeNumber ?? request.ReferenceNumber,
-                    BankName = request.BankName,
-                    IssueDate = request.IssueDate,
-                    ChequeDate = request.ChequeDate ?? request.PaymentDate,
-                    ChequeStatus = "Received",
-                    CreatedAt = DateTime.UtcNow,
-                    IsDeleted = false
-                };
-
-                await _context.CompanyPayments.AddAsync(chequePayment, cancellationToken);
-
-                var audit = new ChequeStatusAudit
-                {
-                    PaymentType = "Company",
-                    PaymentID = chequePayment.CompanyPaymentID,
-                    PreviousStatus = "None",
-                    NewStatus = "Received",
-                    Remarks = "Vendor cheque issued and logged into system pending clearance.",
-                    UpdatedBy = userId,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                await _context.ChequeStatusAudits.AddAsync(audit, cancellationToken);
-
-                await _context.SaveChangesAsync(cancellationToken);
-
-                var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
-
-                return new CompanyPaymentDto
-                {
-                    CompanyPaymentID = chequePayment.CompanyPaymentID,
-                    PaymentNumber = $"VPAY-{chequePayment.CompanyPaymentID:D6}",
-                    CompanyID = request.CompanyID,
-                    CompanyName = companyName,
-                    PurchaseInvoiceID = chequePayment.PurchaseInvoiceID,
-                    InvoiceNumber = invoiceNumber,
-                    PaymentDate = chequePayment.PaymentDate,
-                    Amount = chequePayment.Amount,
-                    PaymentMethod = chequePayment.PaymentMethod,
-                    ReferenceNumber = chequePayment.ReferenceNumber,
-                    PaidBy = userId,
-                    PaidByUserName = user?.FullName ?? user?.Username ?? "System",
-                    ChequeNumber = chequePayment.ChequeNumber,
-                    BankName = chequePayment.BankName,
-                    IssueDate = chequePayment.IssueDate,
-                    ChequeDate = chequePayment.ChequeDate,
-                    ChequeStatus = chequePayment.ChequeStatus,
-                    CreatedAt = chequePayment.CreatedAt
-                };
-            }
-
-            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                List<PurchaseInvoice> openInvoicesToUpdate = new List<PurchaseInvoice>();
+                var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyID == request.CompanyID && !c.IsDeleted, cancellationToken);
+                if (company == null)
+                {
+                    return OperationResult<CompanyPaymentDto>.Fail($"Company ID #{request.CompanyID} not found.");
+                }
+
+                if (isCheque)
+                {
+                    string chqNum = (request.ChequeNumber ?? request.ReferenceNumber ?? string.Empty).Trim();
+                    string bankName = (request.BankName ?? string.Empty).Trim();
+
+                    if (!string.IsNullOrEmpty(chqNum) && !string.IsNullOrEmpty(bankName))
+                    {
+                        bool isDuplicate = await _context.CompanyPayments.AnyAsync(cp =>
+                            !cp.IsDeleted &&
+                            cp.CompanyID == request.CompanyID &&
+                            cp.ChequeNumber != null && cp.ChequeNumber.ToLower() == chqNum.ToLower() &&
+                            cp.BankName != null && cp.BankName.ToLower() == bankName.ToLower(),
+                            cancellationToken);
+
+                        if (isDuplicate)
+                        {
+                            return OperationResult<CompanyPaymentDto>.Fail($"Duplicate Cheque Detected: Vendor cheque with Cheque # '{chqNum}' from Bank '{bankName}' has already been recorded for this vendor.");
+                        }
+                    }
+                }
+
+                PurchaseInvoice? targetInvoice = null;
                 if (request.PurchaseInvoiceID.HasValue && request.PurchaseInvoiceID.Value > 0)
                 {
-                    openInvoicesToUpdate.Add(targetInvoice!);
+                    targetInvoice = await _context.PurchaseInvoices
+                        .Include(p => p.Company)
+                        .FirstOrDefaultAsync(p => p.PurchaseInvoiceID == request.PurchaseInvoiceID.Value && !p.IsDeleted, cancellationToken);
+
+                    if (targetInvoice == null)
+                    {
+                        return OperationResult<CompanyPaymentDto>.Fail($"Purchase Invoice ID #{request.PurchaseInvoiceID.Value} not found.");
+                    }
                 }
                 else
                 {
-                    openInvoicesToUpdate = await _context.PurchaseInvoices
+                    var openInvoices = await _context.PurchaseInvoices
                         .Include(p => p.Company)
                         .Where(p => p.CompanyID == request.CompanyID && !p.IsDeleted && p.PaymentStatus != "PAID")
                         .OrderBy(p => p.InvoiceDate)
                         .ThenBy(p => p.PurchaseInvoiceID)
                         .ToListAsync(cancellationToken);
 
-                    if (!openInvoicesToUpdate.Any())
+                    targetInvoice = openInvoices.FirstOrDefault();
+                }
+
+                int targetInvoiceId = targetInvoice?.PurchaseInvoiceID ?? 0;
+                string invoiceNumber = targetInvoice?.InvoiceNumber ?? "UNASSIGNED";
+                string companyName = targetInvoice?.Company?.CompanyName ?? company.CompanyName;
+
+                if (isCheque)
+                {
+                    var chequePayment = new CompanyPayment
                     {
-                        throw new InvalidOperationException("This vendor has no open unpaid purchase invoices.");
+                        CompanyID = request.CompanyID,
+                        PurchaseInvoiceID = targetInvoiceId > 0 ? targetInvoiceId : 0,
+                        PaymentDate = request.PaymentDate == default ? DateTime.UtcNow : request.PaymentDate,
+                        Amount = request.Amount,
+                        PaymentMethod = "Cheque",
+                        ReferenceNumber = request.ReferenceNumber ?? request.ChequeNumber,
+                        PaidBy = userId,
+                        ChequeNumber = request.ChequeNumber ?? request.ReferenceNumber,
+                        BankName = request.BankName,
+                        IssueDate = request.IssueDate,
+                        ChequeDate = request.ChequeDate ?? request.PaymentDate,
+                        ChequeStatus = "Received",
+                        CreatedAt = DateTime.UtcNow,
+                        IsDeleted = false
+                    };
+
+                    await _context.CompanyPayments.AddAsync(chequePayment, cancellationToken);
+
+                    var audit = new ChequeStatusAudit
+                    {
+                        PaymentType = "Company",
+                        PaymentID = chequePayment.CompanyPaymentID,
+                        PreviousStatus = "None",
+                        NewStatus = "Received",
+                        Remarks = "Vendor cheque issued and logged into system pending clearance.",
+                        UpdatedBy = userId,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    await _context.ChequeStatusAudits.AddAsync(audit, cancellationToken);
+
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
+
+                    return OperationResult<CompanyPaymentDto>.Ok(new CompanyPaymentDto
+                    {
+                        CompanyPaymentID = chequePayment.CompanyPaymentID,
+                        PaymentNumber = $"VPAY-{chequePayment.CompanyPaymentID:D6}",
+                        CompanyID = request.CompanyID,
+                        CompanyName = companyName,
+                        PurchaseInvoiceID = chequePayment.PurchaseInvoiceID,
+                        InvoiceNumber = invoiceNumber,
+                        PaymentDate = chequePayment.PaymentDate,
+                        Amount = chequePayment.Amount,
+                        PaymentMethod = chequePayment.PaymentMethod,
+                        ReferenceNumber = chequePayment.ReferenceNumber,
+                        PaidBy = userId,
+                        PaidByUserName = user?.FullName ?? user?.Username ?? "System",
+                        ChequeNumber = chequePayment.ChequeNumber,
+                        BankName = chequePayment.BankName,
+                        IssueDate = chequePayment.IssueDate,
+                        ChequeDate = chequePayment.ChequeDate,
+                        ChequeStatus = chequePayment.ChequeStatus,
+                        CreatedAt = chequePayment.CreatedAt
+                    });
+                }
+
+                using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+                try
+                {
+                    List<PurchaseInvoice> openInvoicesToUpdate = new List<PurchaseInvoice>();
+                    if (request.PurchaseInvoiceID.HasValue && request.PurchaseInvoiceID.Value > 0)
+                    {
+                        openInvoicesToUpdate.Add(targetInvoice!);
                     }
-                    targetInvoice = openInvoicesToUpdate.First();
+                    else
+                    {
+                        openInvoicesToUpdate = await _context.PurchaseInvoices
+                            .Include(p => p.Company)
+                            .Where(p => p.CompanyID == request.CompanyID && !p.IsDeleted && p.PaymentStatus != "PAID")
+                            .OrderBy(p => p.InvoiceDate)
+                            .ThenBy(p => p.PurchaseInvoiceID)
+                            .ToListAsync(cancellationToken);
+
+                        if (!openInvoicesToUpdate.Any())
+                        {
+                            return OperationResult<CompanyPaymentDto>.Fail("This vendor has no open unpaid purchase invoices.");
+                        }
+                        targetInvoice = openInvoicesToUpdate.First();
+                    }
+
+                    var payment = new CompanyPayment
+                    {
+                        CompanyID = request.CompanyID,
+                        PurchaseInvoiceID = targetInvoice!.PurchaseInvoiceID,
+                        PaymentDate = request.PaymentDate == default ? DateTime.UtcNow : request.PaymentDate,
+                        Amount = request.Amount,
+                        PaymentMethod = request.PaymentMethod,
+                        ReferenceNumber = request.ReferenceNumber,
+                        PaidBy = userId,
+                        ChequeStatus = "Cleared",
+                        ClearedAt = DateTime.UtcNow,
+                        ClearedBy = userId,
+                        CreatedAt = DateTime.UtcNow,
+                        IsDeleted = false
+                    };
+
+                    await _context.CompanyPayments.AddAsync(payment, cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    // Allocate payment amount across target invoice(s)
+                    decimal remainingToAllocate = request.Amount;
+                    foreach (var inv in openInvoicesToUpdate)
+                    {
+                        if (remainingToAllocate <= 0) break;
+                        decimal invOpenBal = inv.GrandTotal - inv.PaidAmount;
+                        if (invOpenBal <= 0) continue;
+
+                        decimal alloc = Math.Min(remainingToAllocate, invOpenBal);
+                        inv.PaidAmount += alloc;
+                        inv.PaymentStatus = (inv.GrandTotal - inv.PaidAmount <= 0.001m) ? "PAID" : "PARTIAL";
+
+                        remainingToAllocate -= alloc;
+                    }
+
+                    // Insert Debit entry into CompanyLedger
+                    var ledger = new CompanyLedger
+                    {
+                        CompanyID = request.CompanyID,
+                        TransactionDate = payment.PaymentDate,
+                        TransactionType = "PAYMENT",
+                        DebitAmount = request.Amount,
+                        CreditAmount = 0.00m,
+                        PurchaseInvoiceID = targetInvoice.PurchaseInvoiceID,
+                        CompanyPaymentID = payment.CompanyPaymentID,
+                        Description = request.PurchaseInvoiceID.HasValue && request.PurchaseInvoiceID.Value > 0
+                            ? $"Payment made for Purchase Invoice #{targetInvoice.InvoiceNumber} ({request.PaymentMethod})"
+                            : $"Payment made (Auto-allocated to open invoices) ({request.PaymentMethod})",
+                        CreatedBy = userId,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    await _context.CompanyLedgers.AddAsync(ledger, cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    await transaction.CommitAsync(cancellationToken);
+
+                    var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
+
+                    return OperationResult<CompanyPaymentDto>.Ok(new CompanyPaymentDto
+                    {
+                        CompanyPaymentID = payment.CompanyPaymentID,
+                        PaymentNumber = $"VPAY-{payment.CompanyPaymentID:D6}",
+                        CompanyID = request.CompanyID,
+                        CompanyName = companyName,
+                        PurchaseInvoiceID = targetInvoice.PurchaseInvoiceID,
+                        InvoiceNumber = targetInvoice.InvoiceNumber,
+                        PaymentDate = payment.PaymentDate,
+                        Amount = payment.Amount,
+                        PaymentMethod = payment.PaymentMethod,
+                        ReferenceNumber = payment.ReferenceNumber,
+                        PaidBy = userId,
+                        PaidByUserName = user?.FullName ?? user?.Username ?? "System",
+                        ChequeStatus = "Cleared",
+                        ClearedAt = payment.ClearedAt,
+                        CreatedAt = payment.CreatedAt
+                    });
                 }
-
-                var payment = new CompanyPayment
+                catch (Exception ex)
                 {
-                    CompanyID = request.CompanyID,
-                    PurchaseInvoiceID = targetInvoice!.PurchaseInvoiceID,
-                    PaymentDate = request.PaymentDate == default ? DateTime.UtcNow : request.PaymentDate,
-                    Amount = request.Amount,
-                    PaymentMethod = request.PaymentMethod,
-                    ReferenceNumber = request.ReferenceNumber,
-                    PaidBy = userId,
-                    ChequeStatus = "Cleared",
-                    ClearedAt = DateTime.UtcNow,
-                    ClearedBy = userId,
-                    CreatedAt = DateTime.UtcNow,
-                    IsDeleted = false
-                };
-
-                await _context.CompanyPayments.AddAsync(payment, cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
-
-                // Allocate payment amount across target invoice(s)
-                decimal remainingToAllocate = request.Amount;
-                foreach (var inv in openInvoicesToUpdate)
-                {
-                    if (remainingToAllocate <= 0) break;
-                    decimal invOpenBal = inv.GrandTotal - inv.PaidAmount;
-                    if (invOpenBal <= 0) continue;
-
-                    decimal alloc = Math.Min(remainingToAllocate, invOpenBal);
-                    inv.PaidAmount += alloc;
-                    inv.PaymentStatus = (inv.GrandTotal - inv.PaidAmount <= 0.001m) ? "PAID" : "PARTIAL";
-
-                    remainingToAllocate -= alloc;
+                    await transaction.RollbackAsync(cancellationToken);
+                    _logger.LogError(ex, "RecordCompanyPayment transaction failed for CompanyID {CompanyID}", request.CompanyID);
+                    return OperationResult<CompanyPaymentDto>.Fail(UserFacingErrorMessages.RecordCompanyPaymentFailed);
                 }
-
-                // Insert Debit entry into CompanyLedger
-                var ledger = new CompanyLedger
-                {
-                    CompanyID = request.CompanyID,
-                    TransactionDate = payment.PaymentDate,
-                    TransactionType = "PAYMENT",
-                    DebitAmount = request.Amount,
-                    CreditAmount = 0.00m,
-                    PurchaseInvoiceID = targetInvoice.PurchaseInvoiceID,
-                    CompanyPaymentID = payment.CompanyPaymentID,
-                    Description = request.PurchaseInvoiceID.HasValue && request.PurchaseInvoiceID.Value > 0
-                        ? $"Payment made for Purchase Invoice #{targetInvoice.InvoiceNumber} ({request.PaymentMethod})"
-                        : $"Payment made (Auto-allocated to open invoices) ({request.PaymentMethod})",
-                    CreatedBy = userId,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                await _context.CompanyLedgers.AddAsync(ledger, cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
-
-                await transaction.CommitAsync(cancellationToken);
-
-                var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
-
-                return new CompanyPaymentDto
-                {
-                    CompanyPaymentID = payment.CompanyPaymentID,
-                    PaymentNumber = $"VPAY-{payment.CompanyPaymentID:D6}",
-                    CompanyID = request.CompanyID,
-                    CompanyName = companyName,
-                    PurchaseInvoiceID = targetInvoice.PurchaseInvoiceID,
-                    InvoiceNumber = targetInvoice.InvoiceNumber,
-                    PaymentDate = payment.PaymentDate,
-                    Amount = payment.Amount,
-                    PaymentMethod = payment.PaymentMethod,
-                    ReferenceNumber = payment.ReferenceNumber,
-                    PaidBy = userId,
-                    PaidByUserName = user?.FullName ?? user?.Username ?? "System",
-                    ChequeStatus = "Cleared",
-                    ClearedAt = payment.ClearedAt,
-                    CreatedAt = payment.CreatedAt
-                };
             }
-            catch
+            catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                throw;
+                _logger.LogError(ex, "RecordCompanyPayment failed for CompanyID {CompanyID}", request.CompanyID);
+                return OperationResult<CompanyPaymentDto>.Fail(UserFacingErrorMessages.RecordCompanyPaymentFailed);
             }
         }
 
@@ -653,7 +681,8 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return OperationResult.Fail($"Failed to clear cheque: {ex.Message}");
+                _logger.LogError(ex, "ClearCustomerCheque failed for CustomerPaymentID {CustomerPaymentID}", customerPaymentId);
+                return OperationResult.Fail(UserFacingErrorMessages.ClearChequeFailed);
             }
         }
 
@@ -698,7 +727,8 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return OperationResult.Fail($"Failed to mark cheque as bounced: {ex.Message}");
+                _logger.LogError(ex, "BounceCustomerCheque failed for CustomerPaymentID {CustomerPaymentID}", customerPaymentId);
+                return OperationResult.Fail(UserFacingErrorMessages.BounceChequeFailed);
             }
         }
 
@@ -741,7 +771,8 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return OperationResult.Fail($"Failed to cancel cheque: {ex.Message}");
+                _logger.LogError(ex, "CancelCustomerCheque failed for CustomerPaymentID {CustomerPaymentID}", customerPaymentId);
+                return OperationResult.Fail(UserFacingErrorMessages.CancelChequeFailed);
             }
         }
 
@@ -850,7 +881,8 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return OperationResult.Fail($"Failed to clear vendor cheque: {ex.Message}");
+                _logger.LogError(ex, "ClearCompanyCheque failed for CompanyPaymentID {CompanyPaymentID}", companyPaymentId);
+                return OperationResult.Fail(UserFacingErrorMessages.ClearVendorChequeFailed);
             }
         }
 
@@ -895,7 +927,8 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return OperationResult.Fail($"Failed to mark vendor cheque as bounced: {ex.Message}");
+                _logger.LogError(ex, "BounceCompanyCheque failed for CompanyPaymentID {CompanyPaymentID}", companyPaymentId);
+                return OperationResult.Fail(UserFacingErrorMessages.BounceVendorChequeFailed);
             }
         }
 
@@ -938,7 +971,8 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return OperationResult.Fail($"Failed to cancel vendor cheque: {ex.Message}");
+                _logger.LogError(ex, "CancelCompanyCheque failed for CompanyPaymentID {CompanyPaymentID}", companyPaymentId);
+                return OperationResult.Fail(UserFacingErrorMessages.CancelVendorChequeFailed);
             }
         }
 

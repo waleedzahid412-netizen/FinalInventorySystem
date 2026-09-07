@@ -6,10 +6,12 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using BCrypt.Net;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using InventorySystem.Configuration;
 using InventorySystem.DTOs;
+using InventorySystem.Helpers;
 using InventorySystem.Models.Entities;
 using InventorySystem.Repositories.Interfaces;
 using InventorySystem.Services.Interfaces;
@@ -20,21 +22,26 @@ namespace InventorySystem.Services.Implementations
     {
         private readonly IUserRepository _userRepository;
         private readonly JwtSettings _jwtSettings;
+        private readonly AccountLockoutOptions _lockoutOptions;
+        private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             IUserRepository userRepository,
-            IOptions<JwtSettings> jwtSettings)
+            IOptions<JwtSettings> jwtSettings,
+            IOptions<SecuritySettings> securitySettings,
+            ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
             _jwtSettings = jwtSettings.Value;
+            _lockoutOptions = securitySettings.Value.AccountLockout;
+            _logger = logger;
         }
 
         public async Task<AuthResultDTO> LoginAsync(LoginRequestDTO request)
         {
             try
             {
-                // Validate input
-                if (string.IsNullOrWhiteSpace(request.Username) || 
+                if (string.IsNullOrWhiteSpace(request.Username) ||
                     string.IsNullOrWhiteSpace(request.Password))
                 {
                     return new AuthResultDTO
@@ -44,32 +51,45 @@ namespace InventorySystem.Services.Implementations
                     };
                 }
 
-                // Fetch user from database
                 var user = await _userRepository.GetByUsernameAsync(request.Username);
                 if (user == null || !user.IsActive || user.IsDeleted)
                 {
                     return new AuthResultDTO
                     {
                         Success = false,
-                        Message = "Invalid username or password."
+                        Message = UserFacingErrorMessages.InvalidCredentials
                     };
                 }
 
-                // Verify password using BCrypt
-                bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
-                if (!isPasswordValid)
+                if (IsAccountLocked(user))
                 {
                     return new AuthResultDTO
                     {
                         Success = false,
-                        Message = "Invalid username or password."
+                        Message = UserFacingErrorMessages.AccountLocked
                     };
                 }
 
-                // Get user's role
-                string roleName = user.Role != null ? user.Role.RoleName : "Admin";
+                bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+                if (!isPasswordValid)
+                {
+                    var isLocked = await _userRepository.RecordFailedLoginAsync(
+                        user.UserID,
+                        _lockoutOptions.MaxFailedAttempts,
+                        _lockoutOptions.LockoutMinutes);
 
-                // Generate JWT token
+                    return new AuthResultDTO
+                    {
+                        Success = false,
+                        Message = isLocked
+                            ? UserFacingErrorMessages.AccountLocked
+                            : UserFacingErrorMessages.InvalidCredentials
+                    };
+                }
+
+                await _userRepository.ResetLoginFailuresAsync(user.UserID);
+
+                string roleName = user.Role != null ? user.Role.RoleName : "Admin";
                 var token = GenerateJwtToken(user, roleName);
 
                 return new AuthResultDTO
@@ -77,16 +97,18 @@ namespace InventorySystem.Services.Implementations
                     Success = true,
                     Message = "Login successful.",
                     Token = token,
+                    UserId = user.UserID,
                     Username = user.Username,
                     RoleName = roleName
                 };
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Login failed for username {Username}", request.Username);
                 return new AuthResultDTO
                 {
                     Success = false,
-                    Message = $"An error occurred: {ex.Message}"
+                    Message = UserFacingErrorMessages.LoginFailed
                 };
             }
         }
@@ -137,6 +159,11 @@ namespace InventorySystem.Services.Implementations
             {
                 return new AuthResultDTO { Success = false, Message = "Token validation failed." };
             }
+        }
+
+        private static bool IsAccountLocked(User user)
+        {
+            return user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow;
         }
 
         private string GenerateJwtToken(User user, string roleName)

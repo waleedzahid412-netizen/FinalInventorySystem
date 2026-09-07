@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using InventorySystem.DTOs.Categories;
 using InventorySystem.DTOs.Common;
+using InventorySystem.Helpers;
 using InventorySystem.Models.Entities;
 using InventorySystem.Repositories.Interfaces;
 using InventorySystem.Services.Interfaces;
@@ -91,7 +92,7 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while creating category {CategoryName}", dto.Name);
-                return OperationResult<int>.Fail($"Failed to create category: {ex.Message}");
+                return OperationResult<int>.Fail(UserFacingErrorMessages.CategoryCreateFailed);
             }
         }
 
@@ -127,7 +128,7 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while updating category ID {CategoryID}", dto.CategoryID);
-                return OperationResult.Fail($"Failed to update category: {ex.Message}");
+                return OperationResult.Fail(UserFacingErrorMessages.CategoryUpdateFailed);
             }
         }
 
@@ -156,7 +157,7 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while deleting category ID {CategoryID}", categoryId);
-                return OperationResult.Fail($"Failed to delete category: {ex.Message}");
+                return OperationResult.Fail(UserFacingErrorMessages.CategoryDeleteFailed);
             }
         }
 

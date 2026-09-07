@@ -165,13 +165,13 @@ namespace InventorySystem.Tests
             await using var db = CreateDb(nameof(TestC_PaymentServiceOutstanding_UsesAmbientScope));
             await SeedTwoCompaniesAsync(db);
 
-            var pepsiSvc = new PaymentService(db, new FakeCompanyContext(1, "PepsiCo"));
+            var pepsiSvc = new PaymentService(db, new FakeCompanyContext(1, "PepsiCo"), NullLogger<PaymentService>.Instance);
             Assert.Equal(50000m, await pepsiSvc.GetCustomerOutstandingBalanceAsync(1));
 
-            var colgateSvc = new PaymentService(db, new FakeCompanyContext(2, "Colgate"));
+            var colgateSvc = new PaymentService(db, new FakeCompanyContext(2, "Colgate"), NullLogger<PaymentService>.Instance);
             Assert.Equal(30000m, await colgateSvc.GetCustomerOutstandingBalanceAsync(1));
 
-            var allSvc = new PaymentService(db, FakeCompanyContext.AllCompanies());
+            var allSvc = new PaymentService(db, FakeCompanyContext.AllCompanies(), NullLogger<PaymentService>.Instance);
             Assert.Equal(80000m, await allSvc.GetCustomerOutstandingBalanceAsync(1));
         }
 
@@ -249,6 +249,7 @@ namespace InventorySystem.Tests
                 db,
                 new PromotionDiscountService(db),
                 new FakeCompanyContext(1, "PepsiCo"),
+                TestFifoHelper.CreateFifo(db),
                 NullLogger<SalesService>.Instance);
 
             var result = await service.CreateAndFinalizeSalesInvoiceAsync(
@@ -296,12 +297,12 @@ namespace InventorySystem.Tests
             await using var db = CreateDb(nameof(TestG_UnpaidInvoices_SoftScopedByCompany));
             await SeedTwoCompaniesAsync(db);
 
-            var pepsi = new PaymentService(db, new FakeCompanyContext(1, "PepsiCo"));
+            var pepsi = new PaymentService(db, new FakeCompanyContext(1, "PepsiCo"), NullLogger<PaymentService>.Instance);
             var unpaidPepsi = await pepsi.GetUnpaidCustomerInvoicesAsync(1);
             Assert.Single(unpaidPepsi);
             Assert.Equal("SI-PEPSI", unpaidPepsi[0].InvoiceNumber);
 
-            var all = new PaymentService(db, FakeCompanyContext.AllCompanies());
+            var all = new PaymentService(db, FakeCompanyContext.AllCompanies(), NullLogger<PaymentService>.Instance);
             var unpaidAll = await all.GetUnpaidCustomerInvoicesAsync(1);
             Assert.Equal(2, unpaidAll.Count);
         }

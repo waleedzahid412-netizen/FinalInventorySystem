@@ -120,9 +120,9 @@
                         <label asp-for="AveragePurchaseCost" class="form-label fw-semibold"></label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
-                            <input asp-for="AveragePurchaseCost" type="number" step="0.01" class="form-control" />
+                            <input asp-for="AveragePurchaseCost" class="form-control" readonly value="@Model.AveragePurchaseCost.ToString("0.00")" />
                         </div>
-                        <span asp-validation-for="AveragePurchaseCost" class="text-danger small"></span>
+                        <div class="form-text">System-calculated from open FIFO cost layers after purchases.</div>
                     </div>
                     <div class="col-md-4">
                         <label asp-for="ReorderLevel" class="form-label fw-semibold"></label>

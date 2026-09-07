@@ -38,7 +38,15 @@ namespace InventorySystem.Services.Implementations
 
         public const string AllCompaniesCookieValue = "all";
 
-        private const string ItemsKey = "InventorySystem.CompanyContext.Resolved";
+        internal const string ItemsKey = "InventorySystem.CompanyContext.Resolved";
+
+        /// <summary>
+        /// Seeds ambient scope for the current request (e.g. after auto-default on login).
+        /// </summary>
+        public static void SetRequestScope(HttpContext httpContext, int companyId, string companyName)
+        {
+            httpContext.Items[ItemsKey] = ResolvedScope.Specific(companyId, companyName);
+        }
 
 
 
@@ -208,9 +216,17 @@ namespace InventorySystem.Services.Implementations
 
 
 
-            if (userId.HasValue
+            if (!userId.HasValue)
 
-                && !await _companyAccess.CanAccessCompanyAsync(userId.Value, companyId, cancellationToken))
+            {
+
+                return false;
+
+            }
+
+
+
+            if (!await _companyAccess.CanAccessCompanyAsync(userId.Value, companyId, cancellationToken))
 
             {
 
@@ -249,6 +265,26 @@ namespace InventorySystem.Services.Implementations
             httpContext.Items[ItemsKey] = specific;
 
             return true;
+
+        }
+
+
+
+        public void ReapplyFromHttpContext()
+
+        {
+
+            var httpContext = _httpContextAccessor.HttpContext;
+
+            if (httpContext?.Items[ItemsKey] is ResolvedScope cached)
+
+            {
+
+                ApplyResolved(cached);
+
+                _attempted = true;
+
+            }
 
         }
 

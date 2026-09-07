@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using InventorySystem.Data;
 using InventorySystem.DTOs.Common;
 using InventorySystem.DTOs.Products;
+using InventorySystem.Helpers;
 using InventorySystem.Models.Entities;
 using InventorySystem.Repositories.Interfaces;
 using InventorySystem.Services.Interfaces;
@@ -161,7 +162,7 @@ namespace InventorySystem.Services.Implementations
                     CompanyID = dto.CompanyID,
                     BaseUnitID = dto.BaseUnitID,
                     BaseSellingPrice = dto.BaseSellingPrice,
-                    AveragePurchaseCost = dto.AveragePurchaseCost,
+                    AveragePurchaseCost = 0m,
                     ReorderLevel = dto.ReorderLevel,
                     IsActive = dto.IsActive,
                     CreatedAt = now,
@@ -202,7 +203,7 @@ namespace InventorySystem.Services.Implementations
             {
                 await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Error occurred while creating product {ProductName}", dto.ProductName);
-                return OperationResult<int>.Fail($"Failed to create product: {ex.Message}");
+                return OperationResult<int>.Fail(UserFacingErrorMessages.ProductCreateFailed);
             }
         }
 
@@ -231,7 +232,6 @@ namespace InventorySystem.Services.Implementations
                 product.CategoryID = dto.CategoryID;
                 product.CompanyID = dto.CompanyID;
                 product.BaseSellingPrice = dto.BaseSellingPrice;
-                product.AveragePurchaseCost = dto.AveragePurchaseCost;
                 product.ReorderLevel = dto.ReorderLevel;
                 product.IsActive = dto.IsActive;
                 product.UpdatedAt = now;
@@ -299,7 +299,7 @@ namespace InventorySystem.Services.Implementations
             {
                 await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Error occurred while updating product ID {ProductID}", dto.ProductID);
-                return OperationResult.Fail($"Failed to update product: {ex.Message}");
+                return OperationResult.Fail(UserFacingErrorMessages.ProductUpdateFailed);
             }
         }
 
@@ -321,7 +321,7 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while soft-deleting product ID {ProductID}", productId);
-                return OperationResult.Fail($"Failed to delete product: {ex.Message}");
+                return OperationResult.Fail(UserFacingErrorMessages.ProductDeleteFailed);
             }
         }
 

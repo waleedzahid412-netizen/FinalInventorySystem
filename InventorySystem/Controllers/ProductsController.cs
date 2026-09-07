@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -19,7 +18,7 @@ namespace InventorySystem.Controllers
 {
     [Authorize]
     [RequireCompanyScope]
-    public class ProductsController : Controller
+    public class ProductsController : InventoryController
     {
         private readonly IProductService _productService;
         private readonly ILookupService _lookupService;
@@ -305,16 +304,6 @@ namespace InventorySystem.Controllers
             model.Categories = dropdowns.Categories.ToSelectList(model.CategoryID);
             model.AvailableUnits = dropdowns.Units.ToSelectList(model.BaseUnitID);
             model.CompanyID = companyId;
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1;
         }
     }
 }

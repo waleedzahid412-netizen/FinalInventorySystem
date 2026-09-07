@@ -1,5 +1,4 @@
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -8,27 +7,26 @@ using Microsoft.EntityFrameworkCore;
 using InventorySystem.Constants;
 using InventorySystem.Data;
 using InventorySystem.DTOs.UserManagement;
-using InventorySystem.Repositories.Interfaces;
 using InventorySystem.Services.Interfaces;
 using InventorySystem.ViewModels.UserManagement;
 
 namespace InventorySystem.Controllers
 {
     [Authorize]
-    public class UserManagementController : Controller
+    public class UserManagementController : InventoryController
     {
         private readonly IUserManagementService _userManagementService;
-        private readonly IUserRepository _userRepository;
         private readonly ApplicationDbContext _context;
+        private readonly IPasswordPolicyValidator _passwordPolicyValidator;
 
         public UserManagementController(
             IUserManagementService userManagementService,
-            IUserRepository userRepository,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            IPasswordPolicyValidator passwordPolicyValidator)
         {
             _userManagementService = userManagementService;
-            _userRepository = userRepository;
             _context = context;
+            _passwordPolicyValidator = passwordPolicyValidator;
         }
 
         [HttpGet]
@@ -76,6 +74,7 @@ namespace InventorySystem.Controllers
         [HttpGet]
         public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
+            ViewBag.PasswordRequirements = _passwordPolicyValidator.GetRequirementsDescription();
             var model = await BuildCreateViewModelAsync(cancellationToken);
             return View(model);
         }
@@ -86,6 +85,7 @@ namespace InventorySystem.Controllers
         {
             if (!ModelState.IsValid)
             {
+                ViewBag.PasswordRequirements = _passwordPolicyValidator.GetRequirementsDescription();
                 await PopulateCreateDropdownsAsync(model, cancellationToken);
                 return View(model);
             }
@@ -107,6 +107,7 @@ namespace InventorySystem.Controllers
                     ModelState.AddModelError(string.Empty, error);
                 }
 
+                ViewBag.PasswordRequirements = _passwordPolicyValidator.GetRequirementsDescription();
                 await PopulateCreateDropdownsAsync(model, cancellationToken);
                 return View(model);
             }
@@ -137,6 +138,7 @@ namespace InventorySystem.Controllers
             };
 
             await PopulateEditDropdownsAsync(model, cancellationToken);
+            ViewBag.PasswordRequirements = _passwordPolicyValidator.GetRequirementsDescription();
             return View(model);
         }
 
@@ -146,6 +148,7 @@ namespace InventorySystem.Controllers
         {
             if (!ModelState.IsValid)
             {
+                ViewBag.PasswordRequirements = _passwordPolicyValidator.GetRequirementsDescription();
                 await PopulateEditDropdownsAsync(model, cancellationToken);
                 return View(model);
             }
@@ -169,6 +172,7 @@ namespace InventorySystem.Controllers
                     ModelState.AddModelError(string.Empty, error);
                 }
 
+                ViewBag.PasswordRequirements = _passwordPolicyValidator.GetRequirementsDescription();
                 await PopulateEditDropdownsAsync(model, cancellationToken);
                 return View(model);
             }
@@ -190,7 +194,7 @@ namespace InventorySystem.Controllers
 
         private async Task<CreateUserViewModel> BuildCreateViewModelAsync(CancellationToken cancellationToken)
         {
-            var roles = await _userRepository.GetAssignableRolesAsync(cancellationToken);
+            var roles = await _userManagementService.GetAssignableRolesForActorAsync(GetCurrentUserId(), cancellationToken);
             var userRole = roles.FirstOrDefault(r => r.RoleName == RoleNames.User);
 
             var model = new CreateUserViewModel
@@ -204,7 +208,7 @@ namespace InventorySystem.Controllers
 
         private async Task PopulateCreateDropdownsAsync(CreateUserViewModel model, CancellationToken cancellationToken)
         {
-            var roles = await _userRepository.GetAssignableRolesAsync(cancellationToken);
+            var roles = await _userManagementService.GetAssignableRolesForActorAsync(GetCurrentUserId(), cancellationToken);
             model.Roles = roles.Select(r => new RoleOptionViewModel
             {
                 RoleID = r.RoleID,
@@ -225,7 +229,7 @@ namespace InventorySystem.Controllers
 
         private async Task PopulateEditDropdownsAsync(EditUserViewModel model, CancellationToken cancellationToken)
         {
-            var roles = await _userRepository.GetAssignableRolesAsync(cancellationToken);
+            var roles = await _userManagementService.GetAssignableRolesForActorAsync(GetCurrentUserId(), cancellationToken);
             model.Roles = roles.Select(r => new RoleOptionViewModel
             {
                 RoleID = r.RoleID,
@@ -242,12 +246,6 @@ namespace InventorySystem.Controllers
                     CompanyName = c.CompanyName
                 })
                 .ToListAsync(cancellationToken);
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            return claim != null && int.TryParse(claim.Value, out var userId) ? userId : 0;
         }
     }
 }

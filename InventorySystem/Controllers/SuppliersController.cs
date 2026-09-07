@@ -1,5 +1,4 @@
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +11,7 @@ using InventorySystem.ViewModels.Suppliers;
 namespace InventorySystem.Controllers
 {
     [Authorize]
-    public class SuppliersController : Controller
+    public class SuppliersController : InventoryController
     {
         private readonly ISupplierService _supplierService;
 
@@ -119,16 +118,6 @@ namespace InventorySystem.Controllers
             }
 
             return RedirectToAction(nameof(Index));
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 0;
         }
     }
 }

@@ -67,6 +67,10 @@ namespace InventorySystem.Services
         public static decimal LineRevenue(decimal quantity, decimal unitPrice, decimal discountAmount) =>
             (quantity * unitPrice) - discountAmount;
 
+        /// <summary>FIFO COGS when recorded on sale line; falls back to average cost for legacy rows.</summary>
+        public static decimal LineCogs(decimal convertedQuantity, decimal averagePurchaseCost, decimal costOfGoodsSold) =>
+            costOfGoodsSold > 0 ? costOfGoodsSold : convertedQuantity * averagePurchaseCost;
+
         public static decimal InvoiceRemaining(decimal grandTotal, decimal paidAmount, decimal returnedAmount) =>
             Math.Max(0m, grandTotal - paidAmount - returnedAmount);
 

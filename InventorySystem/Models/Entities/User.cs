@@ -34,6 +34,10 @@ namespace InventorySystem.Models.Entities
 
         public bool IsActive { get; set; } = true;
 
+        public int AccessFailedCount { get; set; }
+
+        public DateTimeOffset? LockoutEnd { get; set; }
+
         // ===== AUDIT FIELDS =====
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

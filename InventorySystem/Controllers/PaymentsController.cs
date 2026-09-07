@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -16,7 +15,7 @@ using InventorySystem.ViewModels.Payments;
 namespace InventorySystem.Controllers
 {
     [Authorize]
-    public class PaymentsController : Controller
+    public class PaymentsController : InventoryController
     {
         private readonly IPaymentService _paymentService;
         private readonly ILookupService _lookupService;
@@ -27,16 +26,6 @@ namespace InventorySystem.Controllers
             _paymentService = paymentService;
             _lookupService = lookupService;
             _companyContext = companyContext;
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1; // Fallback default admin user ID
         }
 
         // GET: /Payments/CustomerPayments
@@ -87,6 +76,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Payments/GetUnpaidCustomerInvoices?customerId=X
         [HttpGet]
+        [RequirePermission(PageKeys.CustomerPayments, PermissionAction.View)]
         public async Task<IActionResult> GetUnpaidCustomerInvoices(int customerId, CancellationToken cancellationToken)
         {
             // Soft-scope applied inside PaymentService when HasCompany (All Companies → consolidated).
@@ -96,6 +86,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Payments/GetUnpaidCompanyInvoices?companyId=X
         [HttpGet]
+        [RequirePermission(PageKeys.CompanyPayments, PermissionAction.View)]
         public async Task<IActionResult> GetUnpaidCompanyInvoices(int companyId, CancellationToken cancellationToken)
         {
             var invoices = await _paymentService.GetUnpaidCompanyInvoicesAsync(companyId, cancellationToken);
@@ -113,21 +104,21 @@ namespace InventorySystem.Controllers
                 return Json(new { success = false, message = "Invalid request payload." });
             }
 
-            try
+            int userId = GetCurrentUserId();
+            var result = await _paymentService.RecordCustomerPaymentAsync(request, userId, cancellationToken);
+            if (!result.Success || result.Data == null)
             {
-                int userId = GetCurrentUserId();
-                var payment = await _paymentService.RecordCustomerPaymentAsync(request, userId, cancellationToken);
-                return Json(new { success = true, message = $"Payment #{payment.PaymentNumber} of PKR {payment.Amount:N2} recorded successfully!", paymentId = payment.CustomerPaymentID });
+                return Json(new { success = false, message = result.Message });
             }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, message = ex.Message });
-            }
+
+            var payment = result.Data;
+            return Json(new { success = true, message = $"Payment #{payment.PaymentNumber} of PKR {payment.Amount:N2} recorded successfully!", paymentId = payment.CustomerPaymentID });
         }
 
         // POST: /Payments/RecordCompanyPayment
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [RequirePermission(PageKeys.CompanyPayments, PermissionAction.Add)]
         public async Task<IActionResult> RecordCompanyPayment([FromBody] RecordCompanyPaymentRequest request, CancellationToken cancellationToken)
         {
             if (request == null)
@@ -135,20 +126,20 @@ namespace InventorySystem.Controllers
                 return Json(new { success = false, message = "Invalid request payload." });
             }
 
-            try
+            int userId = GetCurrentUserId();
+            var result = await _paymentService.RecordCompanyPaymentAsync(request, userId, cancellationToken);
+            if (!result.Success || result.Data == null)
             {
-                int userId = GetCurrentUserId();
-                var payment = await _paymentService.RecordCompanyPaymentAsync(request, userId, cancellationToken);
-                return Json(new { success = true, message = $"Payment #{payment.PaymentNumber} of PKR {payment.Amount:N2} recorded successfully!", paymentId = payment.CompanyPaymentID });
+                return Json(new { success = false, message = result.Message });
             }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, message = ex.Message });
-            }
+
+            var payment = result.Data;
+            return Json(new { success = true, message = $"Payment #{payment.PaymentNumber} of PKR {payment.Amount:N2} recorded successfully!", paymentId = payment.CompanyPaymentID });
         }
 
         // GET: /Payments/GetCustomerPaymentHistoryPartial?invoiceId=X
         [HttpGet]
+        [RequirePermission(PageKeys.CustomerPayments, PermissionAction.View)]
         public async Task<IActionResult> GetCustomerPaymentHistoryPartial(int invoiceId, CancellationToken cancellationToken)
         {
             var payments = await _paymentService.GetPaymentsBySalesInvoiceAsync(invoiceId, cancellationToken);
@@ -157,6 +148,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Payments/GetCompanyPaymentHistoryPartial?invoiceId=X
         [HttpGet]
+        [RequirePermission(PageKeys.CompanyPayments, PermissionAction.View)]
         public async Task<IActionResult> GetCompanyPaymentHistoryPartial(int invoiceId, CancellationToken cancellationToken)
         {
             var payments = await _paymentService.GetPaymentsByPurchaseInvoiceAsync(invoiceId, cancellationToken);
@@ -165,6 +157,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Payments/CustomerPaymentReceipt/5
         [HttpGet]
+        [RequirePermission(PageKeys.CustomerPayments, PermissionAction.View)]
         public async Task<IActionResult> CustomerPaymentReceipt(int id, CancellationToken cancellationToken)
         {
             var payment = await _paymentService.GetCustomerPaymentByIdAsync(id, cancellationToken);
@@ -177,6 +170,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Payments/CompanyPaymentReceipt/5
         [HttpGet]
+        [RequirePermission(PageKeys.CompanyPayments, PermissionAction.View)]
         public async Task<IActionResult> CompanyPaymentReceipt(int id, CancellationToken cancellationToken)
         {
             var payment = await _paymentService.GetCompanyPaymentByIdAsync(id, cancellationToken);
@@ -211,6 +205,7 @@ namespace InventorySystem.Controllers
         // POST: /Payments/UpdateChequeStatus
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [RequirePermission(PageKeys.Cheques, PermissionAction.Edit)]
         public async Task<IActionResult> UpdateChequeStatus([FromBody] UpdateChequeStatusRequest request, CancellationToken cancellationToken)
         {
             if (request == null || request.PaymentID <= 0)

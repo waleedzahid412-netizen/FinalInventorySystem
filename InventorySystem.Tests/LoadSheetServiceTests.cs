@@ -31,7 +31,7 @@ namespace InventorySystem.Tests
             var loadSheetService = new LoadSheetService(context, FakeCompanyContext.AllCompanies());
             var salesRepo = new SalesRepository(context);
             var promoService = new PromotionDiscountService(context);
-            var salesService = new SalesService(salesRepo, context, promoService, new FakeCompanyContext(1, "Co"), NullLogger<SalesService>.Instance);
+            var salesService = new SalesService(salesRepo, context, promoService, new FakeCompanyContext(1, "Co"), TestFifoHelper.CreateFifo(context), NullLogger<SalesService>.Instance);
 
             var role = new Role { RoleID = 1, RoleName = "Admin", IsActive = true };
             var user1 = new User { UserID = 1, RoleID = 1, FullName = "Shahzaib", Username = "shahzaib", PasswordHash = "x", IsActive = true };

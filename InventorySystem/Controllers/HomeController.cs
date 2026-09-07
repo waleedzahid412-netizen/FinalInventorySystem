@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using InventorySystem.Authorization;
 using InventorySystem.Data;
 using InventorySystem.Models;
+using InventorySystem.Helpers;
 using InventorySystem.Services.Interfaces;
 using InventorySystem.ViewModels.Home;
 
@@ -18,12 +20,18 @@ namespace InventorySystem.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ICompanyContext _companyContext;
+        private readonly IFifoCostingService _fifoCostingService;
         private readonly ILogger<HomeController> _logger;
 
-        public HomeController(ApplicationDbContext context, ICompanyContext companyContext, ILogger<HomeController> logger)
+        public HomeController(
+            ApplicationDbContext context,
+            ICompanyContext companyContext,
+            IFifoCostingService fifoCostingService,
+            ILogger<HomeController> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _companyContext = companyContext ?? throw new ArgumentNullException(nameof(companyContext));
+            _fifoCostingService = fifoCostingService ?? throw new ArgumentNullException(nameof(fifoCostingService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -34,22 +42,32 @@ namespace InventorySystem.Controllers
             var startOfMonth = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
             await _companyContext.TryResolveAsync(cancellationToken);
-            // Follow navbar company scope only (no in-page All Companies override).
-            bool showAll = !_companyContext.HasCompany;
-            int? companyId = showAll ? null : _companyContext.CompanyID;
+            bool isAllCompanies = _companyContext.IsAllCompanies;
+            bool hasResolvedScope = _companyContext.HasResolvedScope;
+            bool showAll = isAllCompanies || (!_companyContext.HasCompany && !hasResolvedScope);
+            int? companyId = _companyContext.HasCompany ? _companyContext.CompanyID : null;
 
-            // 1. Sales Totals
+            // 1. Sales & returns (net sales = gross invoice total − returns in period)
             var salesQuery = _context.SalesInvoices.AsNoTracking().Where(i => !i.IsDeleted);
             if (companyId.HasValue)
                 salesQuery = salesQuery.Where(i => i.CompanyID == companyId.Value);
 
-            decimal salesToday = await salesQuery
-                .Where(i => i.InvoiceDate >= today)
-                .SumAsync(i => (decimal?)i.GrandTotal, cancellationToken) ?? 0m;
+            var returnsQuery = _context.SalesReturns.AsNoTracking().Where(r => !r.IsDeleted);
+            if (companyId.HasValue)
+            {
+                int cid = companyId.Value;
+                returnsQuery = returnsQuery.Where(r =>
+                    (r.SalesInvoice != null && r.SalesInvoice.CompanyID == cid) ||
+                    (r.InvoiceID == null && r.Items.Any(i => i.Product != null && i.Product.CompanyID == cid)));
+            }
 
-            decimal salesThisMonth = await salesQuery
-                .Where(i => i.InvoiceDate >= startOfMonth)
-                .SumAsync(i => (decimal?)i.GrandTotal, cancellationToken) ?? 0m;
+            decimal salesToday = await DashboardMetricsHelper.SumGrossSalesAsync(salesQuery, today, cancellationToken);
+            decimal salesThisMonth = await DashboardMetricsHelper.SumGrossSalesAsync(salesQuery, startOfMonth, cancellationToken);
+            decimal returnsToday = await DashboardMetricsHelper.SumReturnsAsync(returnsQuery, today, cancellationToken);
+            decimal returnsThisMonth = await DashboardMetricsHelper.SumReturnsAsync(returnsQuery, startOfMonth, cancellationToken);
+
+            decimal netSalesToday = DashboardMetricsHelper.ComputeNetSales(salesToday, returnsToday);
+            decimal netSalesThisMonth = DashboardMetricsHelper.ComputeNetSales(salesThisMonth, returnsThisMonth);
 
             // 2. Purchases Totals
             var purchaseQuery = _context.PurchaseInvoices.AsNoTracking().Where(i => !i.IsDeleted);
@@ -65,35 +83,16 @@ namespace InventorySystem.Controllers
                 .SumAsync(i => (decimal?)i.GrandTotal, cancellationToken) ?? 0m;
 
             // 3. Outstanding Balances
-            decimal customerReceivables = await salesQuery
-                .Where(i => i.PaymentStatus != "PAID")
-                .SumAsync(i => (decimal?)(i.GrandTotal - i.PaidAmount), cancellationToken) ?? 0m;
+            decimal customerReceivables = await DashboardMetricsHelper.SumCustomerReceivablesAsync(salesQuery, cancellationToken);
 
             decimal supplierPayables = await purchaseQuery
                 .Where(i => i.PaymentStatus != "PAID")
                 .SumAsync(i => (decimal?)(i.GrandTotal - i.PaidAmount), cancellationToken) ?? 0m;
 
-            // 4. Inventory Valuation
-            var stockQuery = _context.InventoryStocks
-                .Include(s => s.Product)
-                .AsNoTracking()
-                .Where(s => !s.IsDeleted && s.Product != null && !s.Product.IsDeleted);
-            if (companyId.HasValue)
-                stockQuery = stockQuery.Where(s => s.Product!.CompanyID == companyId.Value);
-
-            decimal inventoryValue = await stockQuery
-                .SumAsync(s => (decimal?)(s.Quantity * s.Product!.AveragePurchaseCost), cancellationToken) ?? 0m;
+            // 4. Inventory Valuation (FIFO cost layers — BR-004)
+            decimal inventoryValue = await _fifoCostingService.GetInventoryValueAsync(companyId, null, cancellationToken);
 
             // 5. Today Returns Count
-            var returnsQuery = _context.SalesReturns.AsNoTracking().Where(r => !r.IsDeleted);
-            if (companyId.HasValue)
-            {
-                int cid = companyId.Value;
-                returnsQuery = returnsQuery.Where(r =>
-                    (r.SalesInvoice != null && r.SalesInvoice.CompanyID == cid) ||
-                    (r.InvoiceID == null && r.Items.Any(i => i.Product != null && i.Product.CompanyID == cid)));
-            }
-
             int todayReturnsCount = await returnsQuery
                 .Where(r => r.ReturnDate >= today)
                 .CountAsync(cancellationToken);
@@ -180,8 +179,8 @@ namespace InventorySystem.Controllers
 
             var viewModel = new DashboardViewModel
             {
-                TotalSalesToday = salesToday,
-                TotalSalesThisMonth = salesThisMonth,
+                NetSalesToday = netSalesToday,
+                NetSalesThisMonth = netSalesThisMonth,
                 TotalPurchasesToday = purchasesToday,
                 TotalPurchasesThisMonth = purchasesThisMonth,
                 CustomerReceivables = customerReceivables,
@@ -194,8 +193,10 @@ namespace InventorySystem.Controllers
                 RecentReturns = recentReturns,
                 LowStockProducts = lowStockList,
                 ShowAllCompanies = showAll,
+                IsAllCompaniesMode = isAllCompanies,
+                IsUnscoped = !hasResolvedScope,
                 ScopedCompanyName = _companyContext.HasCompany ? _companyContext.CompanyName : (_companyContext.IsAllCompanies ? "All Companies" : string.Empty),
-                HasCompanyScope = _companyContext.HasCompany || _companyContext.IsAllCompanies,
+                HasCompanyScope = hasResolvedScope,
                 ScopedCompanyId = _companyContext.HasCompany ? _companyContext.CompanyID : null
             };
 
@@ -203,12 +204,14 @@ namespace InventorySystem.Controllers
         }
 
         [HttpGet]
+        [SkipPermissionCheck]
         public IActionResult Privacy()
         {
             return View();
         }
 
         [AllowAnonymous]
+        [SkipPermissionCheck]
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {

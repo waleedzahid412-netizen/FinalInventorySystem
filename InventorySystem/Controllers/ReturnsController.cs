@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -17,7 +16,7 @@ using InventorySystem.ViewModels.Returns;
 namespace InventorySystem.Controllers
 {
     [Authorize]
-    public class ReturnsController : Controller
+    public class ReturnsController : InventoryController
     {
         private readonly IReturnService _returnService;
         private readonly ILookupService _lookupService;
@@ -70,6 +69,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Returns/SalesReturnDetails/5
         [HttpGet]
+        [RequirePermission(PageKeys.SalesReturns, PermissionAction.View)]
         public async Task<IActionResult> SalesReturnDetails(int id, CancellationToken cancellationToken = default)
         {
             if (id <= 0) return NotFound();
@@ -209,6 +209,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Returns/GetProductUnitPrice?productId=X&productUnitId=Y
         [HttpGet]
+        [RequirePermission(PageKeys.SalesCreateReturn, PermissionAction.View)]
         public async Task<IActionResult> GetProductUnitPrice(int productId, int productUnitId, CancellationToken cancellationToken = default)
         {
             if (productId <= 0 || productUnitId <= 0) return Json(new { price = 0m });
@@ -226,6 +227,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Returns/GetCustomerInvoices?customerId=X
         [HttpGet]
+        [RequirePermission(PageKeys.SalesCreateReturn, PermissionAction.View)]
         public async Task<IActionResult> GetCustomerInvoices(int customerId, CancellationToken cancellationToken = default)
         {
             if (customerId <= 0) return Json(new object[0]);
@@ -260,6 +262,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Returns/GetSalesReturnEligibilityJson?invoiceId=X
         [HttpGet]
+        [RequirePermission(PageKeys.SalesCreateReturn, PermissionAction.View)]
         public async Task<IActionResult> GetSalesReturnEligibilityJson(int invoiceId, CancellationToken cancellationToken = default)
         {
             if (invoiceId <= 0) return Json(new { success = false, message = "Invalid invoice ID." });
@@ -281,6 +284,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Returns/ProcessManualSalesReturn
         [HttpGet]
+        [RequirePermission(PageKeys.SalesCreateReturn, PermissionAction.View)]
         public async Task<IActionResult> ProcessManualSalesReturn(int? customerId = null, CancellationToken cancellationToken = default)
         {
             var customers = await _lookupService.GetCustomersAsync(cancellationToken);
@@ -326,6 +330,7 @@ namespace InventorySystem.Controllers
 
         // POST: /Returns/ProcessManualSalesReturn (AJAX)
         [HttpPost]
+        [RequirePermission(PageKeys.SalesCreateReturn, PermissionAction.Add)]
         public async Task<IActionResult> ProcessManualSalesReturn([FromBody] ProcessManualSalesReturnRequest request, CancellationToken cancellationToken = default)
         {
             try
@@ -349,8 +354,8 @@ namespace InventorySystem.Controllers
         }
 
         // GET: /Returns/GetProductUnits?productId=5 (AJAX helper for manual returns)
-        [AllowAnonymous]
         [HttpGet]
+        [RequirePermission(PageKeys.SalesCreateReturn, PermissionAction.View)]
         public async Task<IActionResult> GetProductUnits(int productId, CancellationToken cancellationToken = default)
         {
             if (productId <= 0)
@@ -360,6 +365,16 @@ namespace InventorySystem.Controllers
 
             try
             {
+                if (!await _companyContext.TryResolveAsync(cancellationToken) || !_companyContext.HasResolvedScope)
+                {
+                    return Unauthorized(new { success = false, message = "Your session has expired. Please sign in again." });
+                }
+
+                if (!await ProductScopeHelper.ProductMatchesScopeAsync(_context, _companyContext, productId, cancellationToken))
+                {
+                    return NotFound();
+                }
+
                 var productUnits = await _context.ProductUnits
                     .AsNoTracking()
                     .Include(pu => pu.Product)
@@ -419,6 +434,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Returns/PurchaseReturnDetails/5
         [HttpGet]
+        [RequirePermission(PageKeys.PurchaseReturns, PermissionAction.View)]
         public async Task<IActionResult> PurchaseReturnDetails(int id, CancellationToken cancellationToken = default)
         {
             if (id <= 0) return NotFound();
@@ -437,6 +453,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Returns/ProcessPurchaseReturn?invoiceId=5
         [HttpGet]
+        [RequirePermission(PageKeys.PurchaseReturns, PermissionAction.View)]
         public async Task<IActionResult> ProcessPurchaseReturn(int invoiceId, CancellationToken cancellationToken = default)
         {
             if (invoiceId <= 0)
@@ -478,6 +495,7 @@ namespace InventorySystem.Controllers
 
         // POST: /Returns/ProcessPurchaseReturn (AJAX)
         [HttpPost]
+        [RequirePermission(PageKeys.PurchaseReturns, PermissionAction.Add)]
         public async Task<IActionResult> ProcessPurchaseReturn([FromBody] ProcessPurchaseReturnRequest request, CancellationToken cancellationToken = default)
         {
             if (request == null) return BadRequest(new { success = false, message = "Invalid return request." });
@@ -501,6 +519,7 @@ namespace InventorySystem.Controllers
 
         // GET: /Returns/DownloadSalesReturnPdf/5
         [HttpGet]
+        [RequirePermission(PageKeys.SalesReturns, PermissionAction.View)]
         public async Task<IActionResult> DownloadSalesReturnPdf(int id, CancellationToken cancellationToken = default)
         {
             if (id <= 0) return NotFound();
@@ -578,16 +597,6 @@ namespace InventorySystem.Controllers
                 .Where(p => ids.Contains(p.ProductID) && !p.IsDeleted)
                 .Select(p => (int?)p.CompanyID)
                 .FirstOrDefaultAsync(cancellationToken);
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1; // System fallback
         }
     }
 }

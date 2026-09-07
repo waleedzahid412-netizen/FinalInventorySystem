@@ -8,7 +8,7 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
         <div>
             <h2 class="h3 fw-bold text-dark mb-1"><i class="bi bi-graph-up-arrow me-2 text-primary"></i> Analytics &amp; Insights</h2>
-            <p class="text-muted mb-0">Period KPIs, sales trend, and operational warnings. Estimated profit uses average purchase cost, not FIFO.</p>
+            <p class="text-muted mb-0">Period KPIs, sales trend, and operational warnings. Estimated profit uses FIFO cost of goods sold on each sale line.</p>
         </div>
     </div>
 
@@ -48,7 +48,7 @@
         <div class="col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-success border-4">
                 <div class="card-body">
-                    <span class="text-muted small fw-semibold text-uppercase">Est. Gross Profit (Avg Cost)</span>
+                    <span class="text-muted small fw-semibold text-uppercase">Est. Gross Profit (FIFO)</span>
                     <h3 class="fw-bold mb-1" id="kpiEstimatedGrossProfit">@Model.Kpi.EstimatedGrossProfit.FormattedCurrentValue</h3>
                     <span class="badge bg-light text-dark" id="kpiEstimatedGrossProfitChange">@Model.Kpi.EstimatedGrossProfit.ComparisonText</span>
                 </div>
@@ -145,7 +145,7 @@
                 Preset: currentPreset,
                 StartDate: currentPreset === 'Custom' ? $('#startDate').val() : null,
                 EndDate: currentPreset === 'Custom' ? $('#endDate').val() : null,
-                CompanyID: parseInt($('#companyId').val()) || null, WarehouseID: parseInt($('#warehouseId').val()) || null,
+                CompanyID: window.getAnalyticsCompanyId(), WarehouseID: parseInt($('#warehouseId').val()) || null,
                 CustomerID: parseInt($('#customerId').val()) || null,
                 CategoryID: parseInt($('#categoryId').val()) || null,
                 BookerID: parseInt($('#bookerId').val()) || ($('#bookerId').val() === '-1' ? -1 : null)

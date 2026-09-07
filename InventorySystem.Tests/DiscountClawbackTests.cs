@@ -35,7 +35,7 @@ namespace InventorySystem.Tests
         {
             var context = GetInMemoryDbContext(dbName);
             var repository = new ReturnRepository(context);
-            var service = new ReturnService(repository, context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(repository, context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
 
             var user = new User { UserID = 1, Username = "testuser", PasswordHash = "hash", RoleID = 1 };
             var customer = new Customer { CustomerID = 1, ShopName = "Test Shop", Address = "123 St" };
@@ -189,7 +189,7 @@ namespace InventorySystem.Tests
         public async Task Return2_Of5000_Refunds4100_Not3900()
         {
             var context = GetInMemoryDbContext("Remaining_Return2");
-            var service = new ReturnService(new ReturnRepository(context), context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(new ReturnRepository(context), context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
             var user = new User { UserID = 1, Username = "u", PasswordHash = "h", RoleID = 1 };
             var customer = new Customer { CustomerID = 1, ShopName = "S", Address = "A" };
             var warehouse = new Warehouse { WarehouseID = 1, Name = "W" };
@@ -308,7 +308,7 @@ namespace InventorySystem.Tests
         public async Task Manual10Percent_Returns900_For1000Item()
         {
             var context = GetInMemoryDbContext("Manual_10pct");
-            var service = new ReturnService(new ReturnRepository(context), context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(new ReturnRepository(context), context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
 
             var user = new User { UserID = 1, Username = "u", PasswordHash = "h", RoleID = 1 };
             var customer = new Customer { CustomerID = 1, ShopName = "S", Address = "A" };
@@ -392,7 +392,7 @@ namespace InventorySystem.Tests
         public async Task CustomerPreferred5Percent_Returns950_For1000Item_NoClawback()
         {
             var context = GetInMemoryDbContext("Customer_5pct");
-            var service = new ReturnService(new ReturnRepository(context), context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(new ReturnRepository(context), context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
 
             var user = new User { UserID = 1, Username = "u", PasswordHash = "h", RoleID = 1 };
             var customer = new Customer { CustomerID = 1, ShopName = "S", Address = "A", PreferredDiscountPercent = 5m };
@@ -476,7 +476,7 @@ namespace InventorySystem.Tests
         public async Task PartialQuantity_ReleasesProRata_AndFinalUsesRemainder()
         {
             var context = GetInMemoryDbContext("Partial_Qty");
-            var service = new ReturnService(new ReturnRepository(context), context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(new ReturnRepository(context), context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
 
             var user = new User { UserID = 1, Username = "u", PasswordHash = "h", RoleID = 1 };
             var customer = new Customer { CustomerID = 1, ShopName = "S", Address = "A" };
@@ -633,7 +633,7 @@ namespace InventorySystem.Tests
         public async Task ConversionToBaseUnit_DoesNotAffectMonetaryReturn()
         {
             var context = GetInMemoryDbContext("Conversion_Money");
-            var service = new ReturnService(new ReturnRepository(context), context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(new ReturnRepository(context), context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
 
             var user = new User { UserID = 1, Username = "u", PasswordHash = "h", RoleID = 1 };
             var customer = new Customer { CustomerID = 1, ShopName = "S", Address = "A" };
@@ -722,7 +722,7 @@ namespace InventorySystem.Tests
         public async Task ManualFixedAmount_ReturnUsesStoredLineAllocation_NoThresholdClawback()
         {
             var context = GetInMemoryDbContext("Manual_Fixed100");
-            var service = new ReturnService(new ReturnRepository(context), context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(new ReturnRepository(context), context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
 
             var user = new User { UserID = 1, Username = "u", PasswordHash = "h", RoleID = 1, FullName = "User" };
             var customer = new Customer { CustomerID = 1, ShopName = "S", Address = "A" };
@@ -905,7 +905,7 @@ namespace InventorySystem.Tests
             SetupCanonical22000WithTwoPriorReturnsAsync(string dbName)
         {
             var context = GetInMemoryDbContext(dbName);
-            var service = new ReturnService(new ReturnRepository(context), context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(new ReturnRepository(context), context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
             var user = new User { UserID = 1, Username = "u", PasswordHash = "h", RoleID = 1, FullName = "User" };
             var customer = new Customer { CustomerID = 1, ShopName = "S", Address = "A" };
             var warehouse = new Warehouse { WarehouseID = 1, Name = "W" };
@@ -1066,7 +1066,7 @@ namespace InventorySystem.Tests
             SetupJustAboveThresholdInvoiceAsync(string dbName, bool seedStock = false)
         {
             var context = GetInMemoryDbContext(dbName);
-            var service = new ReturnService(new ReturnRepository(context), context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(new ReturnRepository(context), context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
 
             var user = new User { UserID = 1, Username = "u", PasswordHash = "h", RoleID = 1, FullName = "User" };
             var customer = new Customer { CustomerID = 1, ShopName = "S", Address = "A" };

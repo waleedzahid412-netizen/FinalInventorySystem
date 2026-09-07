@@ -1,5 +1,4 @@
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -15,7 +14,7 @@ namespace InventorySystem.Controllers
 {
     [Authorize]
     [RequireCompanyScope]
-    public class BookersController : Controller
+    public class BookersController : InventoryController
     {
         private readonly IBookerService _bookerService;
         private readonly ICompanyContext _companyContext;
@@ -161,16 +160,6 @@ namespace InventorySystem.Controllers
             }
 
             return RedirectToAction(nameof(Index));
-        }
-
-        private int GetCurrentUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 0;
         }
     }
 }

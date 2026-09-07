@@ -25,7 +25,10 @@ namespace InventorySystem.Tests
         }
 
         private static AnalyticsService CreateService(ApplicationDbContext context) =>
-            new AnalyticsService(new AnalyticsRepository(context), NullLogger<AnalyticsService>.Instance);
+            new AnalyticsService(
+                new AnalyticsRepository(context),
+                new FifoCostingService(context, NullLogger<FifoCostingService>.Instance),
+                NullLogger<AnalyticsService>.Instance);
 
         private static async Task<SeedData> SeedAsync(ApplicationDbContext db)
         {
@@ -90,12 +93,12 @@ namespace InventorySystem.Tests
                 catA.CategoryID, catB.CategoryID, productA.ProductID, productB.ProductID, booker.BookerID, company.CompanyID, area.AreaID, sub.SubAreaID);
         }
 
-        private static SalesInvoice CreateInvoice(SeedData s, int customerId, int warehouseId, DateTime date, decimal grand, int? bookerId, string number)
+        private static SalesInvoice CreateInvoice(SeedData s, int customerId, int warehouseId, DateTime date, decimal grand, int? bookerId, string number, int? companyId = null)
         {
             return new SalesInvoice
             {
                 CustomerID = customerId,
-                CompanyID = s.CompanyId,
+                CompanyID = companyId ?? s.CompanyId,
                 WarehouseID = warehouseId,
                 InvoiceNumber = number,
                 InvoiceDate = date,
@@ -111,7 +114,7 @@ namespace InventorySystem.Tests
             };
         }
 
-        private static SalesInvoiceItem CreateItem(int invoiceId, int productId, decimal qty, decimal converted, decimal price, decimal discount = 0) =>
+        private static SalesInvoiceItem CreateItem(int invoiceId, int productId, decimal qty, decimal converted, decimal price, decimal discount = 0, decimal cogs = 0) =>
             new SalesInvoiceItem
             {
                 InvoiceID = invoiceId,
@@ -120,7 +123,21 @@ namespace InventorySystem.Tests
                 ConvertedQuantity = converted,
                 UnitPrice = price,
                 DiscountAmount = discount,
+                CostOfGoodsSold = cogs,
                 ItemType = "NORMAL"
+            };
+
+        private static PurchaseInvoice CreatePurchase(int companyId, int warehouseId, int userId, DateTime date, decimal grand, string number) =>
+            new PurchaseInvoice
+            {
+                CompanyID = companyId,
+                WarehouseID = warehouseId,
+                InvoiceNumber = number,
+                InvoiceDate = date,
+                SubTotal = grand,
+                GrandTotal = grand,
+                PaymentStatus = "UNPAID",
+                CreatedBy = userId
             };
 
         [Fact]
@@ -334,6 +351,109 @@ namespace InventorySystem.Tests
         }
 
         [Fact]
+        public async Task Returns_CompanyFilter_ExcludesOtherCompanyReturns()
+        {
+            var db = CreateContext(nameof(Returns_CompanyFilter_ExcludesOtherCompanyReturns));
+            var s = await SeedAsync(db);
+
+            var companyB = new Company { CompanyName = "Coca-Cola", CreatedAt = DateTime.Today };
+            db.Companies.Add(companyB);
+            await db.SaveChangesAsync();
+
+            var invA = CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 63m, null, "A-RET");
+            db.SalesInvoices.Add(invA);
+            await db.SaveChangesAsync();
+            db.SalesReturns.Add(new SalesReturn
+            {
+                ReturnNumber = "RET-A",
+                ReturnType = "INVOICE",
+                InvoiceID = invA.InvoiceID,
+                CustomerID = s.CustomerA,
+                WarehouseID = s.WarehouseA,
+                SettlementMethod = "ACCOUNT_ADJUSTMENT",
+                ReturnDate = DateTime.Today,
+                NetRefundAmount = 63m,
+                CreatedBy = s.UserId
+            });
+
+            var invB = CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 16.97m, null, "B-1", companyB.CompanyID);
+            db.SalesInvoices.Add(invB);
+            await db.SaveChangesAsync();
+
+            var kpi = await CreateService(db).GetKpiSummaryAsync(new AnalyticsFilterDto
+            {
+                Preset = "Today",
+                CompanyID = companyB.CompanyID
+            });
+
+            Assert.Equal(16.97m, kpi.TotalSales.CurrentValue);
+            Assert.Equal(0m, kpi.TotalReturns.CurrentValue);
+            Assert.Equal(16.97m, kpi.NetSales.CurrentValue);
+        }
+
+        [Fact]
+        public async Task Payables_CompanyFilter_UsesInvoiceOutstandingOnly()
+        {
+            var db = CreateContext(nameof(Payables_CompanyFilter_UsesInvoiceOutstandingOnly));
+            var s = await SeedAsync(db);
+
+            var companyB = new Company { CompanyName = "Coca-Cola", CreatedAt = DateTime.Today };
+            db.Companies.Add(companyB);
+            await db.SaveChangesAsync();
+
+            db.PurchaseInvoices.Add(CreatePurchase(s.CompanyId, s.WarehouseA, s.UserId, DateTime.Today, 33000m, "PINV-A"));
+            db.PurchaseInvoices.Add(CreatePurchase(companyB.CompanyID, s.WarehouseA, s.UserId, DateTime.Today, 12000m, "PINV-B"));
+            await db.SaveChangesAsync();
+
+            var kpi = await CreateService(db).GetKpiSummaryAsync(new AnalyticsFilterDto
+            {
+                Preset = "Today",
+                CompanyID = companyB.CompanyID
+            });
+
+            Assert.Equal(12000m, kpi.CompanyPayables.CurrentValue);
+        }
+
+        [Fact]
+        public async Task Receivables_CompanyFilter_UsesInvoiceOutstandingOnly()
+        {
+            var db = CreateContext(nameof(Receivables_CompanyFilter_UsesInvoiceOutstandingOnly));
+            var s = await SeedAsync(db);
+
+            var companyB = new Company { CompanyName = "Coca-Cola", CreatedAt = DateTime.Today };
+            db.Companies.Add(companyB);
+            await db.SaveChangesAsync();
+
+            db.SalesInvoices.Add(CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 62.87m, null, "A-RCV"));
+            db.SalesInvoices.Add(CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 42.87m, null, "B-RCV", companyB.CompanyID));
+            await db.SaveChangesAsync();
+
+            var kpi = await CreateService(db).GetKpiSummaryAsync(new AnalyticsFilterDto
+            {
+                Preset = "Today",
+                CompanyID = companyB.CompanyID
+            });
+
+            Assert.Equal(42.87m, kpi.CustomerReceivables.CurrentValue);
+        }
+
+        [Fact]
+        public async Task GrossProfit_UsesFifoCogsOnSaleLine()
+        {
+            var db = CreateContext(nameof(GrossProfit_UsesFifoCogsOnSaleLine));
+            var s = await SeedAsync(db);
+            var inv = CreateInvoice(s, s.CustomerA, s.WarehouseA, DateTime.Today, 100m, null, "FIFO");
+            db.SalesInvoices.Add(inv);
+            await db.SaveChangesAsync();
+            db.SalesInvoiceItems.Add(CreateItem(inv.InvoiceID, s.ProductA, 1m, 1m, 100m, cogs: 40m));
+            await db.SaveChangesAsync();
+
+            var kpi = await CreateService(db).GetKpiSummaryAsync(new AnalyticsFilterDto { Preset = "Today" });
+            Assert.Equal(100m, kpi.NetSales.CurrentValue);
+            Assert.Equal(60m, kpi.EstimatedGrossProfit.CurrentValue);
+        }
+
+        [Fact]
         public async Task NegativeProfit_IsPreserved()
         {
             var db = CreateContext(nameof(NegativeProfit_IsPreserved));
@@ -422,6 +542,45 @@ namespace InventorySystem.Tests
             Assert.NotNull(detail);
             Assert.Equal("Unassigned", detail!.BookerName);
             Assert.Equal(15m, detail.Revenue);
+        }
+
+        [Fact]
+        public async Task InventoryInsights_UsesFifoLayerValue_NotAverageTimesQuantity()
+        {
+            var db = CreateContext(nameof(InventoryInsights_UsesFifoLayerValue_NotAverageTimesQuantity));
+            var s = await SeedAsync(db);
+
+            db.InventoryCostLayers.AddRange(
+                new InventoryCostLayer
+                {
+                    ProductID = s.ProductA,
+                    WarehouseID = s.WarehouseA,
+                    ReceivedAt = DateTime.UtcNow,
+                    SourceType = "PURCHASE",
+                    OriginalQuantity = 20m,
+                    RemainingQuantity = 20m,
+                    UnitCostInBase = 12m,
+                    IsDeleted = false
+                },
+                new InventoryCostLayer
+                {
+                    ProductID = s.ProductB,
+                    WarehouseID = s.WarehouseA,
+                    ReceivedAt = DateTime.UtcNow,
+                    SourceType = "PURCHASE",
+                    OriginalQuantity = 8m,
+                    RemainingQuantity = 8m,
+                    UnitCostInBase = 25m,
+                    IsDeleted = false
+                });
+            await db.SaveChangesAsync();
+
+            var insights = await CreateService(db).GetInventoryInsightsAsync(new AnalyticsFilterDto());
+
+            // FIFO: 20×12 + 8×25 = 440 — not qty×AveragePurchaseCost (20×40 + 8×200 = 2400)
+            Assert.Equal(440m, insights.TotalInventoryValue);
+            Assert.Contains(insights.ValueByCategory, c => c.CategoryName == "Drinks" && c.TotalValue == 240m);
+            Assert.Contains(insights.ValueByCategory, c => c.CategoryName == "Snacks" && c.TotalValue == 200m);
         }
 
         [Fact]

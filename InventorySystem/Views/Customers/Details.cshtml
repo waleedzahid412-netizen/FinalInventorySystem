@@ -47,9 +47,9 @@
                 <div>
                     <h5 class="alert-heading mb-1 fw-bold">Credit Limit Warning</h5>
                     <p class="mb-0">
-                        This customer's outstanding receivable (<strong>PKR @fin.OutstandingReceivable.ToString("N2")</strong>) 
+                        This customer's outstanding receivable (<strong>PKR @fin.CustomerReceivable.ToString("N2")</strong>) 
                         exceeds their assigned credit limit (<strong>PKR @fin.CreditLimit.ToString("N2")</strong>) by 
-                        <strong class="text-danger">PKR @((fin.OutstandingReceivable - fin.CreditLimit).ToString("N2"))</strong>. 
+                        <strong class="text-danger">PKR @((fin.CustomerReceivable - fin.CreditLimit).ToString("N2"))</strong>. 
                         <em>(Informational warning only — sales transactions remain allowed).</em>
                     </p>
                 </div>
@@ -59,8 +59,8 @@
     }
 
     <!-- Financial KPI Summary Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-5 g-3 mb-4">
+        <div class="col">
             <div class="card border-0 shadow-sm bg-primary text-white h-100">
                 <div class="card-body">
                     <div class="text-white-50 small fw-semibold text-uppercase">Total Sales / Debits</div>
@@ -69,7 +69,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <div class="card border-0 shadow-sm bg-success text-white h-100">
                 <div class="card-body">
                     <div class="text-white-50 small fw-semibold text-uppercase">Total Payments / Credits</div>
@@ -78,16 +78,25 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm @(fin.OutstandingReceivable > 0 ? "bg-danger" : "bg-info") text-white h-100">
+        <div class="col">
+            <div class="card border-0 shadow-sm @(fin.CustomerReceivable > 0 ? "bg-danger" : "bg-light") @(fin.CustomerReceivable > 0 ? "text-white" : "") h-100">
                 <div class="card-body">
-                    <div class="text-white-50 small fw-semibold text-uppercase">Outstanding Balance</div>
-                    <div class="fs-3 fw-bold mt-1">PKR @fin.OutstandingReceivable.ToString("N2")</div>
-                    <div class="small mt-2 text-white-50"><i class="bi bi-receipt me-1"></i> Pending Invoices: @fin.PendingInvoicesCount</div>
+                    <div class="@(fin.CustomerReceivable > 0 ? "text-white-50" : "text-muted") small fw-semibold text-uppercase">Customer Receivables</div>
+                    <div class="fs-3 fw-bold mt-1">PKR @fin.CustomerReceivable.ToString("N2")</div>
+                    <div class="@(fin.CustomerReceivable > 0 ? "text-white-50" : "text-muted") small mt-2">Customer owes you</div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col">
+            <div class="card border-0 shadow-sm @(fin.AmountOwedToCustomer > 0 ? "bg-info" : "bg-light") @(fin.AmountOwedToCustomer > 0 ? "text-white" : "") h-100">
+                <div class="card-body">
+                    <div class="@(fin.AmountOwedToCustomer > 0 ? "text-white-50" : "text-muted") small fw-semibold text-uppercase">Owed to Customer</div>
+                    <div class="fs-3 fw-bold mt-1">PKR @fin.AmountOwedToCustomer.ToString("N2")</div>
+                    <div class="@(fin.AmountOwedToCustomer > 0 ? "text-white-50" : "text-muted") small mt-2">You owe the customer</div>
+                </div>
+            </div>
+        </div>
+        <div class="col">
             <div class="card border-0 shadow-sm bg-dark text-white h-100">
                 <div class="card-body">
                     <div class="text-white-50 small fw-semibold text-uppercase">Credit Limit</div>
@@ -102,6 +111,7 @@
                             <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Within Limit</span>
                         }
                     </div>
+                    <div class="small mt-2 text-white-50"><i class="bi bi-receipt me-1"></i> Pending Invoices: @fin.PendingInvoicesCount</div>
                 </div>
             </div>
         </div>

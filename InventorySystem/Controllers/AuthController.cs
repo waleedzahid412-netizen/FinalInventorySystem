@@ -2,24 +2,30 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using InventorySystem.Authorization;
 using InventorySystem.Configuration;
 using InventorySystem.DTOs;
+using InventorySystem.Helpers;
 using InventorySystem.Services.Interfaces;
 
 namespace InventorySystem.Controllers
 {
     [AllowAnonymous]
+    [SkipPermissionCheck]
     public class AuthController : Controller
     {
         private readonly IAuthService _authService;
+        private readonly ICompanyScopeCookieService _companyScopeCookie;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, ICompanyScopeCookieService companyScopeCookie)
         {
             _authService = authService;
+            _companyScopeCookie = companyScopeCookie;
         }
 
         [HttpGet]
-        public IActionResult Login(string? returnUrl = null, bool expired = false)
+        public IActionResult Login(string? returnUrl = null, bool expired = false, bool rateLimited = false)
         {
             if (User.Identity != null && User.Identity.IsAuthenticated)
             {
@@ -28,10 +34,12 @@ namespace InventorySystem.Controllers
 
             ViewBag.ReturnUrl = returnUrl;
             ViewBag.SessionExpired = expired;
+            ViewBag.RateLimited = rateLimited;
             return View();
         }
 
         [HttpPost]
+        [EnableRateLimiting("login")]
         public async Task<IActionResult> Login(LoginRequestDTO request, string? returnUrl = null)
         {
             ViewBag.ReturnUrl = returnUrl;
@@ -56,10 +64,11 @@ namespace InventorySystem.Controllers
 
             Response.Cookies.Append(JwtCookieHelper.CookieName, result.Token, cookieOptions);
 
+            await _companyScopeCookie.TryEnsureDefaultCompanyAsync(HttpContext, result.UserId);
+
             return RedirectToLocal(returnUrl);
         }
 
-        [HttpGet]
         [HttpPost]
         public IActionResult Logout()
         {

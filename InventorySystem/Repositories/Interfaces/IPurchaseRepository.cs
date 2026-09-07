@@ -16,6 +16,7 @@ namespace InventorySystem.Repositories.Interfaces
 
         #region 2. Validation / Existence Checks
         Task<bool> ExistsByInvoiceNumberAsync(string invoiceNumber, int? excludeId = null, CancellationToken cancellationToken = default);
+        Task<string> GenerateNextPurchaseInvoiceNumberAsync(CancellationToken cancellationToken = default);
         Task<bool> CompanyExistsAsync(int companyId, CancellationToken cancellationToken = default);
         Task<bool> WarehouseExistsAsync(int warehouseId, CancellationToken cancellationToken = default);
         Task<bool> ProductExistsAsync(int productId, CancellationToken cancellationToken = default);

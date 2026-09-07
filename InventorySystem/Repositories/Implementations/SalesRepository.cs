@@ -253,6 +253,44 @@ namespace InventorySystem.Repositories.Implementations
             return await query.AnyAsync(cancellationToken);
         }
 
+        public async Task<string> GenerateNextSalesInvoiceNumberAsync(CancellationToken cancellationToken = default)
+        {
+            string datePart = DateTime.UtcNow.ToString("yyyyMMdd");
+            string prefix = $"INV-{datePart}-";
+
+            var existingNumbers = await _context.SalesInvoices
+                .AsNoTracking()
+                .Where(si => !si.IsDeleted && si.InvoiceNumber.StartsWith(prefix))
+                .Select(si => si.InvoiceNumber)
+                .ToListAsync(cancellationToken);
+
+            int maxSequence = 0;
+            foreach (var invoiceNumber in existingNumbers)
+            {
+                if (invoiceNumber.Length <= prefix.Length)
+                {
+                    continue;
+                }
+
+                string suffix = invoiceNumber[prefix.Length..];
+                int separatorIndex = suffix.IndexOf('-');
+                if (separatorIndex >= 0)
+                {
+                    suffix = suffix[..separatorIndex];
+                }
+
+                if (int.TryParse(suffix, out int sequence) && sequence > maxSequence)
+                {
+                    maxSequence = sequence;
+                }
+            }
+
+            int nextSequence = maxSequence + 1;
+            return nextSequence <= 9999
+                ? $"{prefix}{nextSequence:D4}"
+                : $"{prefix}{nextSequence}";
+        }
+
         public async Task<Customer?> GetCustomerForInvoiceAsync(int customerId, CancellationToken cancellationToken = default)
         {
             return await _context.Customers

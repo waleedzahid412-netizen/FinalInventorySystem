@@ -99,17 +99,12 @@
                         <span asp-validation-for="BaseSellingPrice" class="text-danger small"></span>
                     </div>
                     <div class="col-md-4">
-                        <label asp-for="AveragePurchaseCost" class="form-label fw-semibold"></label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input asp-for="AveragePurchaseCost" type="number" step="0.01" class="form-control" placeholder="0.00" />
-                        </div>
-                        <span asp-validation-for="AveragePurchaseCost" class="text-danger small"></span>
-                    </div>
-                    <div class="col-md-4">
                         <label asp-for="ReorderLevel" class="form-label fw-semibold"></label>
                         <input asp-for="ReorderLevel" type="number" class="form-control" placeholder="10" />
                         <span asp-validation-for="ReorderLevel" class="text-danger small"></span>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-text">Average purchase cost is calculated automatically from finalized purchase batches (FIFO).</div>
                     </div>
                 </div>
             </div>

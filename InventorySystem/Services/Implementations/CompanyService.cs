@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using InventorySystem.DTOs.Common;
 using InventorySystem.DTOs.Companies;
+using InventorySystem.Helpers;
 using InventorySystem.Models.Entities;
 using InventorySystem.Repositories.Interfaces;
 using InventorySystem.Services.Interfaces;
@@ -125,7 +126,7 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while creating company {CompanyName}", dto.CompanyName);
-                return OperationResult<int>.Fail($"Failed to create company: {ex.Message}");
+                return OperationResult<int>.Fail(UserFacingErrorMessages.CompanyCreateFailed);
             }
         }
 
@@ -165,7 +166,7 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while updating company ID {CompanyID}", dto.CompanyID);
-                return OperationResult.Fail($"Failed to update company: {ex.Message}");
+                return OperationResult.Fail(UserFacingErrorMessages.CompanyUpdateFailed);
             }
         }
 
@@ -195,7 +196,7 @@ namespace InventorySystem.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while deleting company ID {CompanyID}", companyId);
-                return OperationResult.Fail($"Failed to delete company: {ex.Message}");
+                return OperationResult.Fail(UserFacingErrorMessages.CompanyDeleteFailed);
             }
         }
 

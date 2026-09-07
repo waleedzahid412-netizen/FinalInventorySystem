@@ -39,6 +39,8 @@ namespace InventorySystem.Data
         // =========================================================
         public DbSet<InventoryStock> InventoryStocks { get; set; }
         public DbSet<InventoryTransaction> InventoryTransactions { get; set; }
+        public DbSet<InventoryCostLayer> InventoryCostLayers { get; set; }
+        public DbSet<InventoryCostConsumption> InventoryCostConsumptions { get; set; }
 
         // =========================================================
         // PURCHASING
@@ -517,6 +519,57 @@ namespace InventorySystem.Data
                 entity.HasOne(t => t.UpdatedByUser)
                     .WithMany()
                     .HasForeignKey(t => t.UpdatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            // =============================================================
+            // FIFO COST LAYERS & CONSUMPTIONS (BR-004)
+            // =============================================================
+            modelBuilder.Entity<InventoryCostLayer>(entity =>
+            {
+                entity.HasIndex(l => new { l.ProductID, l.WarehouseID, l.ReceivedAt });
+
+                entity.HasOne(l => l.Product)
+                    .WithMany()
+                    .HasForeignKey(l => l.ProductID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(l => l.Warehouse)
+                    .WithMany()
+                    .HasForeignKey(l => l.WarehouseID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(l => l.PurchaseInvoiceItem)
+                    .WithMany()
+                    .HasForeignKey(l => l.PurchaseInvoiceItemID)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(l => l.SalesReturnItem)
+                    .WithMany()
+                    .HasForeignKey(l => l.SalesReturnItemID)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(l => l.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(l => l.CreatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<InventoryCostConsumption>(entity =>
+            {
+                entity.HasOne(c => c.CostLayer)
+                    .WithMany(l => l.Consumptions)
+                    .HasForeignKey(c => c.CostLayerID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(c => c.SalesInvoiceItem)
+                    .WithMany()
+                    .HasForeignKey(c => c.SalesInvoiceItemID)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(c => c.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(c => c.CreatedBy)
                     .OnDelete(DeleteBehavior.NoAction);
             });
 

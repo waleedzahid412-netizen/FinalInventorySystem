@@ -29,9 +29,9 @@ namespace InventorySystem.Repositories.Interfaces
         Task<decimal> GetCompanyPaymentsAsync(
             AnalyticsFilterDto filter, DateTime startDate, DateTime endDate, CancellationToken cancellationToken = default);
 
-        Task<decimal> GetCustomerReceivablesAsync(int? customerId, CancellationToken cancellationToken = default);
+        Task<decimal> GetCustomerReceivablesAsync(int? customerId, int? companyId, CancellationToken cancellationToken = default);
 
-        Task<decimal> GetCompanyPayablesAsync(CancellationToken cancellationToken = default);
+        Task<decimal> GetCompanyPayablesAsync(int? companyId, CancellationToken cancellationToken = default);
 
         Task<Dictionary<int, decimal>> GetCustomerLedgerBalancesAsync(IEnumerable<int> customerIds, CancellationToken cancellationToken = default);
 
@@ -92,6 +92,8 @@ namespace InventorySystem.Repositories.Interfaces
         public decimal UnitPrice { get; set; }
         public decimal DiscountAmount { get; set; }
         public decimal AveragePurchaseCost { get; set; }
+        /// <summary>FIFO COGS stored on line at sale; 0 for pre-FIFO historical rows.</summary>
+        public decimal CostOfGoodsSold { get; set; }
     }
 
     public class AnalyticsReturnRow

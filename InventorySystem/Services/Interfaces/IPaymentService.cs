@@ -9,8 +9,8 @@ namespace InventorySystem.Services.Interfaces
 {
     public interface IPaymentService
     {
-        Task<CustomerPaymentDto> RecordCustomerPaymentAsync(RecordCustomerPaymentRequest request, int userId, CancellationToken cancellationToken = default);
-        Task<CompanyPaymentDto> RecordCompanyPaymentAsync(RecordCompanyPaymentRequest request, int userId, CancellationToken cancellationToken = default);
+        Task<OperationResult<CustomerPaymentDto>> RecordCustomerPaymentAsync(RecordCustomerPaymentRequest request, int userId, CancellationToken cancellationToken = default);
+        Task<OperationResult<CompanyPaymentDto>> RecordCompanyPaymentAsync(RecordCompanyPaymentRequest request, int userId, CancellationToken cancellationToken = default);
 
         Task<decimal> GetCustomerOutstandingBalanceAsync(int customerId, CancellationToken cancellationToken = default);
         Task<decimal> GetCompanyOutstandingBalanceAsync(int companyId, CancellationToken cancellationToken = default);

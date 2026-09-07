@@ -15,7 +15,11 @@
             <p class="dash-subtitle">
                 Your wholesale ops at a glance — sales, stock, and cash flow.
             </p>
-            @if (Model.ShowAllCompanies)
+            @if (Model.IsUnscoped)
+            {
+                <span class="dash-scope text-warning"><i class="bi bi-building-exclamation"></i> No company selected</span>
+            }
+            else if (Model.IsAllCompaniesMode)
             {
                 <span class="dash-scope"><i class="bi bi-buildings"></i> All companies</span>
             }
@@ -50,11 +54,11 @@
     <div class="dash-kpi-grid">
         <a asp-controller="Sales" asp-action="Index" class="kpi kpi--sales">
             <div class="kpi-top">
-                <span class="kpi-label">Sales this month</span>
+                <span class="kpi-label">Net sales this month</span>
                 <span class="kpi-icon"><i class="bi bi-receipt"></i></span>
             </div>
-            <p class="kpi-value">@Model.TotalSalesThisMonth.ToString("C2")</p>
-            <div class="kpi-meta">Today <strong>@Model.TotalSalesToday.ToString("C2")</strong></div>
+            <p class="kpi-value">@Model.NetSalesThisMonth.ToString("C2")</p>
+            <div class="kpi-meta">Today <strong>@Model.NetSalesToday.ToString("C2")</strong></div>
         </a>
 
         <a asp-controller="Purchases" asp-action="Index" class="kpi kpi--purchases">
@@ -354,5 +358,5 @@
         </section>
     </div>
 
-    <p class="dash-footer-note mb-0">Amounts update when invoices and payments are finalized. Inventory is valued in base units.</p>
+    <p class="dash-footer-note mb-0">Net sales deduct returns in the same period. Amounts update when invoices, returns, and payments are finalized. Inventory is valued in base units.</p>
 </div>

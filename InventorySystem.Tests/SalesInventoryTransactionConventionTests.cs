@@ -35,7 +35,7 @@ namespace InventorySystem.Tests
             var context = GetInMemoryDbContext(dbName);
             var salesRepo = new SalesRepository(context);
             var promoService = new PromotionDiscountService(context);
-            var salesService = new SalesService(salesRepo, context, promoService, new FakeCompanyContext(1, "Co"), NullLogger<SalesService>.Instance);
+            var salesService = new SalesService(salesRepo, context, promoService, new FakeCompanyContext(1, "Co"), TestFifoHelper.CreateFifo(context), NullLogger<SalesService>.Instance);
 
             var customer = new Customer { CustomerID = 1, ShopName = "Txn Shop", Address = "1 St", IsActive = true };
             var warehouse = new Warehouse { WarehouseID = 1, Name = "Main Warehouse", IsActive = true };

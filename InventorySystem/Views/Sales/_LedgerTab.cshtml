@@ -21,8 +21,8 @@
                         <td>@item.TransactionDate.ToString("yyyy-MM-dd")</td>
                         <td><span class="badge bg-primary">@item.TransactionType</span></td>
                         <td>@(item.Description ?? "-")</td>
-                        <td class="text-end fw-bold text-danger">@(item.DebitAmount > 0 ? $"PKR {item.DebitAmount:N2}" : "-")</td>
-                        <td class="text-end fw-bold text-success">@(item.CreditAmount > 0 ? $"PKR {item.CreditAmount:N2}" : "-")</td>
+                        <td class="text-end fw-bold text-danger">PKR @item.DebitAmount.ToString("N2")</td>
+                        <td class="text-end fw-bold text-success">PKR @item.CreditAmount.ToString("N2")</td>
                         <td>@item.CreatedByUserName</td>
                     </tr>
                 }

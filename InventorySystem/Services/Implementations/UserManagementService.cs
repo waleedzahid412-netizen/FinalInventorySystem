@@ -20,15 +20,18 @@ namespace InventorySystem.Services.Implementations
     {
         private readonly IUserRepository _userRepository;
         private readonly ApplicationDbContext _context;
+        private readonly IPasswordPolicyValidator _passwordPolicyValidator;
         private readonly ILogger<UserManagementService> _logger;
 
         public UserManagementService(
             IUserRepository userRepository,
             ApplicationDbContext context,
+            IPasswordPolicyValidator passwordPolicyValidator,
             ILogger<UserManagementService> logger)
         {
             _userRepository = userRepository;
             _context = context;
+            _passwordPolicyValidator = passwordPolicyValidator;
             _logger = logger;
         }
 
@@ -82,6 +85,32 @@ namespace InventorySystem.Services.Implementations
             };
         }
 
+        public async Task<List<AssignableRoleDto>> GetAssignableRolesForActorAsync(
+            int actorUserId,
+            CancellationToken cancellationToken = default)
+        {
+            var actorIsAdmin = await ActorIsAdminAsync(actorUserId, cancellationToken);
+            var roles = await _userRepository.GetAssignableRolesAsync(cancellationToken);
+
+            if (actorIsAdmin)
+            {
+                return roles.Select(r => new AssignableRoleDto
+                {
+                    RoleID = r.RoleID,
+                    RoleName = r.RoleName
+                }).ToList();
+            }
+
+            return roles
+                .Where(r => !string.Equals(r.RoleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase))
+                .Select(r => new AssignableRoleDto
+                {
+                    RoleID = r.RoleID,
+                    RoleName = r.RoleName
+                })
+                .ToList();
+        }
+
         public async Task<OperationResult> CreateUserAsync(
             CreateUserDto dto,
             int actorUserId,
@@ -93,6 +122,7 @@ namespace InventorySystem.Services.Implementations
                 dto.Password,
                 dto.RoleID,
                 dto.CompanyIds,
+                actorUserId,
                 isPasswordRequired: true,
                 excludeUserId: null,
                 cancellationToken);
@@ -149,6 +179,7 @@ namespace InventorySystem.Services.Implementations
                 dto.NewPassword,
                 dto.RoleID,
                 dto.CompanyIds,
+                actorUserId,
                 isPasswordRequired: false,
                 excludeUserId: dto.UserID,
                 cancellationToken);
@@ -261,6 +292,7 @@ namespace InventorySystem.Services.Implementations
             string? password,
             int roleId,
             IReadOnlyList<int> companyIds,
+            int actorUserId,
             bool isPasswordRequired,
             int? excludeUserId,
             CancellationToken cancellationToken)
@@ -281,9 +313,9 @@ namespace InventorySystem.Services.Implementations
             {
                 errors.Add("Password is required.");
             }
-            else if (!string.IsNullOrWhiteSpace(password) && password!.Length < 6)
+            else if (!string.IsNullOrWhiteSpace(password))
             {
-                errors.Add("Password must be at least 6 characters.");
+                errors.AddRange(_passwordPolicyValidator.Validate(password!));
             }
 
             var roleName = await _context.Roles
@@ -296,10 +328,18 @@ namespace InventorySystem.Services.Implementations
             {
                 errors.Add("Selected role is invalid.");
             }
-            else if (!string.Equals(roleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase)
-                     && (companyIds == null || companyIds.Count == 0))
+            else
             {
-                errors.Add("Select at least one company for a User role account.");
+                var roleAssignmentError = await ValidateRoleAssignmentAsync(actorUserId, roleName, cancellationToken);
+                if (roleAssignmentError != null)
+                {
+                    errors.Add(roleAssignmentError);
+                }
+                else if (!string.Equals(roleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase)
+                         && (companyIds == null || companyIds.Count == 0))
+                {
+                    errors.Add("Select at least one company for a User role account.");
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(username)
@@ -325,6 +365,35 @@ namespace InventorySystem.Services.Implementations
             }
 
             return errors.Count > 0 ? OperationResult.Fail(errors) : OperationResult.Ok();
+        }
+
+        private async Task<bool> ActorIsAdminAsync(int actorUserId, CancellationToken cancellationToken)
+        {
+            var actorRoleName = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.UserID == actorUserId && u.IsActive)
+                .Select(u => u.Role.RoleName)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return string.Equals(actorRoleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<string?> ValidateRoleAssignmentAsync(
+            int actorUserId,
+            string targetRoleName,
+            CancellationToken cancellationToken)
+        {
+            if (!string.Equals(targetRoleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (await ActorIsAdminAsync(actorUserId, cancellationToken))
+            {
+                return null;
+            }
+
+            return "Only administrators can assign the Admin role.";
         }
 
         private async Task ReplaceCompanyPermissionsAsync(

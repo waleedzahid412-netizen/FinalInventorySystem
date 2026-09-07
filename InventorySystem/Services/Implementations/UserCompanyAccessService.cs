@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using InventorySystem.Constants;
 using InventorySystem.Data;
+using InventorySystem.Helpers;
 using InventorySystem.Services.Interfaces;
 
 namespace InventorySystem.Services.Implementations
@@ -27,13 +27,9 @@ namespace InventorySystem.Services.Implementations
 
         public int? GetCurrentUserId()
         {
-            var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim == null || !int.TryParse(claim.Value, out var userId) || userId <= 0)
-            {
-                return null;
-            }
-
-            return userId;
+            return CurrentUserHelper.TryGetUserId(_httpContextAccessor.HttpContext?.User, out var userId)
+                ? userId
+                : null;
         }
 
         public async Task<bool> IsCurrentUserAdminAsync(CancellationToken cancellationToken = default)

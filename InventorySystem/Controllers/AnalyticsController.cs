@@ -20,6 +20,7 @@ namespace InventorySystem.Controllers
         private readonly IAnalyticsRepository _analyticsRepository;
         private readonly ILookupService _lookupService;
         private readonly ICompanyContext _companyContext;
+        private readonly IUserCompanyAccessService _companyAccess;
         private readonly ILogger<AnalyticsController> _logger;
         private readonly IPdfService _pdfService;
 
@@ -28,6 +29,7 @@ namespace InventorySystem.Controllers
             IAnalyticsRepository analyticsRepository,
             ILookupService lookupService,
             ICompanyContext companyContext,
+            IUserCompanyAccessService companyAccess,
             ILogger<AnalyticsController> logger,
             IPdfService pdfService)
         {
@@ -35,6 +37,7 @@ namespace InventorySystem.Controllers
             _analyticsRepository = analyticsRepository;
             _lookupService = lookupService;
             _companyContext = companyContext;
+            _companyAccess = companyAccess;
             _logger = logger;
             _pdfService = pdfService;
         }
@@ -52,13 +55,18 @@ namespace InventorySystem.Controllers
 
         /// <summary>
         /// Pins AJAX filter company from ambient scope so the client cannot escape HasCompany.
-        /// All Companies forces null; unscoped leaves the body as-is.
+        /// All Companies forces null. Non-admin users without resolved scope are rejected.
         /// </summary>
-        private async Task ApplyAmbientCompanyScopeAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken)
+        private async Task<IActionResult?> ApplyAmbientCompanyScopeAsync(AnalyticsFilterDto filter, CancellationToken cancellationToken)
         {
-            if (!await _companyContext.TryResolveAsync(cancellationToken))
+            if (!await _companyContext.TryResolveAsync(cancellationToken) || !_companyContext.HasResolvedScope)
             {
-                return;
+                if (!await _companyAccess.IsCurrentUserAdminAsync(cancellationToken))
+                {
+                    return Unauthorized(new { success = false, message = "Select a company before viewing analytics." });
+                }
+
+                return null;
             }
 
             if (_companyContext.HasCompany)
@@ -69,6 +77,8 @@ namespace InventorySystem.Controllers
             {
                 filter.CompanyID = null;
             }
+
+            return null;
         }
 
         [HttpGet]
@@ -202,7 +212,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetOverview([FromBody] AnalyticsFilterDto filter, [FromQuery] string interval = "Daily", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetOverviewAsync(filter, interval, cancellationToken));
@@ -218,7 +230,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetKpiSummary([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetKpiSummaryAsync(filter, cancellationToken));
@@ -234,7 +248,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetSalesTrend([FromBody] AnalyticsFilterDto filter, [FromQuery] string interval = "Daily", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetSalesTrendAsync(filter, interval, cancellationToken));
@@ -250,7 +266,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetTopProducts([FromBody] AnalyticsFilterDto filter, [FromQuery] string sortBy = "Revenue", [FromQuery] int topCount = 10, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetTopProductsAsync(filter, sortBy, topCount, cancellationToken));
@@ -266,7 +284,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetTopCustomers([FromBody] AnalyticsFilterDto filter, [FromQuery] string sortBy = "Revenue", [FromQuery] int topCount = 10, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetTopCustomersAsync(filter, sortBy, topCount, cancellationToken));
@@ -282,7 +302,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetCategorySales([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetCategorySalesAsync(filter, cancellationToken));
@@ -298,7 +320,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetPaymentAnalytics([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetPaymentAnalyticsAsync(filter, cancellationToken));
@@ -314,7 +338,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetInventoryInsights([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetInventoryInsightsAsync(filter, cancellationToken));
@@ -330,7 +356,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetStockRiskItems([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetStockRiskItemsAsync(filter, cancellationToken));
@@ -346,7 +374,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetInventoryMovement([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetInventoryMovementAsync(filter, cancellationToken));
@@ -362,7 +392,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetPromotionPerformance([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetPromotionPerformanceAsync(filter, cancellationToken));
@@ -378,7 +410,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetTopCompanies([FromBody] AnalyticsFilterDto filter, [FromQuery] int topCount = 5, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetTopCompaniesAsync(filter, topCount, cancellationToken));
@@ -394,7 +428,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetBusinessInsights([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetBusinessInsightsAsync(filter, cancellationToken));
@@ -410,7 +446,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetSalesAnalytics([FromBody] AnalyticsFilterDto filter, [FromQuery] string interval = "Daily", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetSalesAnalyticsAsync(filter, interval, cancellationToken));
@@ -426,7 +464,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetSalesDrilldown([FromBody] AnalyticsFilterDto filter, [FromQuery] DateTime bucketStart, [FromQuery] DateTime bucketEnd, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetSalesDrilldownAsync(filter, bucketStart, bucketEnd, cancellationToken));
@@ -442,7 +482,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetCustomerAnalytics([FromBody] AnalyticsFilterDto filter, [FromQuery] string sortBy = "Revenue", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetCustomerAnalyticsAsync(filter, sortBy, cancellationToken));
@@ -458,7 +500,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetCustomerDetail([FromBody] AnalyticsFilterDto filter, [FromQuery] int id, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetCustomerDetailAsync(id, filter, cancellationToken));
@@ -474,7 +518,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetProductAnalytics([FromBody] AnalyticsFilterDto filter, [FromQuery] string sortBy = "Quantity", CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetProductAnalyticsAsync(filter, sortBy, cancellationToken));
@@ -490,7 +536,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetProductDetail([FromBody] AnalyticsFilterDto filter, [FromQuery] int id, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetProductDetailAsync(id, filter, cancellationToken));
@@ -506,7 +554,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetBookerAnalytics([FromBody] AnalyticsFilterDto filter, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             try
             {
                 return Json(await _analyticsService.GetBookerAnalyticsAsync(filter, cancellationToken));
@@ -522,7 +572,9 @@ namespace InventorySystem.Controllers
         public async Task<IActionResult> GetBookerDetail([FromBody] AnalyticsFilterDto filter, [FromQuery] int id, CancellationToken cancellationToken = default)
         {
             filter ??= new AnalyticsFilterDto();
-            await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+            if (scopeError != null)
+                return scopeError;
             int? bookerId = id == 0 ? null : id;
             try
             {
@@ -560,7 +612,9 @@ namespace InventorySystem.Controllers
                     BookerID = bookerId,
                     CompanyID = companyId
                 };
-                await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+                var scopeError = await ApplyAmbientCompanyScopeAsync(filter, cancellationToken);
+                if (scopeError != null)
+                    return scopeError;
 
                 var kpi = await _analyticsService.GetKpiSummaryAsync(filter, cancellationToken);
                 var inv = await _analyticsService.GetInventoryInsightsAsync(filter, cancellationToken);
@@ -592,10 +646,14 @@ namespace InventorySystem.Controllers
                 var companies = await _lookupService.GetCompaniesAsync(cancellationToken);
 
                 int? defaultCompanyId = null;
-                if (await _companyContext.TryResolveAsync(cancellationToken) && _companyContext.HasCompany)
+                await _companyContext.TryResolveAsync(cancellationToken);
+                if (_companyContext.HasCompany)
                 {
                     defaultCompanyId = _companyContext.CompanyID;
                 }
+
+                ViewBag.HideCompanyFilter = _companyContext.HasCompany;
+                ViewBag.ScopedCompanyName = _companyContext.HasCompany ? _companyContext.CompanyName : null;
 
                 ViewBag.Warehouses = warehouses.Select(w => new SelectListItem { Value = w.Id.ToString(), Text = w.Name }).ToList();
                 ViewBag.Customers = customers.Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Name }).ToList();
@@ -619,6 +677,8 @@ namespace InventorySystem.Controllers
                 ViewBag.Bookers = new List<SelectListItem>();
                 ViewBag.Companies = new List<SelectListItem>();
                 ViewBag.ShowBookerFilter = showBooker;
+                ViewBag.HideCompanyFilter = false;
+                ViewBag.ScopedCompanyName = null;
             }
         }
     }

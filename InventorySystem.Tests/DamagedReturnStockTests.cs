@@ -46,10 +46,10 @@ namespace InventorySystem.Tests
         {
             var context = GetInMemoryDbContext(dbName);
             var returnRepo = new ReturnRepository(context);
-            var returnService = new ReturnService(returnRepo, context, NullLogger<ReturnService>.Instance);
+            var returnService = new ReturnService(returnRepo, context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
             var salesRepo = new SalesRepository(context);
             var promoService = new PromotionDiscountService(context);
-            var salesService = new SalesService(salesRepo, context, promoService, new FakeCompanyContext(1, "Co"), NullLogger<SalesService>.Instance);
+            var salesService = new SalesService(salesRepo, context, promoService, new FakeCompanyContext(1, "Co"), TestFifoHelper.CreateFifo(context), NullLogger<SalesService>.Instance);
 
             var customer = new Customer { CustomerID = 1, ShopName = "Test Shop", Address = "123 St", IsActive = true };
             var warehouse = new Warehouse { WarehouseID = 1, Name = "Main Warehouse", IsActive = true };
@@ -427,7 +427,7 @@ namespace InventorySystem.Tests
         {
             var context = GetInMemoryDbContext(nameof(ManualDamagedReturn_IncreasesDamagedQuantityOnly));
             var returnRepo = new ReturnRepository(context);
-            var service = new ReturnService(returnRepo, context, NullLogger<ReturnService>.Instance);
+            var service = new ReturnService(returnRepo, context, TestFifoHelper.CreateFifo(context), NullLogger<ReturnService>.Instance);
 
             var customer = new Customer { CustomerID = 1, ShopName = "Shop", IsActive = true };
             var warehouse = new Warehouse { WarehouseID = 1, Name = "WH", IsActive = true };

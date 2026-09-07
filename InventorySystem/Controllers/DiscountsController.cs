@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -18,7 +17,7 @@ namespace InventorySystem.Controllers
 {
     [Authorize]
     [RequireCompanyScope]
-    public class DiscountsController : Controller
+    public class DiscountsController : InventoryController
     {
         private readonly ApplicationDbContext _context;
         private readonly ICompanyContext _companyContext;
@@ -131,7 +130,7 @@ namespace InventorySystem.Controllers
                 return View(model);
             }
 
-            int userId = GetUserId();
+            int userId = GetCurrentUserId();
 
             var rule = new DiscountRule
             {
@@ -253,16 +252,6 @@ namespace InventorySystem.Controllers
             string statusStr = rule.IsActive ? "enabled" : "disabled";
             TempData["SuccessMessage"] = $"Discount rule '{rule.RuleName}' has been {statusStr}.";
             return RedirectToAction(nameof(Index));
-        }
-
-        private int GetUserId()
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim != null && int.TryParse(claim.Value, out int userId))
-            {
-                return userId;
-            }
-            return 1;
         }
     }
 }

@@ -18,11 +18,16 @@ namespace InventorySystem.Services.Implementations
     {
         private readonly IPurchaseRepository _purchaseRepository;
         private readonly ApplicationDbContext _dbContext;
+        private readonly IFifoCostingService _fifoCostingService;
 
-        public PurchaseService(IPurchaseRepository purchaseRepository, ApplicationDbContext dbContext)
+        public PurchaseService(
+            IPurchaseRepository purchaseRepository,
+            ApplicationDbContext dbContext,
+            IFifoCostingService fifoCostingService)
         {
             _purchaseRepository = purchaseRepository;
             _dbContext = dbContext;
+            _fifoCostingService = fifoCostingService;
         }
 
         public async Task<OperationResult<int>> CreateAndFinalizePurchaseInvoiceAsync(CreatePurchaseInvoiceDto dto, int userId, CancellationToken cancellationToken = default)
@@ -60,78 +65,76 @@ namespace InventorySystem.Services.Implementations
             }
 
             // System invoice number is always auto-generated; manual field is SupplierInvoiceNumber.
-            string invoiceNumber = $"PINV-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
-            while (await _purchaseRepository.ExistsByInvoiceNumberAsync(invoiceNumber, null, cancellationToken))
-            {
-                invoiceNumber = $"PINV-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
-            }
-
             string? supplierInvoiceNumber = string.IsNullOrWhiteSpace(dto.SupplierInvoiceNumber)
                 ? null
                 : dto.SupplierInvoiceNumber.Trim();
 
-            // Begin single atomic transaction spanning EF Core context session
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-            try
+            // Prepare item snapshots and unit conversion math using centralized helper
+            decimal grandTotal = 0m;
+            var itemSnapshots = new List<PurchaseInvoiceItem>();
+            var itemTransactionList = new List<(PurchaseInvoiceItem Item, decimal ConvertedQty, decimal ConversionToBase)>();
+
+            foreach (var itemDto in dto.Items)
             {
-                // Prepare item snapshots and unit conversion math using centralized helper
-                decimal grandTotal = 0m;
-                var itemSnapshots = new List<PurchaseInvoiceItem>();
-                var itemTransactionList = new List<(PurchaseInvoiceItem Item, decimal ConvertedQty)>();
-
-                foreach (var itemDto in dto.Items)
+                if (itemDto.ProductID <= 0)
                 {
-                    if (itemDto.ProductID <= 0)
-                    {
-                        return OperationResult<int>.Fail("Line item contains an invalid Product ID.");
-                    }
-
-                    if (itemDto.Quantity <= 0)
-                    {
-                        return OperationResult<int>.Fail("Line item quantity must be greater than zero.");
-                    }
-
-                    if (itemDto.UnitCost < 0)
-                    {
-                        return OperationResult<int>.Fail("Line item unit cost cannot be negative.");
-                    }
-
-                    if (!await _purchaseRepository.ProductExistsAsync(itemDto.ProductID, cancellationToken))
-                    {
-                        return OperationResult<int>.Fail($"Product ID {itemDto.ProductID} does not exist or is inactive.");
-                    }
-
-                    var productUnit = await _purchaseRepository.GetProductUnitAsync(itemDto.ProductUnitID, cancellationToken);
-                    if (productUnit == null || productUnit.ProductID != itemDto.ProductID)
-                    {
-                        return OperationResult<int>.Fail($"Selected unit is not valid for Product ID {itemDto.ProductID}.");
-                    }
-
-                    // ===== 3. CENTRALIZED UNIT CONVERSION =====
-                    decimal convertedQuantity = UnitConversionHelper.ToBaseUnits(itemDto.Quantity, productUnit.ConversionToBaseUnit);
-
-                    // ===== 4. CALCULATE TOTALS =====
-                    decimal totalCost = Math.Round(itemDto.Quantity * itemDto.UnitCost, 2, MidpointRounding.AwayFromZero);
-                    grandTotal += totalCost;
-
-                    var invoiceItem = new PurchaseInvoiceItem
-                    {
-                        ProductID = itemDto.ProductID,
-                        ProductUnitID = itemDto.ProductUnitID,
-                        Quantity = itemDto.Quantity,
-                        ConvertedQuantity = convertedQuantity,
-                        UnitCost = itemDto.UnitCost,
-                        TotalCost = totalCost,
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow,
-                        CreatedBy = userId,
-                        IsDeleted = false
-                    };
-
-                    itemSnapshots.Add(invoiceItem);
-                    itemTransactionList.Add((invoiceItem, convertedQuantity));
+                    return OperationResult<int>.Fail("Line item contains an invalid Product ID.");
                 }
 
+                if (itemDto.Quantity <= 0)
+                {
+                    return OperationResult<int>.Fail("Line item quantity must be greater than zero.");
+                }
+
+                if (itemDto.UnitCost < 0)
+                {
+                    return OperationResult<int>.Fail("Line item unit cost cannot be negative.");
+                }
+
+                if (!await _purchaseRepository.ProductExistsAsync(itemDto.ProductID, cancellationToken))
+                {
+                    return OperationResult<int>.Fail($"Product ID {itemDto.ProductID} does not exist or is inactive.");
+                }
+
+                var productUnit = await _purchaseRepository.GetProductUnitAsync(itemDto.ProductUnitID, cancellationToken);
+                if (productUnit == null || productUnit.ProductID != itemDto.ProductID)
+                {
+                    return OperationResult<int>.Fail($"Selected unit is not valid for Product ID {itemDto.ProductID}.");
+                }
+
+                // ===== 3. CENTRALIZED UNIT CONVERSION =====
+                decimal convertedQuantity = UnitConversionHelper.ToBaseUnits(itemDto.Quantity, productUnit.ConversionToBaseUnit);
+
+                // ===== 4. CALCULATE TOTALS =====
+                decimal totalCost = Math.Round(itemDto.Quantity * itemDto.UnitCost, 2, MidpointRounding.AwayFromZero);
+                grandTotal += totalCost;
+
+                var invoiceItem = new PurchaseInvoiceItem
+                {
+                    ProductID = itemDto.ProductID,
+                    ProductUnitID = itemDto.ProductUnitID,
+                    Quantity = itemDto.Quantity,
+                    ConvertedQuantity = convertedQuantity,
+                    UnitCost = itemDto.UnitCost,
+                    TotalCost = totalCost,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = userId,
+                    IsDeleted = false
+                };
+
+                itemSnapshots.Add(invoiceItem);
+                itemTransactionList.Add((invoiceItem, convertedQuantity, productUnit.ConversionToBaseUnit));
+            }
+
+            const int maxInvoiceNumberAttempts = 5;
+            for (int attempt = 1; attempt <= maxInvoiceNumberAttempts; attempt++)
+            {
+                string invoiceNumber = await _purchaseRepository.GenerateNextPurchaseInvoiceNumberAsync(cancellationToken);
+
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+                try
+                {
                 // ===== 5. CREATE PURCHASE INVOICE HEADER =====
                 var invoice = new PurchaseInvoice
                 {
@@ -196,7 +199,7 @@ namespace InventorySystem.Services.Implementations
                     }
                 }
 
-                // ===== 8. CREATE INVENTORY TRANSACTIONS (One per line item) =====
+                // ===== 8. CREATE INVENTORY TRANSACTIONS & FIFO COST LAYERS (One per line item) =====
                 foreach (var tuple in itemTransactionList)
                 {
                     var invTx = new InventoryTransaction
@@ -214,6 +217,14 @@ namespace InventorySystem.Services.Implementations
                     };
 
                     await _purchaseRepository.AddInventoryTransactionAsync(invTx, cancellationToken);
+
+                    await _fifoCostingService.CreateLayerFromPurchaseAsync(
+                        tuple.Item,
+                        dto.WarehouseID,
+                        invoice.InvoiceDate,
+                        tuple.ConversionToBase,
+                        userId,
+                        cancellationToken);
                 }
 
                 // ===== 9. CREATE COMPANY LEDGER ENTRY =====
@@ -239,12 +250,25 @@ namespace InventorySystem.Services.Implementations
                 await transaction.CommitAsync(cancellationToken);
 
                 return OperationResult<int>.Ok(invoice.PurchaseInvoiceID, "Purchase Invoice finalized successfully.");
+                }
+                catch (Exception ex) when (attempt < maxInvoiceNumberAttempts && DbExceptionHelper.IsUniqueConstraintViolation(ex))
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    _dbContext.ChangeTracker.Clear();
+                    foreach (var item in itemSnapshots)
+                    {
+                        item.PurchaseItemID = 0;
+                        item.PurchaseInvoiceID = 0;
+                    }
+                }
+                catch (Exception)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return OperationResult<int>.Fail(UserFacingErrorMessages.PurchaseFinalizeFailed);
+                }
             }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                return OperationResult<int>.Fail($"Failed to finalize purchase invoice: {ex.Message}");
-            }
+
+            return OperationResult<int>.Fail("Could not assign a unique invoice number. Please try again.");
         }
 
         public async Task<PagedResult<PurchaseListDto>> GetPagedPurchasesAsync(PurchaseFilterDto filter, CancellationToken cancellationToken = default)
@@ -367,20 +391,47 @@ namespace InventorySystem.Services.Implementations
 
             decimal newGrandTotal = newSubTotal;
             var now = DateTime.UtcNow;
+            var oldActiveItems = invoice.Items.Where(i => !i.IsDeleted).ToList();
+
+            foreach (var oldItem in oldActiveItems)
+            {
+                var reversalCheck = await ValidatePurchaseLineReversalAsync(
+                    oldItem, invoice.WarehouseID, cancellationToken);
+                if (!reversalCheck.Success)
+                {
+                    return OperationResult<int>.Fail(reversalCheck.Message);
+                }
+            }
 
             using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                // Step 1: REVERSE PREVIOUS STOCK ADDITIONS (Deduct previously added stock)
-                var oldActiveItems = invoice.Items.Where(i => !i.IsDeleted).ToList();
+                // Step 1: REVERSE PREVIOUS STOCK ADDITIONS & FIFO LAYERS
                 foreach (var oldItem in oldActiveItems)
                 {
-                    var stock = await _purchaseRepository.GetInventoryStockTrackedAsync(oldItem.ProductID, invoice.WarehouseID, cancellationToken);
-                    if (stock != null)
+                    var layerResult = await _fifoCostingService.ReversePurchaseLayerAsync(
+                        oldItem.PurchaseItemID, oldItem.ConvertedQuantity, userId, cancellationToken);
+                    if (!layerResult.Success)
                     {
-                        stock.Quantity -= oldItem.ConvertedQuantity; // Deduct previous addition
-                        stock.UpdatedAt = now;
+                        await transaction.RollbackAsync(cancellationToken);
+                        return OperationResult<int>.Fail(layerResult.Message);
                     }
+
+                    var stock = await _purchaseRepository.GetInventoryStockTrackedAsync(oldItem.ProductID, invoice.WarehouseID, cancellationToken);
+                    if (stock == null || stock.Quantity < oldItem.ConvertedQuantity)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        var productName = await GetProductNameAsync(oldItem.ProductID, cancellationToken);
+                        decimal availableStock = stock?.Quantity ?? 0m;
+                        return OperationResult<int>.Fail(string.Format(
+                            UserFacingErrorMessages.PurchaseEditInsufficientStock,
+                            productName,
+                            availableStock,
+                            oldItem.ConvertedQuantity));
+                    }
+
+                    stock.Quantity -= oldItem.ConvertedQuantity;
+                    stock.UpdatedAt = now;
                 }
 
                 // Step 2: APPLY NEW STOCK ADDITION
@@ -462,6 +513,14 @@ namespace InventorySystem.Services.Implementations
                         IsDeleted = false
                     };
                     await _purchaseRepository.AddInventoryTransactionAsync(newTx, cancellationToken);
+
+                    await _fifoCostingService.CreateLayerFromPurchaseAsync(
+                        newItem,
+                        invoice.WarehouseID,
+                        dto.InvoiceDate,
+                        tuple.Unit.ConversionToBaseUnit,
+                        userId,
+                        cancellationToken);
                 }
 
                 // Step 6: UPDATE INVOICE HEADER & METADATA (IMMUTABLE FIELDS PRESERVED: CompanyID, WarehouseID, InvoiceNumber)
@@ -472,14 +531,13 @@ namespace InventorySystem.Services.Implementations
                 invoice.UpdatedAt = now;
                 invoice.UpdatedBy = userId;
 
-                // Step 7: UPDATE EXISTING COMPANY LEDGER ENTRY
-                var ledgerEntry = await _dbContext.CompanyLedgers
-                    .FirstOrDefaultAsync(l => l.PurchaseInvoiceID == invoice.PurchaseInvoiceID && l.TransactionType == "PURCHASE", cancellationToken);
-
-                if (ledgerEntry != null)
+                // Step 7: APPEND-ONLY COMPANY LEDGER CORRECTION (BR-002 — never mutate original PURCHASE row)
+                var ledgerCorrections = new List<CompanyLedger>();
+                LedgerAppendHelper.AppendPurchaseInvoiceCorrection(
+                    invoice, oldGrandTotal, newGrandTotal, dto.InvoiceDate, userId, now, ledgerCorrections);
+                foreach (var entry in ledgerCorrections)
                 {
-                    ledgerEntry.CreditAmount = newGrandTotal;
-                    ledgerEntry.TransactionDate = dto.InvoiceDate;
+                    await _dbContext.CompanyLedgers.AddAsync(entry, cancellationToken);
                 }
 
                 // Step 8: LOG EXPANDED IMMUTABLE INVOICE EDIT AUDIT RECORD
@@ -513,11 +571,59 @@ namespace InventorySystem.Services.Implementations
                 await transaction.RollbackAsync(cancellationToken);
                 return OperationResult<int>.Fail("This invoice has already been modified by another user. Please refresh and try again.");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return OperationResult<int>.Fail($"Failed to update purchase invoice: {ex.Message}");
+                return OperationResult<int>.Fail(UserFacingErrorMessages.PurchaseUpdateFailed);
             }
+        }
+
+        private async Task<OperationResult> ValidatePurchaseLineReversalAsync(
+            PurchaseInvoiceItem oldItem,
+            int warehouseId,
+            CancellationToken cancellationToken)
+        {
+            var layer = await _dbContext.InventoryCostLayers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    l => l.PurchaseInvoiceItemID == oldItem.PurchaseItemID && !l.IsDeleted,
+                    cancellationToken);
+
+            if (layer == null)
+            {
+                return OperationResult.Fail(UserFacingErrorMessages.PurchaseEditMissingCostLayer);
+            }
+
+            if (layer.RemainingQuantity < oldItem.ConvertedQuantity)
+            {
+                decimal soldBaseUnits = oldItem.ConvertedQuantity - layer.RemainingQuantity;
+                return OperationResult.Fail(UserFacingErrorMessages.PurchaseEditBatchAlreadySold(soldBaseUnits));
+            }
+
+            var stock = await _purchaseRepository.GetInventoryStockTrackedAsync(
+                oldItem.ProductID, warehouseId, cancellationToken);
+            decimal availableStock = stock?.Quantity ?? 0m;
+
+            if (availableStock < oldItem.ConvertedQuantity)
+            {
+                var productName = await GetProductNameAsync(oldItem.ProductID, cancellationToken);
+                return OperationResult.Fail(string.Format(
+                    UserFacingErrorMessages.PurchaseEditInsufficientStock,
+                    productName,
+                    availableStock,
+                    oldItem.ConvertedQuantity));
+            }
+
+            return OperationResult.Ok();
+        }
+
+        private async Task<string> GetProductNameAsync(int productId, CancellationToken cancellationToken)
+        {
+            return await _dbContext.Products
+                .AsNoTracking()
+                .Where(p => p.ProductID == productId)
+                .Select(p => p.ProductName)
+                .FirstOrDefaultAsync(cancellationToken) ?? $"Product #{productId}";
         }
     }
 }

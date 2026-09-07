@@ -9,76 +9,66 @@
     var companies = await LookupService.GetCompaniesAsync();
     var canUseAllCompanies = await CompanyAccess.IsCurrentUserAdminAsync();
     var returnUrl = Context.Request.Path + Context.Request.QueryString;
-    var hasResolved = CompanyContext.HasResolvedScope;
-    var currentValue = CompanyContext.IsAllCompanies
-        ? CompanyScopeController.AllCompaniesCompanyId.ToString()
-        : (CompanyContext.HasCompany ? CompanyContext.CompanyID.ToString() : "");
     var displayLabel = CompanyContext.IsAllCompanies
         ? "All Companies"
         : (CompanyContext.HasCompany ? CompanyContext.CompanyName : "Select company");
 }
 
 <div id="companyScopePicker" class="company-scope-picker d-flex align-items-center">
-    @if (!hasResolved)
-    {
-        <a class="btn btn-sm btn-warning fw-semibold"
-           asp-controller="CompanyScope"
-           asp-action="Select"
-           asp-route-returnUrl="@returnUrl"
-           title="Select a company to continue">
-            <i class="bi bi-building-exclamation me-1"></i> Select company
-        </a>
-    }
-    else
-    {
-        <form asp-controller="CompanyScope" asp-action="Switch" method="post" id="companyScopeSwitchForm" class="mb-0">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="returnUrl" value="@returnUrl" />
-            <label class="visually-hidden" for="companyScopeSelect">Working company</label>
-            <select id="companyScopeSelect"
-                    name="companyId"
-                    class="form-select form-select-sm company-scope-select"
-                    data-no-select2="true"
-                    data-placeholder="Search company..."
-                    data-allow-clear="false"
-                    title="Working company"
-                    aria-label="Working company">
-                @foreach (var company in companies)
+    <form asp-controller="CompanyScope" asp-action="Switch" method="post" id="companyScopeSwitchForm" class="mb-0">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="returnUrl" value="@returnUrl" />
+        <label class="visually-hidden" for="companyScopeSelect">Working company</label>
+        <select id="companyScopeSelect"
+                name="companyId"
+                class="form-select form-select-sm company-scope-select @(CompanyContext.HasResolvedScope ? "" : "company-scope-select--unscoped")"
+                data-no-select2="true"
+                data-placeholder="Select company..."
+                data-allow-clear="false"
+                title="Working company"
+                aria-label="Working company">
+            @if (!CompanyContext.HasResolvedScope)
+            {
+                <option value="" disabled selected hidden>Select company...</option>
+            }
+            @foreach (var company in companies)
+            {
+                if (CompanyContext.HasCompany && company.Id == CompanyContext.CompanyID)
                 {
-                    if (CompanyContext.HasCompany && company.Id == CompanyContext.CompanyID)
-                    {
-                        <option value="@company.Id" selected="selected">@company.Name</option>
-                    }
-                    else
-                    {
-                        <option value="@company.Id">@company.Name</option>
-                    }
+                    <option value="@company.Id" selected="selected">@company.Name</option>
                 }
-                @if (canUseAllCompanies)
+                else
                 {
-                    @if (CompanyContext.IsAllCompanies)
-                    {
-                        <option value="@CompanyScopeController.AllCompaniesCompanyId" data-all-companies="true" selected="selected">
-                            All Companies
-                        </option>
-                    }
-                    else
-                    {
-                        <option value="@CompanyScopeController.AllCompaniesCompanyId" data-all-companies="true">
-                            All Companies
-                        </option>
-                    }
+                    <option value="@company.Id">@company.Name</option>
                 }
-            </select>
-        </form>
-        <span class="visually-hidden" id="companyScopeCurrentLabel">@displayLabel</span>
-    }
+            }
+            @if (canUseAllCompanies)
+            {
+                @if (CompanyContext.IsAllCompanies)
+                {
+                    <option value="@CompanyScopeController.AllCompaniesCompanyId" data-all-companies="true" selected="selected">
+                        All Companies
+                    </option>
+                }
+                else
+                {
+                    <option value="@CompanyScopeController.AllCompaniesCompanyId" data-all-companies="true">
+                        All Companies
+                    </option>
+                }
+            }
+        </select>
+    </form>
+    <span class="visually-hidden" id="companyScopeCurrentLabel">@displayLabel</span>
 </div>
 
 <style>
     #companyScopePicker .company-scope-select {
         min-width: 11rem;
         max-width: 16rem;
+    }
+    #companyScopePicker .company-scope-select--unscoped {
+        border-color: var(--bs-warning);
     }
     #companyScopePicker .select2-container {
         min-width: 11rem;
@@ -88,6 +78,11 @@
         font-weight: 600;
         border-color: var(--bs-primary);
         color: var(--bs-primary);
+    }
+    #companyScopePicker .company-scope-select--unscoped + .select2-container--bootstrap-5 .select2-selection,
+    #companyScopePicker .select2-container--bootstrap-5.company-scope-unscoped .select2-selection {
+        border-color: var(--bs-warning);
+        color: var(--bs-warning);
     }
     #companyScopePicker .select2-results__option[data-all-companies="true"],
     #companyScopePicker .select2-results__option--all-companies {
@@ -131,7 +126,7 @@
             $select.select2({
                 theme: 'bootstrap-5',
                 width: 'style',
-                placeholder: 'Search company...',
+                placeholder: 'Select company...',
                 allowClear: false,
                 dropdownParent: jQuery(document.body),
                 matcher: function (params, data) {
@@ -159,9 +154,13 @@
                 }
             });
 
+            if ($select.hasClass('company-scope-select--unscoped')) {
+                $select.next('.select2-container').addClass('company-scope-unscoped');
+            }
+
             $select.off('change.companyScope').on('change.companyScope', function () {
                 var next = $select.val();
-                if (next === initialValue) {
+                if (!next || next === initialValue) {
                     return;
                 }
                 if (!confirmUnsaved()) {
@@ -173,7 +172,7 @@
         }
 
         function onNativeChange() {
-            if (select.value === initialValue) {
+            if (!select.value || select.value === initialValue) {
                 return;
             }
             if (!confirmUnsaved()) {
@@ -183,7 +182,6 @@
             form.submit();
         }
 
-        // Select2 CDN loads after this partial in _Layout — poll until available.
         (function waitForSelect2(attempts) {
             if (window.jQuery && jQuery.fn.select2) {
                 wireSelect2();
