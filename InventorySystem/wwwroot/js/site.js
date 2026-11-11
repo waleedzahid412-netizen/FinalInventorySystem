@@ -373,27 +373,72 @@
         cloneClean: cloneClean
     };
 
+    var toastDefaults = {
+        success: { delay: 3000, live: 'polite', role: 'status', sticky: false },
+        info: { delay: 4000, live: 'polite', role: 'status', sticky: false },
+        warning: { delay: 5000, live: 'assertive', role: 'alert', sticky: true },
+        danger: { delay: 6000, live: 'assertive', role: 'alert', sticky: true }
+    };
+
+    function normalizeToastType(type) {
+        var value = String(type || 'danger').toLowerCase();
+        if (value === 'error') {
+            return 'danger';
+        }
+        return toastDefaults[value] ? value : 'danger';
+    }
+
     window.WimsToast = {
-        show: function (message, type) {
-            type = type || 'danger';
+        show: function (message, type, options) {
+            options = options || {};
+            type = normalizeToastType(type);
+
             var container = document.getElementById('wimsToastContainer');
             if (!container || !window.bootstrap) {
+                if (window.console) {
+                    console.warn('WimsToast could not render:', message);
+                }
                 return;
             }
 
-            var toastEl = document.createElement('div');
-            toastEl.className = 'toast align-items-center text-bg-' + type + ' border-0 shadow';
-            toastEl.setAttribute('role', 'alert');
-            toastEl.setAttribute('aria-live', 'assertive');
-            toastEl.setAttribute('aria-atomic', 'true');
-            toastEl.innerHTML =
-                '<div class="d-flex">' +
-                '<div class="toast-body">' + String(message || 'Something went wrong.') + '</div>' +
-                '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>' +
-                '</div>';
+            while (container.children.length >= 4) {
+                container.removeChild(container.firstElementChild);
+            }
 
+            var defaults = toastDefaults[type];
+            var lightToast = type === 'warning' || type === 'info' || type === 'light';
+            var toastEl = document.createElement('div');
+            toastEl.className = 'toast wims-toast align-items-center border-0 shadow bg-' + type +
+                (lightToast ? ' text-dark' : ' text-white');
+            toastEl.setAttribute('role', defaults.role);
+            toastEl.setAttribute('aria-live', defaults.live);
+            toastEl.setAttribute('aria-atomic', 'true');
+
+            var flex = document.createElement('div');
+            flex.className = 'd-flex';
+
+            var body = document.createElement('div');
+            body.className = 'toast-body';
+            body.textContent = String(message || 'Something went wrong.');
+
+            var close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'btn-close me-2 m-auto' + (lightToast ? '' : ' btn-close-white');
+            close.setAttribute('data-bs-dismiss', 'toast');
+            close.setAttribute('aria-label', 'Close');
+
+            flex.appendChild(body);
+            flex.appendChild(close);
+            toastEl.appendChild(flex);
             container.appendChild(toastEl);
-            var toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3000 });
+
+            var sticky = options.sticky === true || (options.sticky !== false && defaults.sticky === true);
+            var delay = typeof options.delay === 'number' ? options.delay : defaults.delay;
+            var toast = bootstrap.Toast.getOrCreateInstance(toastEl, {
+                animation: true,
+                autohide: !sticky,
+                delay: delay
+            });
             toastEl.addEventListener('hidden.bs.toast', function () {
                 toastEl.remove();
             });
@@ -401,18 +446,260 @@
         }
     };
 
+    function showNotification(level, message, options) {
+        var type = level === 'error' ? 'danger' : level;
+        window.WimsToast.show(message, type, options);
+    }
+
+    window.WimsNotify = {
+        show: showNotification,
+        success: function (message, options) { showNotification('success', message, options); },
+        error: function (message, options) { showNotification('error', message, options); },
+        warning: function (message, options) { showNotification('warning', message, options); },
+        info: function (message, options) { showNotification('info', message, options); },
+
+        // Stores a message that should survive a full page reload.
+        flash: function (message, type) {
+            try {
+                window.sessionStorage.setItem('wims:flash', JSON.stringify({
+                    message: String(message || ''),
+                    type: normalizeToastType(type),
+                    createdAt: Date.now()
+                }));
+            } catch (e) {
+                // Session storage can be unavailable in private browsing; ignore.
+            }
+        },
+
+        consumeFlash: function () {
+            try {
+                var raw = window.sessionStorage.getItem('wims:flash');
+                if (!raw) {
+                    return;
+                }
+                window.sessionStorage.removeItem('wims:flash');
+                var data = JSON.parse(raw);
+                if (!data || !data.message || (Date.now() - Number(data.createdAt || 0)) > 60000) {
+                    return;
+                }
+                window.WimsToast.show(data.message, data.type, { delay: 4500 });
+            } catch (e) {
+                // Ignore malformed or unavailable session storage.
+            }
+        }
+    };
+
+    // Initialize toasts emitted by the server-side _FlashMessages partial.
+    function initServerToasts() {
+        document.querySelectorAll('[data-wims-toast]').forEach(function (el) {
+            var message = el.getAttribute('data-wims-toast-message');
+            var type = el.getAttribute('data-wims-toast-type') || 'danger';
+            el.remove();
+            if (message) {
+                window.WimsToast.show(message, type);
+            }
+        });
+    }
+
+    // Promise-based Bootstrap confirmation dialog. The markup lives in _ConfirmModal.cshtml.
+    (function initDialog() {
+        var modalEl = document.getElementById('wimsConfirmModal');
+        if (!modalEl || !window.bootstrap) {
+            window.WimsDialog = {
+                confirm: function () {
+                    if (window.console) {
+                        console.error('WimsDialog is unavailable because the confirmation modal is missing.');
+                    }
+                    return Promise.resolve(false);
+                }
+            };
+            return;
+        }
+
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        var titleEl = document.getElementById('wimsConfirmTitle');
+        var headerEl = document.getElementById('wimsConfirmHeader');
+        var messageEl = document.getElementById('wimsConfirmMessage');
+        var detailsEl = document.getElementById('wimsConfirmDetails');
+        var okButton = document.getElementById('wimsConfirmOk');
+        var cancelButton = document.getElementById('wimsConfirmCancel');
+        var pending = null;
+        var trigger = null;
+
+        function settle(result) {
+            if (!pending) {
+                return;
+            }
+            var resolve = pending;
+            pending = null;
+            resolve(result);
+        }
+
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            settle(false);
+            if (trigger && document.body.contains(trigger)) {
+                trigger.focus();
+            }
+            trigger = null;
+        });
+
+        okButton.addEventListener('click', function () {
+            settle(true);
+            modal.hide();
+        });
+
+        window.WimsDialog = {
+            confirm: function (options) {
+                options = options || {};
+                if (pending) {
+                    settle(false);
+                }
+
+                trigger = document.activeElement;
+                titleEl.textContent = options.title || 'Confirm action';
+                messageEl.textContent = options.message || 'Are you sure you want to continue?';
+                cancelButton.textContent = options.cancelText || 'Cancel';
+                okButton.textContent = options.confirmText || 'Confirm';
+
+                detailsEl.innerHTML = '';
+                var details = options.details || [];
+                details.forEach(function (detail) {
+                    var item = document.createElement('li');
+                    item.textContent = String(detail);
+                    detailsEl.appendChild(item);
+                });
+                detailsEl.classList.toggle('d-none', details.length === 0);
+
+                var variant = options.variant || 'primary';
+                headerEl.className = 'modal-header ' +
+                    (variant === 'danger' ? 'bg-danger text-white' :
+                        variant === 'warning' ? 'bg-warning text-dark' : 'bg-primary text-white');
+                okButton.className = 'btn ' +
+                    (variant === 'danger' ? 'btn-danger' :
+                        variant === 'warning' ? 'btn-warning' : 'btn-primary');
+
+                var promise = new Promise(function (resolve) {
+                    pending = resolve;
+                });
+                modal.show();
+                return promise;
+            }
+        };
+    })();
+
+    // Any form can opt into the shared confirmation dialog with data-wims-confirm="...".
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.dataset.wimsConfirm) {
+            return;
+        }
+        if (form.dataset.wimsConfirmed === '1') {
+            return;
+        }
+
+        event.preventDefault();
+        window.WimsDialog.confirm({
+            title: form.dataset.wimsConfirmTitle || 'Confirm action',
+            message: form.dataset.wimsConfirm,
+            confirmText: form.dataset.wimsConfirmText || 'Confirm',
+            variant: form.dataset.wimsConfirmVariant || 'danger'
+        }).then(function (confirmed) {
+            if (!confirmed) {
+                return;
+            }
+            form.dataset.wimsConfirmed = '1';
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+        });
+    });
+
+    function responseJson(xhr) {
+        if (!xhr) {
+            return null;
+        }
+        if (xhr.responseJSON) {
+            return xhr.responseJSON;
+        }
+        try {
+            return xhr.responseText ? JSON.parse(xhr.responseText) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function firstError(data) {
+        if (!data) {
+            return null;
+        }
+        if (typeof data.message === 'string' && data.message) {
+            return data.message;
+        }
+        if (Array.isArray(data.errors) && data.errors.length) {
+            return data.errors.join(' ');
+        }
+        if (data.errors && typeof data.errors === 'object') {
+            var values = Object.keys(data.errors).reduce(function (all, key) {
+                var item = data.errors[key];
+                return all.concat(Array.isArray(item) ? item : [item]);
+            }, []);
+            if (values.length) {
+                return values.join(' ');
+            }
+        }
+        return data.title || data.detail || null;
+    }
+
+    window.WimsAjax = {
+        messageFrom: function (xhr, fallback) {
+            var data = responseJson(xhr);
+            return firstError(data) || fallback || 'Something went wrong. Please try again.';
+        },
+
+        handleError: function (xhr, fallback) {
+            var status = xhr && xhr.status ? xhr.status : 0;
+            var message = firstError(responseJson(xhr));
+
+            if (status === 0) {
+                message = 'Unable to reach the server. Check your connection and try again.';
+            } else if (!message) {
+                if (status === 401) {
+                    message = 'Your session has expired. Please sign in again.';
+                } else if (status === 403) {
+                    message = 'You do not have permission to perform this action.';
+                } else if (status === 404) {
+                    message = 'The requested record was not found.';
+                } else if (status >= 500) {
+                    message = 'Something went wrong. Please try again.';
+                } else {
+                    message = fallback || 'Something went wrong. Please try again.';
+                }
+            }
+
+            if (window.console) {
+                console.error('AJAX request failed', status, xhr && xhr.responseText);
+            }
+            window.WimsNotify.error(message);
+            return message;
+        }
+    };
+
     /**
-     * Auto-dismiss flash banners (success, error, warning, etc.) after a short delay.
-     * Only targets .alert-dismissible so form validation / static info alerts stay put.
+     * Auto-dismiss success/info banners only. Errors and warnings stay until dismissed.
      */
     function autoDismissAlerts(delayMs) {
-        delayMs = typeof delayMs === 'number' ? delayMs : 3000;
+        delayMs = typeof delayMs === 'number' ? delayMs : 5000;
         if (!window.bootstrap || !bootstrap.Alert) {
             return;
         }
 
         document.querySelectorAll('.alert.alert-dismissible').forEach(function (el) {
-            if (el.dataset.wimsAutoDismiss === '1') {
+            if (el.dataset.wimsAutoDismiss === '1' || el.dataset.wimsPersist === 'true') {
+                return;
+            }
+            if (el.classList.contains('alert-danger') || el.classList.contains('alert-warning')) {
                 return;
             }
             el.dataset.wimsAutoDismiss = '1';
@@ -429,6 +716,8 @@
     $(function () {
         init(document);
         observeNewSelects();
-        autoDismissAlerts(3000);
+        initServerToasts();
+        window.WimsNotify.consumeFlash();
+        autoDismissAlerts(5000);
     });
 })(window, window.jQuery);

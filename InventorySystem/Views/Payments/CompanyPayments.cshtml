@@ -381,6 +381,7 @@
 
                     if (data.success) {
                         companyModal.hide();
+                        window.WimsNotify.flash(data.message || 'Payment recorded successfully.', 'success');
                         window.location.reload();
                     } else {
                         alertBox.textContent = data.message || 'Failed to record payment.';

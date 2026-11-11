@@ -483,6 +483,7 @@
     </div>
 
     <div id="wimsToastContainer" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1090;"></div>
+    <partial name="_ConfirmModal" />
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
@@ -493,15 +494,6 @@
             $('#sidebarToggle').on('click', function () {
                 $('#sidebar').toggleClass('d-none');
             });
-
-            @if (TempData["ToastError"] != null)
-            {
-                <text>
-                if (window.WimsToast) {
-                    window.WimsToast.show(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["ToastError"]?.ToString())), 'danger');
-                }
-                </text>
-            }
         });
     </script>
     @await RenderSectionAsync("Scripts", required: false)

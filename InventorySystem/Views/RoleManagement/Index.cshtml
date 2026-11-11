@@ -85,7 +85,10 @@
                                     }
                                     @if (!role.IsSystemRole && PermCtx.CanDelete(PageKeys.Roles))
                                     {
-                                        <form asp-action="Delete" asp-route-id="@role.RoleID" method="post" class="d-inline" onsubmit="return confirm('Delete this role?');">
+                                        <form asp-action="Delete" asp-route-id="@role.RoleID" method="post" class="d-inline"
+      data-wims-confirm="Delete role '@role.RoleName'? This cannot be undone."
+      data-wims-confirm-title="Delete role"
+      data-wims-confirm-text="Delete">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="btn btn-outline-danger" title="Delete role">
                                                 <i class="bi bi-trash"></i>

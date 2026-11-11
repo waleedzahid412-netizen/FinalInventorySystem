@@ -165,7 +165,7 @@
                 calculateTotalRefund();
             });
 
-            $('#btnSubmitReturn').on('click', function () {
+            $('#btnSubmitReturn').on('click', async function () {
                 const items = [];
                 $('#returnItemsTable tbody tr').each(function () {
                     const $row = $(this);
@@ -186,11 +186,22 @@
                 });
 
                 if (items.length === 0) {
-                    alert('Please enter a return quantity greater than zero for at least one item.');
+                    window.WimsNotify.warning('Please enter a return quantity greater than zero for at least one item.');
                     return;
                 }
 
-                if (!confirm('Are you sure you want to finalize this Purchase Return?\n\n- Warehouse inventory will be decremented.\n- Company ledger will receive a Debit entry.\n- Stock safety checks will be enforced.')) {
+                const confirmed = await window.WimsDialog.confirm({
+                    title: 'Finalize purchase return',
+                    message: 'Finalize this purchase return?',
+                    details: [
+                        'Warehouse inventory will be decremented.',
+                        'Company ledger will receive a Debit entry.',
+                        'Stock safety checks will be enforced.'
+                    ],
+                    confirmText: 'Finalize return',
+                    variant: 'danger'
+                });
+                if (!confirmed) {
                     return;
                 }
 
@@ -211,21 +222,15 @@
                     data: JSON.stringify(payload),
                     success: function (res) {
                         if (res.success && res.returnId) {
+                            window.WimsNotify.flash(res.message || 'Purchase return finalized successfully.', 'success');
                             window.location.href = '/Returns/PurchaseReturnDetails/' + res.returnId;
                         } else {
-                            alert(res.message || 'Error processing purchase return.');
+                            window.WimsNotify.error(res.message || 'Error processing purchase return.');
                             $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Purchase Return');
                         }
                     },
-                    error: function (xhr, status, error) {
-                        console.error('ProcessPurchaseReturn AJAX Error:', status, error, xhr.responseText);
-                        let msg = 'HTTP ' + xhr.status + ' (' + error + ')';
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            msg += ': ' + xhr.responseJSON.message;
-                        } else if (xhr.responseText) {
-                            msg += ': ' + xhr.responseText.substring(0, 300);
-                        }
-                        alert('Failed to process purchase return:\n' + msg);
+                    error: function (xhr) {
+                        window.WimsAjax.handleError(xhr, 'Failed to process purchase return.');
                         $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Finalize Purchase Return');
                     }
                 });

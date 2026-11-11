@@ -179,9 +179,30 @@
 
         function renderInsights(list) {
             const colors = { DANGER: 'danger', WARNING: 'warning', SUCCESS: 'success', INFO: 'info' };
-            $('#businessInsightsContainer').html((list || []).map(i =>
-                `<div class="col-md-6"><div class="alert alert-${colors[i.type] || 'info'} mb-0"><i class="bi ${i.icon} me-2"></i><strong>${i.title}:</strong> ${i.message}</div></div>`
-            ).join(''));
+            const container = document.getElementById('businessInsightsContainer');
+            if (!container) {
+                return;
+            }
+            container.innerHTML = '';
+            (list || []).forEach(i => {
+                const col = document.createElement('div');
+                col.className = 'col-md-6';
+
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-' + (colors[i.type] || 'info') + ' mb-0';
+
+                const icon = document.createElement('i');
+                icon.className = 'bi ' + (i.icon || 'bi-info-circle') + ' me-2';
+
+                const title = document.createElement('strong');
+                title.textContent = (i.title || '') + ':';
+
+                alert.appendChild(icon);
+                alert.appendChild(title);
+                alert.appendChild(document.createTextNode(' ' + (i.message || '')));
+                col.appendChild(alert);
+                container.appendChild(col);
+            });
         }
 
         function renderTrend(rows) {

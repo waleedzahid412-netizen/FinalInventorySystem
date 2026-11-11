@@ -237,7 +237,7 @@
 
         function removeRow(rowId) {
             if ($('#itemsTbody tr').length <= 1) {
-                alert("Purchase invoice must contain at least one product row.");
+                window.WimsNotify.warning("Purchase invoice must contain at least one product row.");
                 return;
             }
             $(`#row_${rowId}`).remove();
@@ -271,13 +271,13 @@
             });
 
             if (!isValid || items.length === 0) {
-                alert("Please ensure all product rows have valid products, units, and positive quantities.");
+                window.WimsNotify.warning("Please ensure all product rows have valid products, units, and positive quantities.");
                 return;
             }
 
             const editReason = $('#EditReason').val().trim();
             if (!editReason) {
-                alert("An edit reason is mandatory for audit trail logging.");
+                window.WimsNotify.warning("An edit reason is mandatory for audit trail logging.");
                 $('#EditReason').focus();
                 return;
             }

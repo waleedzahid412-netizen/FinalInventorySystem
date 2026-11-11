@@ -281,17 +281,17 @@
             addProductRow();
 
             // Submit Manual Return
-            $('#btnSubmitManualReturn').on('click', function () {
+            $('#btnSubmitManualReturn').on('click', async function () {
                 const customerId = $('#selectCustomer').val();
                 const warehouseId = $('#selectWarehouse').val();
                 const settlementMethod = $('input[name="settlementMethod"]:checked').val();
 
                 if (!customerId) {
-                    alert('Please select a customer.');
+                    window.WimsNotify.warning('Please select a customer.');
                     return;
                 }
                 if (!warehouseId) {
-                    alert('Please select a restock warehouse.');
+                    window.WimsNotify.warning('Please select a restock warehouse.');
                     return;
                 }
 
@@ -321,11 +321,21 @@
                 });
 
                 if (hasInvalidItem || items.length === 0) {
-                    alert('Please complete all product lines with valid products, units, positive quantities, and valid return prices.');
+                    window.WimsNotify.warning('Please complete all product lines with valid products, units, positive quantities, and valid return prices.');
                     return;
                 }
 
-                if (!confirm('Are you sure you want to finalize this Manual Sales Return?\n\n- Products will be restocked into inventory.\n- Return record will be generated.')) {
+                const confirmed = await window.WimsDialog.confirm({
+                    title: 'Finalize manual sales return',
+                    message: 'Finalize this manual sales return?',
+                    details: [
+                        'Products will be restocked into inventory.',
+                        'A return record will be generated.'
+                    ],
+                    confirmText: 'Finalize return',
+                    variant: 'danger'
+                });
+                if (!confirmed) {
                     return;
                 }
 
@@ -348,21 +358,15 @@
                     data: JSON.stringify(payload),
                     success: function (res) {
                         if (res.success && res.returnId) {
+                            window.WimsNotify.flash(res.message || 'Manual sales return processed successfully.', 'success');
                             window.location.href = '/Returns/SalesReturnDetails/' + res.returnId;
                         } else {
-                            alert(res.message || 'Error processing manual sales return.');
+                            window.WimsNotify.error(res.message || 'Error processing manual sales return.');
                             $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Process Manual Return');
                         }
                     },
-                    error: function (xhr, status, error) {
-                        console.error('ProcessManualSalesReturn AJAX Error:', status, error, xhr.responseText);
-                        let msg = 'HTTP ' + xhr.status + ' (' + error + ')';
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            msg += ': ' + xhr.responseJSON.message;
-                        } else if (xhr.responseText) {
-                            msg += ': ' + xhr.responseText.substring(0, 300);
-                        }
-                        alert('Failed to process manual sales return:\n' + msg);
+                    error: function (xhr) {
+                        window.WimsAjax.handleError(xhr, 'Failed to process manual sales return.');
                         $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-2"></i> Process Manual Return');
                     }
                 });

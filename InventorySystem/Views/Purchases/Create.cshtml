@@ -127,7 +127,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header if-modal-header-primary">
-                <h5 class="modal-title fw-bold" id="confirmModalLabel">Finalize purchase invoice</h5>
+                <h5 class="modal-title fw-bold" id="confirmModalLabel">Finalize Purchase Invoice</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -330,7 +330,7 @@
                 btnRemove.addEventListener('click', function () {
                     const rows = document.querySelectorAll('#itemsTableBody tr');
                     if (rows.length <= 1) {
-                        alert('At least one product line item is required.');
+                        window.WimsNotify.warning('At least one product line item is required.');
                         return;
                     }
                     row.remove();
@@ -395,11 +395,11 @@
                 const warehouseId = document.getElementById('WarehouseID').value;
 
                 if (!companyId) {
-                    alert('Please select a Company.');
+                    window.WimsNotify.warning('Please select a Company.');
                     return;
                 }
                 if (!warehouseId) {
-                    alert('Please select a Warehouse.');
+                    window.WimsNotify.warning('Please select a Warehouse.');
                     return;
                 }
 
@@ -426,7 +426,7 @@
                 });
 
                 if (!valid || items.length === 0) {
-                    alert('Please ensure all product lines have a valid Product, Packaging Unit, and Quantity > 0.');
+                    window.WimsNotify.warning('Please ensure all product lines have a valid Product, Packaging Unit, and Quantity > 0.');
                     return;
                 }
 

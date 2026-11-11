@@ -183,7 +183,7 @@
 <div class="modal fade" id="clearChequeModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
-            <div class="modal-header bg-success text-white">
+            <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title h6"><i class="bi bi-check-circle me-2"></i> Clear Cheque Confirmation</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -250,12 +250,6 @@
             tempDiv.innerHTML = antiForgeryToken;
             const tokenValue = tempDiv.querySelector('input[name="__RequestVerificationToken"]').value;
 
-            function showToast(message, type) {
-                if (window.WimsToast) {
-                    window.WimsToast.show(message, type || 'danger');
-                }
-            }
-
             // Clear Cheque — open styled confirmation modal
             document.querySelectorAll('.btnClearCheque').forEach(btn => {
                 btn.addEventListener('click', function () {
@@ -306,7 +300,7 @@
 
                     if (data.success) {
                         clearModal.hide();
-                        showToast(data.message || 'Cheque cleared successfully.', 'success');
+                        window.WimsNotify.flash(data.message || 'Cheque cleared successfully.', 'success');
                         window.location.reload();
                     } else {
                         alertBox.textContent = data.message || 'Failed to clear cheque.';
@@ -411,6 +405,7 @@
                     btn.disabled = false;
                     if (data.success) {
                         actionModal.hide();
+                        window.WimsNotify.flash(data.message || 'Cheque status updated successfully.', 'success');
                         window.location.reload();
                     } else {
                         alertBox.textContent = data.message || 'Failed to update cheque status.';

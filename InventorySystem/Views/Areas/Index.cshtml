@@ -56,7 +56,10 @@
                             <td><span class="badge @(area.IsActive ? "bg-success" : "bg-secondary")">@(area.IsActive ? "Active" : "Inactive")</span></td>
                             <td class="text-end pe-4">
                                 <a asp-action="Edit" asp-route-id="@area.AreaID" class="btn btn-sm btn-outline-secondary">Edit</a>
-                                <form asp-action="Delete" asp-route-id="@area.AreaID" method="post" class="d-inline" onsubmit="return confirm('Delete this area?');">
+                                <form asp-action="Delete" asp-route-id="@area.AreaID" method="post" class="d-inline"
+      data-wims-confirm="Delete area '@area.AreaName'? This cannot be undone."
+      data-wims-confirm-title="Delete area"
+      data-wims-confirm-text="Delete">
                                     @Html.AntiForgeryToken()
                                     <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                                 </form>

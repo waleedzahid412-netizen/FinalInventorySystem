@@ -1,192 +1,322 @@
 @model InventorySystem.DTOs.LoginRequestDTO
 
 @{
-    ViewData["Title"] = "Sign In — Wholesale ERP";
+    ViewData["Title"] = "Sign In";
     Layout = "_Layout";
+
+    var generalErrors = new List<string>();
+    foreach (var entry in ViewData.ModelState)
+    {
+        if (!string.IsNullOrEmpty(entry.Key) || entry.Value is null)
+        {
+            continue;
+        }
+
+        foreach (var error in entry.Value.Errors)
+        {
+            generalErrors.Add(string.IsNullOrWhiteSpace(error.ErrorMessage)
+                ? "We couldn't sign you in. Please check your details and try again."
+                : error.ErrorMessage);
+        }
+    }
 }
 
-<style>
-    .login-container {
-        min-height: 100vh;
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
-        position: relative;
-        overflow: hidden;
-        padding: 1.5rem;
-    }
+@section Styles {
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+}
 
-    /* Ambient background glow elements */
-    .login-bg-shape-1 {
-        position: absolute;
-        top: -10%;
-        left: -10%;
-        width: 500px;
-        height: 500px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(15, 23, 42, 0) 70%);
-        pointer-events: none;
-    }
+<div class="login-page">
+    <!-- ================= BRAND PANEL ================= -->
+    <aside class="login-brand" aria-label="About WIMS ERP">
+        <div class="login-brand-inner">
+            <div class="login-logo">
+                <span class="login-logo-mark" aria-hidden="true">
+                    <i class="bi bi-box-seam-fill"></i>
+                </span>
+                <div>
+                    <span class="login-logo-name">WIMS <span class="login-logo-badge">ERP</span></span>
+                    <span class="login-logo-sub">Wholesale Inventory Management</span>
+                </div>
+            </div>
 
-    .login-bg-shape-2 {
-        position: absolute;
-        bottom: -10%;
-        right: -10%;
-        width: 600px;
-        height: 600px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, rgba(15, 23, 42, 0) 70%);
-        pointer-events: none;
-    }
+            <div class="login-brand-copy">
+                <span class="login-eyebrow">Wholesale operations, unified</span>
+                <h1 class="login-brand-title">Run your wholesale operation from <span>one place.</span></h1>
+                <p class="login-brand-lead">
+                    Inventory, sales, purchasing, finance and analytics — connected in a single
+                    workspace built for accuracy and speed.
+                </p>
 
-    .login-card {
-        width: 100%;
-        max-width: 440px;
-        background: rgba(255, 255, 255, 0.96);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 1.25rem;
-        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5);
-        z-index: 10;
-        overflow: hidden;
-        transition: transform 0.2s ease;
-    }
+                <ul class="login-feature-list">
+                    <li class="login-feature">
+                        <span class="login-feature-icon" aria-hidden="true">
+                            <i class="bi bi-boxes"></i>
+                        </span>
+                        <div>
+                            <strong>Inventory in real time</strong>
+                            <p>Live stock across warehouses, companies and locations.</p>
+                        </div>
+                    </li>
+                    <li class="login-feature">
+                        <span class="login-feature-icon" aria-hidden="true">
+                            <i class="bi bi-receipt"></i>
+                        </span>
+                        <div>
+                            <strong>Sales and purchasing, connected</strong>
+                            <p>Invoices, returns and load sheets flow through one system.</p>
+                        </div>
+                    </li>
+                    <li class="login-feature">
+                        <span class="login-feature-icon" aria-hidden="true">
+                            <i class="bi bi-graph-up-arrow"></i>
+                        </span>
+                        <div>
+                            <strong>Decisions backed by data</strong>
+                            <p>Ledgers, payments and analytics, always up to date.</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
 
-    .login-header-icon {
-        width: 64px;
-        height: 64px;
-        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-        color: #ffffff;
-        border-radius: 1rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        box-shadow: 0 8px 20px rgba(59, 130, 246, 0.35);
-    }
+            <div class="login-brand-footer">
+                <div class="login-trust">
+                    <span><i class="bi bi-shield-check" aria-hidden="true"></i> Role-based access</span>
+                    <span><i class="bi bi-lock" aria-hidden="true"></i> Secure sessions</span>
+                    <span><i class="bi bi-building" aria-hidden="true"></i> Multi-company support</span>
+                </div>
+            </div>
+        </div>
+    </aside>
 
-    .form-control-lg-custom {
-        padding: 0.8rem 1rem 0.8rem 2.8rem;
-        font-size: 0.95rem;
-        border-radius: 0.65rem;
-        border: 1px solid #cbd5e1;
-        transition: all 0.2s ease;
-    }
-
-    .form-control-lg-custom:focus {
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
-    }
-
-    .input-icon {
-        position: absolute;
-        left: 1rem;
-        top: 50%;
-        transform: translateY(-50%);
-        color: #94a3b8;
-        font-size: 1.1rem;
-        z-index: 5;
-    }
-
-    .btn-login-submit {
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        border: none;
-        padding: 0.85rem;
-        font-weight: 600;
-        font-size: 1rem;
-        border-radius: 0.65rem;
-        color: #ffffff;
-        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
-        transition: all 0.2s ease;
-    }
-
-    .btn-login-submit:hover {
-        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
-    }
-</style>
-
-<div class="login-container">
-    <div class="login-bg-shape-1"></div>
-    <div class="login-bg-shape-2"></div>
-
-    <div class="login-card p-4 p-sm-5">
-        <!-- Header -->
-        <div class="text-center mb-4">
-            <div class="login-header-icon mb-3">
+    <!-- ================= SIGN-IN PANEL ================= -->
+    <section class="login-form-panel" aria-label="Sign in">
+        <div class="login-mobile-brand">
+            <span class="login-logo-mark" aria-hidden="true">
                 <i class="bi bi-box-seam-fill"></i>
+            </span>
+            <div>
+                <span class="login-logo-name">WIMS <span class="login-logo-badge">ERP</span></span>
+                <span class="login-logo-sub">Wholesale Inventory Management</span>
             </div>
-            <h3 class="fw-bold text-dark mb-1" style="letter-spacing: -0.5px;">WIMS ERP</h3>
-            <p class="text-muted small mb-0">Wholesale Inventory Management System</p>
         </div>
 
-        @if (ViewBag.SessionExpired == true)
-        {
-            <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center py-2 px-3 mb-4 rounded-3" role="alert">
-                <i class="bi bi-clock-history fs-5 me-2 flex-shrink-0"></i>
-                <div class="small fw-semibold mb-0">Your session has expired. Please sign in again.</div>
+        <div class="login-form-wrap">
+            <div class="login-form-head">
+                <span class="login-form-kicker">Secure access</span>
+                <h2 class="login-form-title">Welcome back</h2>
+                <p class="login-form-sub">Sign in to continue to your WIMS workspace.</p>
             </div>
-        }
 
-        @if (ViewBag.RateLimited == true)
-        {
-            <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center py-2 px-3 mb-4 rounded-3" role="alert">
-                <i class="bi bi-shield-exclamation fs-5 me-2 flex-shrink-0"></i>
-                <div class="small fw-semibold mb-0">Too many sign-in attempts. Please wait a moment and try again.</div>
-            </div>
-        }
-
-        <!-- Form -->
-        <form asp-action="Login" asp-controller="Auth" method="post">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
-
-            <div class="mb-3 position-relative">
-                <label asp-for="Username" class="form-label small fw-semibold text-secondary mb-1">Username</label>
-                <div class="position-relative">
-                    <i class="bi bi-person input-icon"></i>
-                    <input asp-for="Username" class="form-control form-control-lg-custom w-100" placeholder="Enter your username" required autofocus />
+            @if (ViewBag.SessionExpired == true)
+            {
+                <div class="login-alert login-alert--warning" role="alert">
+                    <i class="bi bi-clock-history" aria-hidden="true"></i>
+                    <div>Your session has expired. Please sign in again.</div>
                 </div>
-                <span asp-validation-for="Username" class="text-danger small ms-1"></span>
-            </div>
+            }
 
-            <div class="mb-3 position-relative">
-                <label asp-for="Password" class="form-label small fw-semibold text-secondary mb-1">Password</label>
-                <div class="position-relative">
-                    <i class="bi bi-lock input-icon"></i>
-                    <input asp-for="Password" type="password" id="inputPassword" class="form-control form-control-lg-custom w-100" placeholder="Enter your password" required />
+            @if (ViewBag.RateLimited == true)
+            {
+                <div class="login-alert login-alert--warning" role="alert">
+                    <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+                    <div>Too many sign-in attempts. Please wait a moment and try again.</div>
                 </div>
-                <span asp-validation-for="Password" class="text-danger small ms-1"></span>
-            </div>
+            }
 
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div class="form-check form-switch mb-0">
-                    <input asp-for="RememberMe" type="checkbox" class="form-check-input" id="RememberMeSwitch" />
-                    <label asp-for="RememberMe" class="form-check-label small text-secondary fw-semibold" for="RememberMeSwitch">Remember me</label>
+            @if (generalErrors.Count > 0)
+            {
+                <div class="login-alert login-alert--danger" role="alert" aria-live="assertive">
+                    <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
+                    <div>
+                        <strong>Sign-in failed</strong>
+                        @foreach (var error in generalErrors)
+                        {
+                            <p>@error</p>
+                        }
+                    </div>
                 </div>
-            </div>
+            }
 
-            <button type="submit" class="btn btn-login-submit w-100 mb-3">
-                <i class="bi bi-box-arrow-in-right me-2"></i> Sign In to System
-            </button>
-        </form>
+            <form asp-action="Login" asp-controller="Auth" method="post" id="loginForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
 
-        @if (!ViewData.ModelState.IsValid)
-        {
-            <div class="alert alert-danger border-0 shadow-sm d-flex align-items-center py-2 px-3 mb-0 rounded-3" role="alert">
-                <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
-                <div class="small fw-semibold">
-                    @Html.ValidationSummary(true, "", new { @class = "mb-0" })
+                <div class="login-field">
+                    <label asp-for="Username" class="login-label">Username</label>
+                    <div class="login-input">
+                        <i class="bi bi-person" aria-hidden="true"></i>
+                        <input asp-for="Username"
+                               class="login-control"
+                               placeholder="Enter your username"
+                               autocomplete="username"
+                               autocapitalize="none"
+                               spellcheck="false"
+                               aria-describedby="usernameError"
+                               required
+                               autofocus />
+                    </div>
+                    <span asp-validation-for="Username" id="usernameError" class="login-field-error"></span>
                 </div>
-            </div>
-        }
 
-        <div class="text-center mt-4 pt-2 border-top">
-            <span class="text-muted small">&copy; 2026 Wholesale ERP — All rights reserved.</span>
+                <div class="login-field">
+                    <label asp-for="Password" class="login-label">Password</label>
+                    <div class="login-input login-input--password">
+                        <i class="bi bi-lock" aria-hidden="true"></i>
+                        <input asp-for="Password"
+                               type="password"
+                               id="inputPassword"
+                               class="login-control"
+                               placeholder="Enter your password"
+                               autocomplete="current-password"
+                               aria-describedby="passwordError capsLockHint"
+                               required />
+                        <button type="button"
+                                class="login-eye"
+                                id="togglePassword"
+                                aria-label="Show password"
+                                aria-pressed="false"
+                                aria-controls="inputPassword">
+                            <i class="bi bi-eye" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <span asp-validation-for="Password" id="passwordError" class="login-field-error"></span>
+                    <div class="login-caps" id="capsLockHint" role="status" hidden>
+                        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i> Caps Lock is on
+                    </div>
+                </div>
+
+                <div class="login-options">
+                    <label class="login-remember" for="RememberMeSwitch">
+                        <input asp-for="RememberMe" id="RememberMeSwitch" class="login-remember-input" />
+                        <span>Remember me</span>
+                    </label>
+                    <span class="login-session-note">
+                        <i class="bi bi-clock" aria-hidden="true"></i>
+                        <span id="sessionNoteText">1-hour session</span>
+                    </span>
+                </div>
+
+                <button type="submit" class="login-submit" id="loginSubmit">
+                    <span class="login-submit-idle" id="loginSubmitIdle">
+                        Sign in <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </span>
+                    <span class="login-submit-loading" id="loginSubmitLoading" hidden>
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        Signing in&hellip;
+                    </span>
+                </button>
+            </form>
+
+            <div class="login-form-foot">
+                <p class="login-help">
+                    <i class="bi bi-life-preserver" aria-hidden="true"></i>
+                    Trouble signing in? Contact your system administrator.
+                </p>
+                <p class="login-copyright">
+                    &copy; @DateTime.Now.Year WIMS — Wholesale Inventory Management System
+                </p>
+            </div>
         </div>
-    </div>
+    </section>
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            'use strict';
+
+            var form = document.getElementById('loginForm');
+            var password = document.getElementById('inputPassword');
+            var toggle = document.getElementById('togglePassword');
+            var toggleIcon = toggle ? toggle.querySelector('i') : null;
+            var capsHint = document.getElementById('capsLockHint');
+            var remember = document.getElementById('RememberMeSwitch');
+            var sessionNote = document.getElementById('sessionNoteText');
+            var submit = document.getElementById('loginSubmit');
+            var submitIdle = document.getElementById('loginSubmitIdle');
+            var submitLoading = document.getElementById('loginSubmitLoading');
+
+            /* Show / hide password */
+            if (toggle && password) {
+                toggle.addEventListener('click', function () {
+                    var show = password.type === 'password';
+                    password.type = show ? 'text' : 'password';
+                    toggle.setAttribute('aria-pressed', String(show));
+                    toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+
+                    if (toggleIcon) {
+                        toggleIcon.classList.toggle('bi-eye', !show);
+                        toggleIcon.classList.toggle('bi-eye-slash', show);
+                    }
+
+                    password.focus({ preventScroll: true });
+                });
+            }
+
+            /* Caps Lock hint */
+            function updateCapsLock(event) {
+                if (!capsHint) {
+                    return;
+                }
+
+                var isOn = typeof event.getModifierState === 'function' && event.getModifierState('CapsLock');
+                capsHint.hidden = !isOn;
+            }
+
+            if (password && capsHint) {
+                password.addEventListener('keydown', updateCapsLock);
+                password.addEventListener('keyup', updateCapsLock);
+                password.addEventListener('blur', function () {
+                    capsHint.hidden = true;
+                });
+            }
+
+            /* Explain the session length tied to "Remember me" */
+            function updateSessionNote() {
+                if (!remember || !sessionNote) {
+                    return;
+                }
+
+                sessionNote.textContent = remember.checked ? '7-day session' : '1-hour session';
+            }
+
+            if (remember) {
+                updateSessionNote();
+                remember.addEventListener('change', updateSessionNote);
+            }
+
+            /* Prevent double submits and show progress */
+            if (form && submit) {
+                form.addEventListener('submit', function () {
+                    if (!form.checkValidity()) {
+                        return;
+                    }
+
+                    submit.disabled = true;
+                    submit.setAttribute('aria-busy', 'true');
+
+                    if (submitIdle) {
+                        submitIdle.hidden = true;
+                    }
+
+                    if (submitLoading) {
+                        submitLoading.hidden = false;
+                    }
+                });
+
+                window.addEventListener('pageshow', function () {
+                    submit.disabled = false;
+                    submit.removeAttribute('aria-busy');
+
+                    if (submitIdle) {
+                        submitIdle.hidden = false;
+                    }
+
+                    if (submitLoading) {
+                        submitLoading.hidden = true;
+                    }
+                });
+            }
+        })();
+    </script>
+}

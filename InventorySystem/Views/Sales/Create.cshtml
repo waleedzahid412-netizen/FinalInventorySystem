@@ -314,7 +314,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header if-modal-header-primary">
-                <h5 class="modal-title h6" id="confirmModalLabel"><i class="bi bi-shield-check me-2"></i> Finalize Sales Invoice Confirmation</h5>
+                <h5 class="modal-title h6" id="confirmModalLabel"><i class="bi bi-shield-check me-2"></i> Finalize Sales Invoice</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body py-4">
@@ -1054,7 +1054,7 @@
                     btnRemove.addEventListener('click', function () {
                         const rows = document.querySelectorAll('#itemsTableBody tr');
                         if (rows.length <= 1) {
-                            alert('Sales invoice must have at least one line item.');
+                            window.WimsNotify.warning('Sales invoice must have at least one line item.');
                             return;
                         }
                         row.remove();

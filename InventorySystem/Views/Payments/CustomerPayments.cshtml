@@ -141,7 +141,7 @@
 <div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-labelledby="recordPaymentModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
-            <div class="modal-header bg-success text-white">
+            <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title h6" id="recordPaymentModalLabel"><i class="bi bi-cash-stack me-2"></i> Record Customer Payment</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -388,6 +388,7 @@
 
                     if (data.success) {
                         recordModal.hide();
+                        window.WimsNotify.flash(data.message || 'Payment recorded successfully.', 'success');
                         window.location.reload();
                     } else {
                         alertBox.textContent = data.message || 'Failed to record payment.';

@@ -242,8 +242,14 @@
             }
         });
 
-        function confirmDelete(id, shopName) {
-            if (confirm(`Are you sure you want to delete customer '${shopName}'?`)) {
+        async function confirmDelete(id, shopName) {
+            const confirmed = await window.WimsDialog.confirm({
+                title: 'Delete customer',
+                message: `Delete customer '${shopName}'? This cannot be undone.`,
+                confirmText: 'Delete',
+                variant: 'danger'
+            });
+            if (confirmed) {
                 document.getElementById('deleteCustomerId').value = id;
                 document.getElementById('deleteForm').submit();
             }

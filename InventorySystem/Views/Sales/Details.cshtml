@@ -564,6 +564,7 @@
 
                     if (data.success) {
                         paymentModal.hide();
+                        window.WimsNotify.success(data.message || 'Payment recorded successfully.');
 
                         // Cheque stays "Received" until admin Clear — do not touch Paid/Outstanding KPIs.
                         if (method !== 'Cheque') {

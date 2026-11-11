@@ -3,11 +3,12 @@
     var error = TempData["ErrorMessage"] as string;
     var warning = TempData["WarningMessage"] as string;
     var info = TempData["InfoMessage"] as string;
+    var toastError = TempData["ToastError"] as string;
 }
 
 @if (!string.IsNullOrWhiteSpace(success))
 {
-    <div class="alert alert-success alert-dismissible fade show shadow-sm mb-3" role="alert">
+    <div class="alert alert-success alert-dismissible fade show shadow-sm mb-3" role="status" aria-live="polite" data-wims-autodismiss="true">
         <i class="bi bi-check-circle-fill me-2"></i>@success
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
@@ -15,7 +16,7 @@
 
 @if (!string.IsNullOrWhiteSpace(error))
 {
-    <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-3" role="alert">
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-3" role="alert" aria-live="assertive" data-wims-persist="true">
         <i class="bi bi-exclamation-triangle-fill me-2"></i>@error
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
@@ -23,7 +24,7 @@
 
 @if (!string.IsNullOrWhiteSpace(warning))
 {
-    <div class="alert alert-warning alert-dismissible fade show shadow-sm mb-3" role="alert">
+    <div class="alert alert-warning alert-dismissible fade show shadow-sm mb-3" role="alert" aria-live="assertive" data-wims-persist="true">
         <i class="bi bi-exclamation-circle-fill me-2"></i>@warning
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
@@ -31,8 +32,13 @@
 
 @if (!string.IsNullOrWhiteSpace(info))
 {
-    <div class="alert alert-info alert-dismissible fade show shadow-sm mb-3" role="alert">
+    <div class="alert alert-info alert-dismissible fade show shadow-sm mb-3" role="status" aria-live="polite" data-wims-autodismiss="true">
         <i class="bi bi-info-circle-fill me-2"></i>@info
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(toastError))
+{
+    <div hidden data-wims-toast="true" data-wims-toast-type="danger" data-wims-toast-message="@toastError"></div>
 }

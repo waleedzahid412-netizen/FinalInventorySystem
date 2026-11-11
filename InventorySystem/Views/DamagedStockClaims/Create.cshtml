@@ -228,6 +228,7 @@
                 btn.disabled = false;
                 return;
             }
+            window.WimsNotify.flash(data.message || 'Damaged stock claim created successfully.', 'success');
             window.location.href = '@Url.Action("Details")/' + data.claimId;
         } catch (e) {
             errorEl.textContent = 'Network error creating claim.';

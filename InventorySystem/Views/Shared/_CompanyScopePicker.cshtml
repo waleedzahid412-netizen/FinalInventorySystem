@@ -103,13 +103,18 @@
 
         var initialValue = select.value;
 
-        function confirmUnsaved() {
+        async function confirmUnsaved() {
             var sensitive = document.querySelector('form[data-unsaved-company-sensitive]');
             if (!sensitive) {
                 return true;
             }
-            return window.confirm(
-                'You have unsaved changes. Switching company will clear this form. Continue?');
+            return window.WimsDialog.confirm({
+                title: 'Switch company',
+                message: 'You have unsaved changes. Switching company will clear this form. Continue?',
+                confirmText: 'Switch company',
+                cancelText: 'Stay here',
+                variant: 'warning'
+            });
         }
 
         function wireSelect2() {
@@ -158,12 +163,12 @@
                 $select.next('.select2-container').addClass('company-scope-unscoped');
             }
 
-            $select.off('change.companyScope').on('change.companyScope', function () {
+            $select.off('change.companyScope').on('change.companyScope', async function () {
                 var next = $select.val();
                 if (!next || next === initialValue) {
                     return;
                 }
-                if (!confirmUnsaved()) {
+                if (!(await confirmUnsaved())) {
                     $select.val(initialValue).trigger('change.select2');
                     return;
                 }
@@ -171,11 +176,11 @@
             });
         }
 
-        function onNativeChange() {
+        async function onNativeChange() {
             if (!select.value || select.value === initialValue) {
                 return;
             }
-            if (!confirmUnsaved()) {
+            if (!(await confirmUnsaved())) {
                 select.value = initialValue;
                 return;
             }

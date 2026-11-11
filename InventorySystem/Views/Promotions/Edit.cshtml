@@ -214,7 +214,7 @@
             $(document).on('click', '.btn-remove-rule', function () {
                 let visibleRows = $('#rulesTableBody tr.rule-row:not(.d-none)').length;
                 if (visibleRows <= 1) {
-                    alert('At least one promotion rule is required.');
+                    window.WimsNotify.warning('At least one promotion rule is required.');
                     return;
                 }
                 let row = $(this).closest('tr');

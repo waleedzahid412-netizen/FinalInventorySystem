@@ -29,15 +29,6 @@
         </div>
     </div>
 
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
-    }
-    @if (TempData["ErrorMessage"] != null)
-    {
-        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
-    }
-
     <div class="row g-3 mb-4">
         <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100">
@@ -372,6 +363,7 @@
                 btnConfirm.disabled = false;
                 return;
             }
+            window.WimsNotify.flash(data.message || 'Supplier response confirmed.', 'success');
             location.reload();
         });
     }
@@ -381,7 +373,12 @@
             const tr = btn.closest('tr');
             const itemId = parseInt(tr.dataset.itemId, 10);
             const decision = btn.dataset.decision;
-            if (!confirm('Apply decision: ' + decision + '?')) return;
+            const confirmed = await window.WimsDialog.confirm({
+                title: 'Apply claim decision',
+                message: 'Apply decision "' + decision + '" to this item?',
+                confirmText: 'Apply decision'
+            });
+            if (!confirmed) return;
             const res = await fetch('@Url.Action("DecideRejected")/' + claimId, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -389,9 +386,10 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                alert(data.message || 'Decision failed.');
+                window.WimsNotify.error((data.errors && data.errors.join(' ')) || data.message || 'Decision failed.');
                 return;
             }
+            window.WimsNotify.flash(data.message || 'Decision applied.', 'success');
             location.reload();
         });
     });
@@ -558,6 +556,7 @@
                     btnSettle.disabled = false;
                     return;
                 }
+                window.WimsNotify.flash(data.message || 'Settlement recorded.', 'success');
                 location.reload();
             } catch (e) {
                 errorEl.textContent = 'Network error recording settlement.';
