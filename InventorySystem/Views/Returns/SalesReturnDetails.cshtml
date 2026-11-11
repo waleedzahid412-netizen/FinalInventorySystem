@@ -129,8 +129,8 @@
                                             </span>
                                         </td>
                                         <td>@(string.IsNullOrWhiteSpace(item.Reason) ? "-" : item.Reason)</td>
-                                        <td class="text-end">@item.RefundUnitPrice.ToString("C2")</td>
-                                        <td class="text-end fw-semibold">@item.RefundAmount.ToString("C2")</td>
+                                        <td class="text-end">PKR @item.RefundUnitPrice.ToString("N2")</td>
+                                        <td class="text-end fw-semibold">PKR @item.RefundAmount.ToString("N2")</td>
                                     </tr>
                                 }
                             }
@@ -150,26 +150,26 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Gross Returned Value:</span>
-                    <span class="fw-bold">@header.GrossAmount.ToString("C2")</span>
+                    <span class="fw-bold">PKR @header.GrossAmount.ToString("N2")</span>
                 </div>
                 @if (header.ClawbackPenalty > 0)
                 {
                     <div class="d-flex justify-content-between mb-2 text-danger">
                         <span class="text-muted">Discount Clawback Penalty:</span>
-                        <span class="fw-bold"> -@header.ClawbackPenalty.ToString("C2")</span>
+                        <span class="fw-bold"> -PKR @header.ClawbackPenalty.ToString("N2")</span>
                     </div>
                 }
                 @if (header.PromoPenalty > 0)
                 {
                     <div class="d-flex justify-content-between mb-2 text-danger">
                         <span class="text-muted">Promo Clawback Penalty:</span>
-                        <span class="fw-bold"> -@header.PromoPenalty.ToString("C2")</span>
+                        <span class="fw-bold"> -PKR @header.PromoPenalty.ToString("N2")</span>
                     </div>
                 }
                 <hr />
                 <div class="p-3 bg-light rounded border text-center">
                     <span class="text-muted small d-block">NET REFUND AMOUNT</span>
-                    <span class="fs-3 fw-bold text-success">@header.NetRefundAmount.ToString("C2")</span>
+                    <span class="fs-3 fw-bold text-success">PKR @header.NetRefundAmount.ToString("N2")</span>
                     <div class="small text-muted mt-2 fw-semibold">
                         @if (string.Equals(header.SettlementMethod, "CASH", StringComparison.OrdinalIgnoreCase))
                         {

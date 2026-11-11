@@ -15,6 +15,9 @@ namespace InventorySystem.ViewModels.Sales
         [Display(Name = "Customer")]
         public int? CustomerID { get; set; }
 
+        [Display(Name = "Booker")]
+        public int? BookerID { get; set; }
+
         [Display(Name = "Warehouse")]
         public int? WarehouseID { get; set; }
 
@@ -35,6 +38,9 @@ namespace InventorySystem.ViewModels.Sales
         [Display(Name = "Payment Status")]
         public string? PaymentStatus { get; set; }
 
+        [Display(Name = "Payment Statuses")]
+        public List<string>? PaymentStatuses { get; set; } = new List<string>();
+
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;
 
@@ -44,12 +50,14 @@ namespace InventorySystem.ViewModels.Sales
             {
                 InvoiceNumber = InvoiceNumber,
                 CustomerID = CustomerID,
+                BookerID = BookerID,
                 WarehouseID = WarehouseID,
                 SupplierID = SupplierID,
                 CompanyID = CompanyID,
                 DateFrom = DateFrom,
                 DateTo = DateTo,
                 PaymentStatus = PaymentStatus,
+                PaymentStatuses = PaymentStatuses,
                 PageNumber = PageNumber,
                 PageSize = PageSize
             };
@@ -62,6 +70,7 @@ namespace InventorySystem.ViewModels.Sales
         public SalesFilterViewModel Filter { get; set; } = new SalesFilterViewModel();
 
         public IEnumerable<SelectListItem> Customers { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> Bookers { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Warehouses { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> Suppliers { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem> PaymentStatuses { get; set; } = new List<SelectListItem>();
@@ -161,6 +170,10 @@ namespace InventorySystem.ViewModels.Sales
         [Display(Name = "Apply Promotions")]
         public bool ApplyPromotions { get; set; } = true;
 
+        /// <summary>Seller choice: apply product-level catalog discounts (default ON).</summary>
+        [Display(Name = "Apply Product Discount")]
+        public bool ApplyProductDiscount { get; set; } = true;
+
         /// <summary>Serialized JSON array from dynamic client grid</summary>
         [Required(ErrorMessage = "At least one item is required.")]
         public string ItemsJson { get; set; } = "[]";
@@ -226,6 +239,10 @@ namespace InventorySystem.ViewModels.Sales
         /// <summary>Seller choice: apply eligible promotions (FREE items) on save.</summary>
         [Display(Name = "Apply Promotions")]
         public bool ApplyPromotions { get; set; } = true;
+
+        /// <summary>Seller choice: apply product-level catalog discounts (default ON).</summary>
+        [Display(Name = "Apply Product Discount")]
+        public bool ApplyProductDiscount { get; set; } = true;
 
         [Required(ErrorMessage = "An edit reason is required.")]
         [MaxLength(500, ErrorMessage = "Edit reason cannot exceed 500 characters.")]

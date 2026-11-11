@@ -93,8 +93,8 @@
                     <div class="col-md-4">
                         <label asp-for="BaseSellingPrice" class="form-label fw-semibold"></label>
                         <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input asp-for="BaseSellingPrice" type="number" step="0.01" class="form-control" placeholder="0.00" />
+                            <span class="input-group-text">PKR</span>
+                            <input asp-for="BaseSellingPrice" type="text" inputmode="decimal" class="form-control js-price-2dp" placeholder="0.00" />
                         </div>
                         <span asp-validation-for="BaseSellingPrice" class="text-danger small"></span>
                     </div>
@@ -105,6 +105,33 @@
                     </div>
                     <div class="col-12">
                         <div class="form-text">Average purchase cost is calculated automatically from finalized purchase batches (FIFO).</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="ProductDiscountType" class="form-label fw-semibold">Product Discount (optional)</label>
+                        <select asp-for="ProductDiscountType" class="form-select" id="productDiscountType" data-product-discount-type="1">
+                            <option value="">None</option>
+                            <option value="Percentage">Percentage (1–30%)</option>
+                            <option value="FixedAmount">Fixed Amount (PKR per unit)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-none" id="productDiscountPercentWrap">
+                        <label class="form-label fw-semibold" for="productDiscountPercent">Discount %</label>
+                        <select id="productDiscountPercent" class="form-select" data-no-select2="true">
+                            <option value="">-- Select % --</option>
+                            @for (int i = 1; i <= 30; i++)
+                            {
+                                <option value="@i">@i%</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-none" id="productDiscountAmountWrap">
+                        <label class="form-label fw-semibold" for="productDiscountAmount">Discount Amount (PKR / unit)</label>
+                        <input type="number" min="0" step="0.01" class="form-control" id="productDiscountAmount" />
+                    </div>
+                    <input type="hidden" asp-for="ProductDiscountValue" id="ProductDiscountValue" />
+                    <div class="col-12">
+                        <span asp-validation-for="ProductDiscountValue" class="text-danger small"></span>
+                        <div class="form-text">Optional. Percentage uses 1–30. Fixed amount is deducted per packaging unit sold on invoices.</div>
                     </div>
                 </div>
             </div>
@@ -151,13 +178,13 @@
                                             </select>
                                         </td>
                                         <td>
-                                            <input type="number" step="0.0001" name="Units[@i].ConversionToBaseUnit" value="@Model.Units[i].ConversionToBaseUnit" class="form-control form-control-sm" required />
+                                            <input type="number" step="1" min="1" name="Units[@i].ConversionToBaseUnit" value="@Model.Units[i].ConversionToBaseUnit.ToString("0")" class="form-control form-control-sm" required />
                                         </td>
                                         <td>
-                                            <input type="number" step="0.01" name="Units[@i].PurchasePrice" value="@Model.Units[i].PurchasePrice" class="form-control form-control-sm" placeholder="Optional" />
+                                            <input type="text" inputmode="decimal" name="Units[@i].PurchasePrice" value="@(Model.Units[i].PurchasePrice.HasValue ? Model.Units[i].PurchasePrice.Value.ToString("0.00") : "")" class="form-control form-control-sm js-price-2dp" placeholder="Optional" />
                                         </td>
                                         <td>
-                                            <input type="number" step="0.01" name="Units[@i].SellingPrice" value="@Model.Units[i].SellingPrice" class="form-control form-control-sm" placeholder="Optional" />
+                                            <input type="text" inputmode="decimal" name="Units[@i].SellingPrice" value="@(Model.Units[i].SellingPrice.HasValue ? Model.Units[i].SellingPrice.Value.ToString("0.00") : "")" class="form-control form-control-sm js-price-2dp" placeholder="Optional" />
                                         </td>
                                         <td class="text-center">
                                             <input type="checkbox" name="Units[@i].IsDefaultPurchaseUnit" value="true" class="form-check-input default-purchase-check" @(Model.Units[i].IsDefaultPurchaseUnit ? "checked" : "") />
@@ -202,6 +229,25 @@
             const addBtn = document.getElementById('addUnitRowBtn');
             const baseUnitSelect = document.getElementById('baseUnitSelect');
 
+            function formatPriceInput(input) {
+                const raw = (input.value || '').trim().replace(/,/g, '');
+                if (raw === '') return;
+                const num = Number(raw);
+                if (!Number.isFinite(num)) return;
+                input.value = num.toFixed(2);
+            }
+
+            function bindPriceFormatting(root) {
+                (root || document).querySelectorAll('.js-price-2dp').forEach(function (input) {
+                    if (input.dataset.priceBound === '1') return;
+                    input.dataset.priceBound = '1';
+                    input.addEventListener('blur', function () { formatPriceInput(input); });
+                    formatPriceInput(input);
+                });
+            }
+
+            bindPriceFormatting(document);
+
             let unitOptionsHtml = '';
             @if (Model.AvailableUnits != null)
             {
@@ -238,13 +284,13 @@
                         </select>
                     </td>
                     <td>
-                        <input type="number" step="0.0001" name="Units[${index}].ConversionToBaseUnit" value="${conversion}" class="form-control form-control-sm" required />
+                        <input type="number" step="1" min="1" name="Units[${index}].ConversionToBaseUnit" value="${conversion}" class="form-control form-control-sm" required />
                     </td>
                     <td>
-                        <input type="number" step="0.01" name="Units[${index}].PurchasePrice" class="form-control form-control-sm" placeholder="Optional" />
+                        <input type="text" inputmode="decimal" name="Units[${index}].PurchasePrice" class="form-control form-control-sm js-price-2dp" placeholder="Optional" />
                     </td>
                     <td>
-                        <input type="number" step="0.01" name="Units[${index}].SellingPrice" class="form-control form-control-sm" placeholder="Optional" />
+                        <input type="text" inputmode="decimal" name="Units[${index}].SellingPrice" class="form-control form-control-sm js-price-2dp" placeholder="Optional" />
                     </td>
                     <td class="text-center">
                         <input type="checkbox" name="Units[${index}].IsDefaultPurchaseUnit" value="true" class="form-check-input default-purchase-check" ${isDefPurchase ? 'checked' : ''} />
@@ -265,6 +311,7 @@
 
                 container.appendChild(tr);
                 bindRowEvents(tr);
+                bindPriceFormatting(tr);
             }
 
             function bindRowEvents(tr) {
@@ -320,6 +367,59 @@
                     loadCategoriesForCompany(companySelect.value, selectedCategoryId);
                 }
             }
+
         });
+
+        // Separate from unit-grid setup so Select2 change always shows % / amount fields.
+        (function wireProductDiscountUi() {
+            function syncProductDiscountUi() {
+                const discountType = document.getElementById('productDiscountType');
+                const percentWrap = document.getElementById('productDiscountPercentWrap');
+                const amountWrap = document.getElementById('productDiscountAmountWrap');
+                const percentSelect = document.getElementById('productDiscountPercent');
+                const amountInput = document.getElementById('productDiscountAmount');
+                const hiddenValue = document.getElementById('ProductDiscountValue');
+                if (!discountType || !percentWrap || !amountWrap || !percentSelect || !amountInput || !hiddenValue) {
+                    return;
+                }
+
+                const type = discountType.value || '';
+                percentWrap.classList.toggle('d-none', type !== 'Percentage');
+                amountWrap.classList.toggle('d-none', type !== 'FixedAmount');
+
+                if (type === 'Percentage') {
+                    hiddenValue.value = percentSelect.value || '';
+                } else if (type === 'FixedAmount') {
+                    hiddenValue.value = amountInput.value || '';
+                } else {
+                    percentSelect.value = '';
+                    amountInput.value = '';
+                    hiddenValue.value = '';
+                }
+            }
+
+            function bind() {
+                const $type = window.jQuery ? window.jQuery('#productDiscountType') : null;
+                if ($type && $type.length) {
+                    $type.off('change.productDiscount select2:select.productDiscount select2:clear.productDiscount')
+                        .on('change.productDiscount select2:select.productDiscount select2:clear.productDiscount', syncProductDiscountUi);
+                } else {
+                    const discountType = document.getElementById('productDiscountType');
+                    if (discountType) {
+                        discountType.addEventListener('change', syncProductDiscountUi);
+                    }
+                }
+
+                document.getElementById('productDiscountPercent')?.addEventListener('change', syncProductDiscountUi);
+                document.getElementById('productDiscountAmount')?.addEventListener('input', syncProductDiscountUi);
+                syncProductDiscountUi();
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', bind);
+            } else {
+                bind();
+            }
+        })();
     </script>
 }

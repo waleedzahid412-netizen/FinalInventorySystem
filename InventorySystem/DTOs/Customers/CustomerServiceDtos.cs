@@ -1,5 +1,6 @@
 using System;
 using InventorySystem.DTOs.Common;
+using InventorySystem.Enums;
 
 namespace InventorySystem.DTOs.Customers
 {
@@ -14,6 +15,7 @@ namespace InventorySystem.DTOs.Customers
         public string? TaxID { get; set; }
         public decimal CreditLimit { get; set; } = 0;
         public decimal? PreferredDiscountPercent { get; set; }
+        public CustomerCategory? Category { get; set; }
         public bool IsActive { get; set; } = true;
     }
 
@@ -29,6 +31,7 @@ namespace InventorySystem.DTOs.Customers
         public string? TaxID { get; set; }
         public decimal CreditLimit { get; set; } = 0;
         public decimal? PreferredDiscountPercent { get; set; }
+        public CustomerCategory? Category { get; set; }
         public bool IsActive { get; set; } = true;
     }
 
@@ -43,6 +46,7 @@ namespace InventorySystem.DTOs.Customers
         public string? SubAreaName { get; set; }
         public string? TaxID { get; set; }
         public decimal CreditLimit { get; set; }
+        public CustomerCategory? Category { get; set; }
         public bool IsActive { get; set; }
         public decimal OutstandingReceivable { get; set; }
         public bool IsCreditLimitExceeded => CreditLimit > 0 && OutstandingReceivable > CreditLimit;

@@ -47,6 +47,20 @@ namespace InventorySystem.Models.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal BaseSellingPrice { get; set; }
 
+        /// <summary>
+        /// Optional product-level discount. Null = no discount.
+        /// Percentage | FixedAmount (FixedAmount = PKR per packaging unit sold).
+        /// </summary>
+        [MaxLength(20)]
+        public string? ProductDiscountType { get; set; }
+
+        /// <summary>
+        /// When Percentage: integer 1–30. When FixedAmount: PKR off per packaging unit.
+        /// Null when ProductDiscountType is null.
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? ProductDiscountValue { get; set; }
+
         [Column(TypeName = "decimal(18,2)")]
         public decimal AveragePurchaseCost { get; set; } = 0;
 

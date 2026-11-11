@@ -1,0 +1,571 @@
+@model InventorySystem.ViewModels.DamagedStockClaims.DamagedStockClaimDetailsViewModel
+@using InventorySystem.Constants
+@{
+    ViewData["Title"] = Model.Claim.ClaimNumber;
+    var c = Model.Claim;
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start mb-4 gap-2">
+        <div>
+            <h1 class="h3 mb-1 fw-bold">@c.ClaimNumber</h1>
+            <div class="small text-muted">
+                @c.CompanyName · @c.ClaimDate.ToLocalTime().ToString("dd MMM yyyy") · Created by @c.CreatedByName
+            </div>
+            <div class="mt-2 d-flex gap-2 flex-wrap">
+                <span class="badge bg-primary">@c.ClaimStatus</span>
+                <span class="badge bg-secondary">Settlement: @c.SettlementStatus</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Back</a>
+            @if (c.CanClose)
+            {
+                <form asp-action="Close" asp-route-id="@c.DamagedStockClaimID" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-success btn-sm">Close Claim</button>
+                </form>
+            }
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="small text-muted text-uppercase">Claimed Qty</div>
+                    <div class="fs-4 fw-bold">@c.TotalClaimedQuantity.ToString("N3")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="small text-muted text-uppercase">Accepted / Rejected</div>
+                    <div class="fs-5 fw-bold">@c.TotalAcceptedQuantity.ToString("N3") / @c.TotalRejectedQuantity.ToString("N3")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="small text-muted text-uppercase">Claim Amount</div>
+                    <div class="fs-4 fw-bold">@c.TotalClaimAmount.ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="small text-muted text-uppercase">Settled / Remaining</div>
+                    <div class="fs-5 fw-bold">@c.TotalSettledAmount.ToString("N2") / @c.RemainingSettlementAmount.ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white fw-semibold">Claim Lines</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" id="claimItemsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th>Warehouse</th>
+                            <th class="text-end">Claimed</th>
+                            <th class="text-end">Unit Cost</th>
+                            <th class="text-end">Amount</th>
+                            <th class="text-end">Accepted</th>
+                            <th class="text-end">Rejected</th>
+                            <th>Rejected Decision</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in c.Items)
+                    {
+                        <tr data-item-id="@item.DamagedStockClaimItemID"
+                            data-claimed="@item.ClaimedQuantity"
+                            data-rejected="@(item.RejectedQuantity ?? 0)"
+                            data-decision="@item.RejectedDecision"
+                            data-product-id="@item.ProductID"
+                            data-warehouse-id="@item.WarehouseID"
+                            data-accepted="@(item.AcceptedQuantity ?? 0)"
+                            data-unit-cost="@item.UnitClaimCost">
+                            <td>
+                                <div class="fw-semibold">@item.ProductName</div>
+                                <div class="small text-muted">Stock #@item.InventoryStockID · @item.SKU</div>
+                            </td>
+                            <td>@item.WarehouseName</td>
+                            <td class="text-end">@item.ClaimedQuantity.ToString("N3")</td>
+                            <td class="text-end">@item.UnitClaimCost.ToString("N4")</td>
+                            <td class="text-end">@item.LineClaimAmount.ToString("N2")</td>
+                            <td class="text-end">
+                                @if (c.CanConfirm)
+                                {
+                                    <input type="number" class="form-control form-control-sm text-end confirm-accepted" min="0" step="0.001" max="@item.ClaimedQuantity" value="@item.ClaimedQuantity" />
+                                }
+                                else
+                                {
+                                    @(item.AcceptedQuantity?.ToString("N3") ?? "—")
+                                }
+                            </td>
+                            <td class="text-end">
+                                @if (c.CanConfirm)
+                                {
+                                    <input type="number" class="form-control form-control-sm text-end confirm-rejected" min="0" step="0.001" max="@item.ClaimedQuantity" value="0" />
+                                }
+                                else
+                                {
+                                    @(item.RejectedQuantity?.ToString("N3") ?? "—")
+                                }
+                            </td>
+                            <td>
+                                @if (!c.CanConfirm && (item.RejectedQuantity ?? 0) > 0)
+                                {
+                                    if (item.RejectedDecision == DamagedStockRejectedDecisions.None || item.RejectedDecision == DamagedStockRejectedDecisions.KeepPending)
+                                    {
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-outline-success btn-decide" data-decision="@DamagedStockRejectedDecisions.ReturnToDamaged">Return Damaged</button>
+                                            <button type="button" class="btn btn-outline-danger btn-decide" data-decision="@DamagedStockRejectedDecisions.WriteOff">Write Off</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-decide" data-decision="@DamagedStockRejectedDecisions.KeepPending">Keep Pending</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">@item.RejectedDecision</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">@item.RejectedDecision</span>
+                                }
+                            </td>
+                            <td class="small">@item.DamageReason</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @if (c.CanConfirm)
+        {
+            <div class="card-footer bg-white">
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Supplier Response Notes</label>
+                    <textarea id="supplierNotes" class="form-control form-control-sm" rows="2" maxlength="500">@c.SupplierResponseNotes</textarea>
+                </div>
+                <div id="confirmError" class="alert alert-danger d-none"></div>
+                <button type="button" id="btnConfirm" class="btn btn-primary btn-sm">Record Supplier Confirmation</button>
+            </div>
+        }
+    </div>
+
+    @if (c.CanSettle || c.Settlements.Count > 0)
+    {
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white fw-semibold">Settlements</div>
+            <div class="card-body">
+                @if (c.Settlements.Count > 0)
+                {
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Method</th>
+                                    <th class="text-end">Amount</th>
+                                    <th>Details</th>
+                                    <th>Posted</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var s in c.Settlements)
+                            {
+                                <tr>
+                                    <td>@s.SettlementDate.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                    <td>@s.SettlementMethod</td>
+                                    <td class="text-end">@s.Amount.ToString("N2")</td>
+                                    <td class="small">
+                                        @if (s.ProductName != null)
+                                        {
+                                            <span>@s.ProductName · Qty @(s.ReceivedQuantity?.ToString("N3")) · @s.WarehouseName</span>
+                                        }
+                                        @if (s.PaymentMethod != null)
+                                        {
+                                            <span>@s.PaymentMethod @s.BankName @s.ReferenceNumber</span>
+                                        }
+                                        @if (s.CompanyLedgerID.HasValue)
+                                        {
+                                            <span class="text-muted">Ledger #@s.CompanyLedgerID</span>
+                                        }
+                                    </td>
+                                    <td>@(s.IsPosted ? "Yes" : "No")</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                @if (c.CanSettle)
+                {
+                    <div class="border rounded p-3">
+                        <h6 class="fw-semibold mb-3">Add Settlement (Remaining: @c.RemainingSettlementAmount.ToString("N2"))</h6>
+                        <p class="small text-muted mb-3" id="settleMethodHint">
+                            Choose how the company compensated you. Product/qty fields appear only for physical replacements.
+                        </p>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label small">Method</label>
+                                @* data-no-select2: site.js Select2 uses jQuery .trigger('change'), which does not fire native addEventListener *@
+                                <select id="settleMethod" class="form-select form-select-sm" data-no-select2="true">
+                                    <option value="">Select method...</option>
+                                    <option value="SameProductReplacement">Same Product Replacement</option>
+                                    <option value="DifferentProductReplacement">Different Product Replacement</option>
+                                    <option value="LedgerAdjustment">Supplier Ledger Adjustment</option>
+                                    <option value="CashRefund">Cash Refund</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Amount</label>
+                                <input type="number" id="settleAmount" class="form-control form-control-sm" min="0.01" step="0.01" value="@c.RemainingSettlementAmount" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Remarks</label>
+                                <input type="text" id="settleRemarks" class="form-control form-control-sm" maxlength="500" />
+                            </div>
+                        </div>
+
+                        <div id="settleReplacementPanel" class="row g-3 mt-1" style="display:none;">
+                            <div class="col-12">
+                                <div class="small fw-semibold text-secondary">Replacement stock (required)</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Product to receive</label>
+                                <select id="settleProduct" class="form-select form-select-sm" data-no-select2="true" asp-items="Model.CompanyProducts">
+                                    <option value="">Select product</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Warehouse</label>
+                                <select id="settleWarehouse" class="form-select form-select-sm" data-no-select2="true" asp-items="Model.Warehouses">
+                                    <option value="">Select</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Received Qty</label>
+                                <input type="number" id="settleQty" class="form-control form-control-sm" min="0.001" step="0.001" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Unit Cost <span class="text-muted fw-normal">(FIFO)</span></label>
+                                <input type="number" id="settleUnitCost" class="form-control form-control-sm" min="0" step="0.0001" value="0" title="Cost per base unit for the new FIFO stock layer. Does not change claim Amount." />
+                                <div class="form-text">Inventory valuation cost, not the settlement amount.</div>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="settleVerified" checked />
+                                    <label class="form-check-label small" for="settleVerified">Verified received (add to sellable stock)</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="settleCashPanel" class="row g-3 mt-1" style="display:none;">
+                            <div class="col-12">
+                                <div class="small fw-semibold text-secondary">Cash / bank refund details</div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Payment Method</label>
+                                <select id="settlePaymentMethod" class="form-select form-select-sm" data-no-select2="true" asp-items="Model.PaymentMethods"></select>
+                            </div>
+                            <div class="col-md-2" id="settleBankWrap" style="display:none;">
+                                <label class="form-label small">Bank</label>
+                                <input type="text" id="settleBank" class="form-control form-control-sm" maxlength="100" />
+                            </div>
+                            <div class="col-md-2" id="settleRefWrap" style="display:none;">
+                                <label class="form-label small">Reference</label>
+                                <input type="text" id="settleRef" class="form-control form-control-sm" maxlength="100" placeholder="Txn / cheque #" />
+                            </div>
+                        </div>
+
+                        <div id="settleError" class="alert alert-danger d-none mt-3"></div>
+                        <button type="button" id="btnAddSettlement" class="btn btn-primary btn-sm mt-3">Add Settlement</button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white fw-semibold">History</div>
+        <ul class="list-group list-group-flush">
+            @foreach (var h in c.History)
+            {
+                <li class="list-group-item">
+                    <div class="fw-semibold">@h.Event</div>
+                    <div class="small text-muted">@h.At.ToLocalTime().ToString("dd MMM yyyy HH:mm")</div>
+                    @if (!string.IsNullOrWhiteSpace(h.Detail))
+                    {
+                        <div class="small">@h.Detail</div>
+                    }
+                </li>
+            }
+        </ul>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const claimId = @c.DamagedStockClaimID;
+
+    function syncRejected(tr) {
+        const claimed = parseFloat(tr.dataset.claimed) || 0;
+        const accepted = parseFloat(tr.querySelector('.confirm-accepted')?.value) || 0;
+        const rejectedInput = tr.querySelector('.confirm-rejected');
+        if (rejectedInput) {
+            rejectedInput.value = Math.max(0, Math.round((claimed - accepted) * 1000) / 1000);
+        }
+    }
+
+    document.querySelectorAll('.confirm-accepted').forEach(inp => {
+        inp.addEventListener('input', () => syncRejected(inp.closest('tr')));
+    });
+
+    const btnConfirm = document.getElementById('btnConfirm');
+    if (btnConfirm) {
+        btnConfirm.addEventListener('click', async () => {
+            const errorEl = document.getElementById('confirmError');
+            errorEl.classList.add('d-none');
+            const lines = [];
+            document.querySelectorAll('#claimItemsTable tbody tr').forEach(tr => {
+                lines.push({
+                    damagedStockClaimItemID: parseInt(tr.dataset.itemId, 10),
+                    acceptedQuantity: parseFloat(tr.querySelector('.confirm-accepted').value) || 0,
+                    rejectedQuantity: parseFloat(tr.querySelector('.confirm-rejected').value) || 0
+                });
+            });
+            const payload = {
+                supplierResponseNotes: document.getElementById('supplierNotes').value || null,
+                lines
+            };
+            btnConfirm.disabled = true;
+            const res = await fetch('@Url.Action("Confirm")/' + claimId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                errorEl.textContent = (data.errors && data.errors.join(' ')) || data.message || 'Confirmation failed.';
+                errorEl.classList.remove('d-none');
+                btnConfirm.disabled = false;
+                return;
+            }
+            location.reload();
+        });
+    }
+
+    document.querySelectorAll('.btn-decide').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const tr = btn.closest('tr');
+            const itemId = parseInt(tr.dataset.itemId, 10);
+            const decision = btn.dataset.decision;
+            if (!confirm('Apply decision: ' + decision + '?')) return;
+            const res = await fetch('@Url.Action("DecideRejected")/' + claimId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ damagedStockClaimItemID: itemId, decision })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(data.message || 'Decision failed.');
+                return;
+            }
+            location.reload();
+        });
+    });
+
+    const METHOD_SAME = 'SameProductReplacement';
+    const METHOD_DIFF = 'DifferentProductReplacement';
+    const METHOD_LEDGER = 'LedgerAdjustment';
+    const METHOD_CASH = 'CashRefund';
+
+    const methodEl = document.getElementById('settleMethod');
+    const hintEl = document.getElementById('settleMethodHint');
+    const replacementPanel = document.getElementById('settleReplacementPanel');
+    const cashPanel = document.getElementById('settleCashPanel');
+
+    function getPrimaryAcceptedLine() {
+        const rows = Array.from(document.querySelectorAll('#claimItemsTable tbody tr'));
+        return rows.find(tr => (parseFloat(tr.dataset.accepted) || 0) > 0) || rows[0] || null;
+    }
+
+    function autofillSameProductReplacement() {
+        const line = getPrimaryAcceptedLine();
+        if (!line) return;
+        const productEl = document.getElementById('settleProduct');
+        const warehouseEl = document.getElementById('settleWarehouse');
+        const qtyEl = document.getElementById('settleQty');
+        const costEl = document.getElementById('settleUnitCost');
+        if (productEl) productEl.value = line.dataset.productId || '';
+        if (warehouseEl) warehouseEl.value = line.dataset.warehouseId || '';
+        if (qtyEl && !qtyEl.value) qtyEl.value = line.dataset.accepted || '';
+        if (costEl) costEl.value = line.dataset.unitCost || '0';
+        // Lock product for same-product method (must match accepted claim product)
+        if (productEl) productEl.disabled = true;
+    }
+
+    function toggleSettleFields() {
+        if (!methodEl) return;
+        const method = (methodEl.value || '').trim();
+        const isReplacement = method === METHOD_SAME || method === METHOD_DIFF;
+        const isCash = method === METHOD_CASH;
+        const isLedger = method === METHOD_LEDGER;
+
+        if (replacementPanel) {
+            // Bootstrap .row is display:flex — set explicitly so show works after display:none
+            replacementPanel.style.display = isReplacement ? 'flex' : 'none';
+        }
+        if (cashPanel) {
+            cashPanel.style.display = isCash ? 'flex' : 'none';
+        }
+        if (isCash) {
+            toggleCashPaymentFields();
+        }
+
+        const productEl = document.getElementById('settleProduct');
+        if (productEl) productEl.disabled = false;
+
+        if (method === METHOD_SAME) {
+            autofillSameProductReplacement();
+        }
+
+        if (hintEl) {
+            if (method === METHOD_SAME) {
+                hintEl.textContent = 'Same product: product/warehouse/cost auto-filled from the claim line. Adjust qty if partial. Unit Cost is FIFO inventory cost (not the Amount). You can add another settlement (e.g. Cash) for the remaining amount.';
+            } else if (method === METHOD_DIFF) {
+                hintEl.textContent = 'Different product: pick the actual product received. Unit Cost is FIFO inventory cost. Amount is how much of the claim value this replacement covers — add Cash/Ledger separately for any remainder.';
+            } else if (isLedger) {
+                hintEl.textContent = 'Ledger only: no product is received. Enter the adjustment amount — this posts a debit on the company (supplier) ledger.';
+            } else if (isCash) {
+                hintEl.textContent = 'Cash/bank refund: no product is received. Enter amount and payment details — this posts a debit on the company ledger.';
+            } else {
+                hintEl.textContent = 'Choose how the company compensated you. Product/qty fields appear only for physical replacements. Hybrid (part product + part cash) = add multiple settlements.';
+            }
+        }
+    }
+
+    function toggleCashPaymentFields() {
+        const payMethod = (document.getElementById('settlePaymentMethod')?.value || '').trim();
+        const needsBankRef = payMethod === 'Bank' || payMethod === 'Cheque';
+        const bankWrap = document.getElementById('settleBankWrap');
+        const refWrap = document.getElementById('settleRefWrap');
+        if (bankWrap) bankWrap.style.display = needsBankRef ? '' : 'none';
+        if (refWrap) refWrap.style.display = needsBankRef ? '' : 'none';
+        if (!needsBankRef) {
+            const bank = document.getElementById('settleBank');
+            const ref = document.getElementById('settleRef');
+            if (bank) bank.value = '';
+            if (ref) ref.value = '';
+        }
+    }
+
+    if (methodEl) {
+        // Prefer jQuery so it works even if Select2 wraps the control later.
+        if (window.jQuery) {
+            window.jQuery(methodEl).off('change.damagedSettle select2:select.damagedSettle')
+                .on('change.damagedSettle select2:select.damagedSettle', toggleSettleFields);
+        } else {
+            methodEl.addEventListener('change', toggleSettleFields);
+        }
+        toggleSettleFields();
+    }
+
+    const payMethodEl = document.getElementById('settlePaymentMethod');
+    if (payMethodEl) {
+        if (window.jQuery) {
+            window.jQuery(payMethodEl).off('change.damagedCashPay')
+                .on('change.damagedCashPay', toggleCashPaymentFields);
+        } else {
+            payMethodEl.addEventListener('change', toggleCashPaymentFields);
+        }
+        toggleCashPaymentFields();
+    }
+
+    const btnSettle = document.getElementById('btnAddSettlement');
+    if (btnSettle) {
+        btnSettle.addEventListener('click', async () => {
+            const errorEl = document.getElementById('settleError');
+            errorEl.classList.add('d-none');
+            const method = (methodEl.value || '').trim();
+            if (!method) {
+                errorEl.textContent = 'Select a settlement method.';
+                errorEl.classList.remove('d-none');
+                return;
+            }
+            const payload = {
+                settlementMethod: method,
+                amount: parseFloat(document.getElementById('settleAmount').value) || 0,
+                remarks: document.getElementById('settleRemarks').value || null,
+                isVerifiedReceived: true
+            };
+            if (method === METHOD_SAME || method === METHOD_DIFF) {
+                // Re-enable before read in case Same Product disabled the control
+                const productEl = document.getElementById('settleProduct');
+                if (productEl) productEl.disabled = false;
+                const productId = parseInt(productEl.value, 10) || 0;
+                if (method === METHOD_SAME) productEl.disabled = true;
+                const warehouseId = parseInt(document.getElementById('settleWarehouse').value, 10) || 0;
+                const qty = parseFloat(document.getElementById('settleQty').value) || 0;
+                if (!productId || !warehouseId || qty <= 0) {
+                    errorEl.textContent = 'For product replacement, select Product, Warehouse, and Received Qty so the system knows which stock to increase.';
+                    errorEl.classList.remove('d-none');
+                    return;
+                }
+                payload.productID = productId;
+                payload.warehouseID = warehouseId;
+                payload.receivedQuantity = qty;
+                payload.unitCostInBase = parseFloat(document.getElementById('settleUnitCost').value) || 0;
+                payload.isVerifiedReceived = !!(document.getElementById('settleVerified') && document.getElementById('settleVerified').checked);
+            }
+            if (method === METHOD_CASH) {
+                payload.paymentMethod = document.getElementById('settlePaymentMethod').value;
+                payload.bankName = document.getElementById('settleBank').value || null;
+                payload.referenceNumber = document.getElementById('settleRef').value || null;
+            }
+            btnSettle.disabled = true;
+            try {
+                const res = await fetch('@Url.Action("AddSettlement")/' + claimId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    errorEl.textContent = (data.errors && data.errors.join(' ')) || data.message || 'Settlement failed.';
+                    errorEl.classList.remove('d-none');
+                    btnSettle.disabled = false;
+                    return;
+                }
+                location.reload();
+            } catch (e) {
+                errorEl.textContent = 'Network error recording settlement.';
+                errorEl.classList.remove('d-none');
+                btnSettle.disabled = false;
+            }
+        });
+    }
+})();
+</script>
+}

@@ -91,6 +91,16 @@ namespace InventorySystem.Services.Interfaces
             int userId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>Create a FIFO layer for verified claim replacement stock (SourceType CLAIM_REPLACEMENT).</summary>
+        Task CreateLayerFromClaimReplacementAsync(
+            int productId,
+            int warehouseId,
+            decimal quantityBase,
+            decimal unitCostInBase,
+            DateTime receivedAt,
+            int userId,
+            CancellationToken cancellationToken = default);
+
         /// <summary>Sum of RemainingQuantity × UnitCostInBase for inventory valuation.</summary>
         Task<decimal> GetInventoryValueAsync(
             int? companyId,

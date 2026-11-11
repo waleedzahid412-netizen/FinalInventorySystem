@@ -47,9 +47,12 @@
             || PermCtx.CanView(PageKeys.CompanyPayments);
         showInventory = PermCtx.CanView(PageKeys.Products)
             || PermCtx.CanView(PageKeys.CompanyStockReport)
+            || PermCtx.CanView(PageKeys.DamagedStockClaims)
             || PermCtx.CanView(PageKeys.Categories)
             || PermCtx.CanView(PageKeys.Units)
-            || PermCtx.CanView(PageKeys.Warehouses);
+            || PermCtx.CanView(PageKeys.Warehouses)
+            || PermCtx.CanView(PageKeys.Areas)
+            || PermCtx.CanView(PageKeys.SubAreas);
         showReturns = PermCtx.CanView(PageKeys.SalesReturns)
             || PermCtx.CanView(PageKeys.SalesCreateReturn)
             || PermCtx.CanView(PageKeys.PurchaseReturns);
@@ -253,6 +256,14 @@
                                 </a>
                             </li>
                         }
+                        @if (PermCtx.CanView(PageKeys.DamagedStockClaims))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "DamagedStockClaims" ? "active" : "")" asp-controller="DamagedStockClaims" asp-action="Index">
+                                    <i class="bi bi-exclamation-diamond"></i> Damaged Stock Claims
+                                </a>
+                            </li>
+                        }
                         @if (PermCtx.CanView(PageKeys.Categories))
                         {
                             <li>
@@ -274,6 +285,22 @@
                             <li>
                                 <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Warehouses" ? "active" : "")" asp-controller="Warehouses" asp-action="Index">
                                     <i class="bi bi-building-fill-gear"></i> Warehouses
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.Areas))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Areas" ? "active" : "")" asp-controller="Areas" asp-action="Index">
+                                    <i class="bi bi-geo-alt"></i> Areas
+                                </a>
+                            </li>
+                        }
+                        @if (PermCtx.CanView(PageKeys.SubAreas))
+                        {
+                            <li>
+                                <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "SubAreas" ? "active" : "")" asp-controller="SubAreas" asp-action="Index">
+                                    <i class="bi bi-pin-map"></i> Sub Areas
                                 </a>
                             </li>
                         }

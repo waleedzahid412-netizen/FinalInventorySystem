@@ -24,22 +24,6 @@
         </div>
     </div>
 
-    <!-- Alert Messages -->
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-    @if (TempData["ErrorMessage"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
     <!-- Search & Filter Card -->
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-body">
@@ -103,7 +87,7 @@
                                     <td><code class="text-muted">@(p.SKU ?? "-")</code></td>
                                     <td><small class="text-muted">@(p.Barcode ?? "-")</small></td>
                                     <td><span class="badge bg-light text-dark border">@p.CategoryName</span></td>
-                                    <td class="text-end fw-semibold text-success">$@p.BaseSellingPrice.ToString("N2")</td>
+                                    <td class="text-end fw-semibold text-success">PKR @p.BaseSellingPrice.ToString("N2")</td>
                                     <td class="text-center">
                                         <span class="badge @(p.CurrentStock <= 0 ? "bg-danger" : "bg-info")">
                                             @p.CurrentStock.ToString("N0") @p.BaseUnitName

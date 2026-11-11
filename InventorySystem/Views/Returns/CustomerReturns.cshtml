@@ -15,14 +15,6 @@
     </div>
 </div>
 
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
 <!-- FILTER CARD -->
 <div class="card shadow-sm mb-4">
     <div class="card-body">
@@ -131,9 +123,9 @@
                                 </td>
                                 <td>@item.ReturnDate.ToString("dd MMM yyyy")</td>
                                 <td class="text-center"><span class="badge bg-secondary">@item.ItemCount</span></td>
-                                <td class="text-end fw-semibold">@item.GrossAmount.ToString("C2")</td>
-                                <td class="text-end text-danger">@(totalClawback > 0 ? $"-{totalClawback:C2}" : "$0.00")</td>
-                                <td class="text-end fw-bold text-success">@item.NetRefundAmount.ToString("C2")</td>
+                                <td class="text-end fw-semibold">PKR @item.GrossAmount.ToString("N2")</td>
+                                <td class="text-end text-danger">@(totalClawback > 0 ? $"-PKR {totalClawback:N2}" : "PKR 0.00")</td>
+                                <td class="text-end fw-bold text-success">PKR @item.NetRefundAmount.ToString("N2")</td>
                                 <td class="text-center">
                                     <a asp-action="SalesReturnDetails" asp-route-id="@item.SalesReturnID" class="btn btn-xs btn-outline-info me-1" title="View Details">
                                         <i class="bi bi-eye"></i> View

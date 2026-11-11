@@ -26,9 +26,11 @@ namespace InventorySystem.Models.Entities
 
         /// <summary>
         /// Movement type. Common values:
-        /// PURCHASE | SALE | RETURN | RETURN_DAMAGED | PURCHASE_RETURN | ADJUSTMENT | REVERSAL_IN | REVERSAL_OUT | OUT.
+        /// PURCHASE | SALE | RETURN | RETURN_DAMAGED | PURCHASE_RETURN | ADJUSTMENT | REVERSAL_IN | REVERSAL_OUT | OUT |
+        /// CLAIM_PENDING | CLAIM_ACCEPTED_CLEAR | CLAIM_RETURN_DAMAGED | CLAIM_WRITE_OFF | CLAIM_REPLACEMENT.
         /// RETURN = sellable stock returned (increases InventoryStock.Quantity).
         /// RETURN_DAMAGED = damaged stock returned (increases InventoryStock.DamagedQuantity).
+        /// CLAIM_* = damaged-stock claim lifecycle movements (DamagedQuantity / ClaimPendingQuantity / sellable).
         /// </summary>
         [Required]
         [MaxLength(30)]
@@ -64,6 +66,10 @@ namespace InventorySystem.Models.Entities
         [ForeignKey("PurchaseReturnItem")]
         public int? PurchaseReturnItemID { get; set; }
         public virtual PurchaseReturnItem? PurchaseReturnItem { get; set; }
+
+        [ForeignKey("DamagedStockClaimItem")]
+        public int? DamagedStockClaimItemID { get; set; }
+        public virtual DamagedStockClaimItem? DamagedStockClaimItem { get; set; }
 
         // ===== AUDIT FIELDS =====
         [ForeignKey("CreatedByUser")]

@@ -16,9 +16,6 @@ namespace InventorySystem.Models.Entities
         [MaxLength(100)]
         public string AreaName { get; set; } = string.Empty;
 
-        [MaxLength(20)]
-        public string? Code { get; set; }
-
         public bool IsActive { get; set; } = true;
 
         // ===== AUDIT FIELDS =====

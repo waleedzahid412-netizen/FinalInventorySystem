@@ -50,6 +50,10 @@ namespace InventorySystem.DTOs.Products
         public int ReorderLevel { get; set; }
         public bool IsActive { get; set; } = true;
 
+        /// <summary>Percentage | FixedAmount | null</summary>
+        public string? ProductDiscountType { get; set; }
+        public decimal? ProductDiscountValue { get; set; }
+
         public List<ProductUnitDto> Units { get; set; } = new List<ProductUnitDto>();
     }
 
@@ -69,6 +73,10 @@ namespace InventorySystem.DTOs.Products
         public decimal AveragePurchaseCost { get; set; }
         public int ReorderLevel { get; set; }
         public bool IsActive { get; set; }
+
+        /// <summary>Percentage | FixedAmount | null</summary>
+        public string? ProductDiscountType { get; set; }
+        public decimal? ProductDiscountValue { get; set; }
 
         public List<ProductUnitDto> Units { get; set; } = new List<ProductUnitDto>();
     }
@@ -92,6 +100,10 @@ namespace InventorySystem.DTOs.Products
         public int ReorderLevel { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>Percentage | FixedAmount | null</summary>
+        public string? ProductDiscountType { get; set; }
+        public decimal? ProductDiscountValue { get; set; }
 
         public InventorySummaryDto? InventorySummary { get; set; }
         public List<WarehouseStockSummaryDto> WarehouseStocks { get; set; } = new List<WarehouseStockSummaryDto>();

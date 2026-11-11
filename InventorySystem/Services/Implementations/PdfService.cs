@@ -35,6 +35,7 @@ namespace InventorySystem.Services.Implementations
             var items = invoice.Items ?? new List<SalesItemDto>();
             var financial = invoice.Financial ?? new SalesFinancialSummaryDto();
             var lineRows = BuildSalesPrintRows(items);
+            var discountLabel = BuildDiscountLabel(financial);
 
             var billTo = !string.IsNullOrWhiteSpace(header.ShopName) ? header.ShopName! : header.CustomerName;
             var address = !string.IsNullOrWhiteSpace(header.CustomerAddress)
@@ -113,25 +114,26 @@ namespace InventorySystem.Services.Implementations
                         {
                             table.ColumnsDefinition(columns =>
                             {
-                                columns.ConstantColumn(52);   // Product Code
-                                columns.RelativeColumn(2.4f); // Product Name
-                                columns.ConstantColumn(36);   // Qty
-                                columns.ConstantColumn(42);   // Free Qty
-                                columns.RelativeColumn(1.6f); // Free Product
-                                columns.ConstantColumn(55);   // Unit Price
-                                columns.ConstantColumn(60);   // Amount
+                                columns.ConstantColumn(44);   // Product Code
+                                columns.RelativeColumn(2.0f); // Product Name
+                                columns.ConstantColumn(30);   // Qty
+                                columns.ConstantColumn(36);   // Free Qty
+                                columns.RelativeColumn(1.3f); // Free Product
+                                columns.ConstantColumn(48);   // Unit Price
+                                columns.ConstantColumn(72);   // Product Total Discount (+ %)
+                                columns.ConstantColumn(52);   // Amount
                             });
 
                             table.Header(h =>
                             {
-                                void Head(string text, bool rightAlign = false)
+                                void Head(string text, bool rightAlign = false, float fontSize = 7.5f)
                                 {
                                     var cell = h.Cell().Border(0.75f).BorderColor(Colors.Black)
                                         .Background(Colors.Grey.Lighten3).PaddingVertical(2).PaddingHorizontal(2);
                                     if (rightAlign)
-                                        cell.AlignRight().Text(text).FontSize(7.5f).Bold();
+                                        cell.AlignRight().Text(text).FontSize(fontSize).Bold();
                                     else
-                                        cell.Text(text).FontSize(7.5f).Bold();
+                                        cell.Text(text).FontSize(fontSize).Bold();
                                 }
 
                                 Head("Product Code");
@@ -140,6 +142,7 @@ namespace InventorySystem.Services.Implementations
                                 Head("Free Qty", true);
                                 Head("Free Product");
                                 Head("Unit Price", true);
+                                Head("Product Total Discount", true, 6.5f);
                                 Head("Amount", true);
                             });
 
@@ -158,65 +161,97 @@ namespace InventorySystem.Services.Implementations
                                 table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
                                     .AlignRight().Text(row.UnitPrice.ToString("N2")).FontSize(7.5f);
                                 table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
+                                    .AlignRight().Text(FormatProductTotalDiscount(row)).FontSize(7f);
+                                table.Cell().Border(0.5f).BorderColor(Colors.Black).PaddingVertical(1.5f).PaddingHorizontal(2)
                                     .AlignRight().Text(row.Amount.ToString("N2")).FontSize(7.5f).Bold();
                             }
                         });
 
-                        // ===== FOOTER: Urdu terms + totals / signature =====
-                        col.Item().PaddingTop(6).Row(footer =>
+                        // ===== FOOTER: Urdu terms + totals; signature overlaid at terms-box bottom-right =====
+                        col.Item().PaddingTop(6).Layers(layers =>
                         {
-                            footer.RelativeItem().Border(1).BorderColor(Colors.Black).Padding(5).Column(left =>
+                            // Primary layer sizes to content only (terms box stays natural height).
+                            layers.PrimaryLayer().Row(footer =>
                             {
-                                left.Item().AlignRight().Text(termsTitle).FontSize(9).Bold();
-                                left.Item().PaddingVertical(2).LineHorizontal(0.5f).LineColor(Colors.Black);
-
-                                int termIndex = 1;
-                                foreach (var term in terms)
+                                footer.RelativeItem().Border(1).BorderColor(Colors.Black).Padding(5).Column(left =>
                                 {
-                                    // Number on the right = start of RTL sentence (not after the Urdu text).
-                                    var index = termIndex;
-                                    left.Item().PaddingBottom(2).Row(r =>
+                                    left.Item().AlignRight().Text(termsTitle).FontSize(9).Bold();
+                                    left.Item().PaddingVertical(2).LineHorizontal(0.5f).LineColor(Colors.Black);
+
+                                    int termIndex = 1;
+                                    foreach (var term in terms)
                                     {
-                                        r.RelativeItem().AlignRight().Text(term)
-                                            .FontSize(7)
-                                            .FontFamily("Segoe UI");
-                                        r.ConstantItem(18).AlignRight().Text($"{index}.")
-                                            .FontSize(7)
-                                            .FontFamily("Segoe UI")
-                                            .Bold();
-                                    });
-                                    termIndex++;
-                                }
-                            });
+                                        // Number on the right = start of RTL sentence (not after the Urdu text).
+                                        var index = termIndex;
+                                        left.Item().PaddingBottom(2).Row(r =>
+                                        {
+                                            r.RelativeItem().AlignRight().Text(term)
+                                                .FontSize(7)
+                                                .FontFamily("Segoe UI");
+                                            r.ConstantItem(18).AlignRight().Text($"{index}.")
+                                                .FontSize(7)
+                                                .FontFamily("Segoe UI")
+                                                .Bold();
+                                        });
+                                        termIndex++;
+                                    }
+                                });
 
-                            footer.ConstantItem(8);
+                                footer.ConstantItem(8);
 
-                            footer.ConstantItem(200).Column(right =>
-                            {
-                                right.Item().Border(1).BorderColor(Colors.Black).Padding(5).Column(tot =>
+                                footer.ConstantItem(200).AlignTop().Border(1).BorderColor(Colors.Black).Padding(5).Column(tot =>
                                 {
                                     tot.Item().Row(r =>
                                     {
                                         r.RelativeItem().Text("Total Amount :").FontSize(8.5f).Bold();
                                         r.ConstantItem(80).AlignRight().Text(financial.SubTotal.ToString("N2")).FontSize(8.5f);
                                     });
-                                    tot.Item().PaddingTop(2).Row(r =>
+                                    if (financial.ProductDiscountTotal > 0m)
                                     {
-                                        r.RelativeItem().Text("Discount :").FontSize(8.5f).Bold();
-                                        r.ConstantItem(80).AlignRight().Text(financial.DiscountTotal.ToString("N2")).FontSize(8.5f);
-                                    });
+                                        tot.Item().PaddingTop(2).Row(r =>
+                                        {
+                                            r.RelativeItem().Text("Product Discount :").FontSize(8.5f).Bold();
+                                            r.ConstantItem(80).AlignRight().Text(financial.ProductDiscountTotal.ToString("N2")).FontSize(8.5f);
+                                        });
+                                    }
+                                    if (financial.AdditionalDiscountTotal > 0m)
+                                    {
+                                        tot.Item().PaddingTop(2).Row(r =>
+                                        {
+                                            r.RelativeItem().Text(BuildAdditionalDiscountLabel(financial)).FontSize(8.5f).Bold();
+                                            r.ConstantItem(80).AlignRight().Text(financial.AdditionalDiscountTotal.ToString("N2")).FontSize(8.5f);
+                                        });
+                                    }
+                                    if (financial.DiscountTotal > 0m
+                                        && (financial.ProductDiscountTotal > 0m || financial.AdditionalDiscountTotal > 0m))
+                                    {
+                                        tot.Item().PaddingTop(2).Row(r =>
+                                        {
+                                            r.RelativeItem().Text("Total Discount :").FontSize(8.5f).Bold();
+                                            r.ConstantItem(80).AlignRight().Text(financial.DiscountTotal.ToString("N2")).FontSize(8.5f);
+                                        });
+                                    }
+                                    else if (financial.DiscountTotal > 0m)
+                                    {
+                                        tot.Item().PaddingTop(2).Row(r =>
+                                        {
+                                            r.RelativeItem().Text(discountLabel).FontSize(8.5f).Bold();
+                                            r.ConstantItem(80).AlignRight().Text(financial.DiscountTotal.ToString("N2")).FontSize(8.5f);
+                                        });
+                                    }
                                     tot.Item().PaddingTop(2).BorderTop(1).BorderColor(Colors.Black).PaddingTop(2).Row(r =>
                                     {
                                         r.RelativeItem().Text("Net Amount :").FontSize(9).Bold();
                                         r.ConstantItem(80).AlignRight().Text(financial.GrandTotal.ToString("N2")).FontSize(9).Bold();
                                     });
                                 });
+                            });
 
-                                right.Item().PaddingTop(14).AlignCenter().Column(sig =>
-                                {
-                                    sig.Item().AlignCenter().Text("______________________").FontSize(8);
-                                    sig.Item().AlignCenter().PaddingTop(1).Text("Customer Signature").FontSize(8).Bold();
-                                });
+                            // Signature sits on the far right, level with the terms box bottom edge.
+                            layers.Layer().AlignBottom().AlignRight().Width(200).Column(sig =>
+                            {
+                                sig.Item().AlignRight().Text("______________________").FontSize(8);
+                                sig.Item().AlignRight().PaddingTop(1).Text("Customer Signature").FontSize(8).Bold();
                             });
                         });
                     });
@@ -224,6 +259,42 @@ namespace InventorySystem.Services.Implementations
             });
 
             return document.GeneratePdf();
+        }
+
+        /// <summary>
+        /// Shows percentage beside Discount only when the invoice snapshot is a percentage discount.
+        /// Fixed-amount / no discount → plain "Discount :".
+        /// </summary>
+        private static string BuildDiscountLabel(SalesFinancialSummaryDto financial)
+        {
+            if (financial.DiscountValue.HasValue
+                && financial.DiscountValue.Value > 0m
+                && string.Equals(financial.DiscountType, "Percentage", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"Discount : {financial.DiscountValue.Value:0.##}%";
+            }
+
+            return "Discount :";
+        }
+
+        private static string BuildAdditionalDiscountLabel(SalesFinancialSummaryDto financial)
+        {
+            string mode = string.IsNullOrWhiteSpace(financial.DiscountMode) ? "Additional" : financial.DiscountMode.Trim();
+            if (financial.DiscountValue.HasValue
+                && financial.DiscountValue.Value > 0m
+                && string.Equals(financial.DiscountType, "Percentage", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"Additional ({mode} {financial.DiscountValue.Value:0.##}%) :";
+            }
+
+            if (financial.DiscountValue.HasValue
+                && financial.DiscountValue.Value > 0m
+                && string.Equals(financial.DiscountType, "FixedAmount", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"Additional ({mode}) :";
+            }
+
+            return $"Additional Discount ({mode}) :";
         }
 
         private static void MetaRow(ColumnDescriptor col, string label, string value, bool boldValue = false)
@@ -330,7 +401,10 @@ namespace InventorySystem.Services.Implementations
                     FreeQty = freeQty,
                     FreeProductName = freeQty > 0 ? freeProductName : null,
                     UnitPrice = item.UnitPrice,
-                    Amount = item.LineTotal
+                    Discount = item.ProductDiscountAmount,
+                    ProductDiscountType = item.ProductDiscountType,
+                    ProductDiscountValue = item.ProductDiscountValue,
+                    Amount = item.AmountAfterProductDiscount
                 });
             }
 
@@ -359,11 +433,39 @@ namespace InventorySystem.Services.Implementations
                     FreeQty = free.Quantity,
                     FreeProductName = freeName,
                     UnitPrice = 0,
+                    Discount = 0,
+                    ProductDiscountType = null,
+                    ProductDiscountValue = null,
                     Amount = 0
                 });
             }
 
             return rows;
+        }
+
+        private static string FormatProductTotalDiscount(SalesPrintRow row)
+        {
+            if (row.Discount <= 0m)
+            {
+                return "0.00";
+            }
+
+            string amount = row.Discount.ToString("N2");
+            if (string.Equals(row.ProductDiscountType, "Percentage", StringComparison.OrdinalIgnoreCase)
+                && row.ProductDiscountValue.HasValue
+                && row.ProductDiscountValue.Value > 0m)
+            {
+                return $"{amount} ({row.ProductDiscountValue.Value:0.##}%)";
+            }
+
+            if (string.Equals(row.ProductDiscountType, "FixedAmount", StringComparison.OrdinalIgnoreCase)
+                && row.ProductDiscountValue.HasValue
+                && row.ProductDiscountValue.Value > 0m)
+            {
+                return $"{amount} ({row.ProductDiscountValue.Value:0.##}/u)";
+            }
+
+            return amount;
         }
 
         private static string FirstFreeDisplayName(SalesItemDto free)
@@ -377,15 +479,16 @@ namespace InventorySystem.Services.Implementations
 
         private static string FormatProductCode(SalesItemDto item)
         {
+             if (item.ProductID.HasValue && item.ProductID.Value > 0)
+            {
+                return item.ProductID.Value.ToString("D6");
+            }
             if (!string.IsNullOrWhiteSpace(item.SKU))
             {
                 return item.SKU!;
             }
 
-            if (item.ProductID.HasValue && item.ProductID.Value > 0)
-            {
-                return item.ProductID.Value.ToString("D6");
-            }
+
 
             return "-";
         }
@@ -403,6 +506,9 @@ namespace InventorySystem.Services.Implementations
             public decimal FreeQty { get; set; }
             public string? FreeProductName { get; set; }
             public decimal UnitPrice { get; set; }
+            public decimal Discount { get; set; }
+            public string? ProductDiscountType { get; set; }
+            public decimal? ProductDiscountValue { get; set; }
             public decimal Amount { get; set; }
         }
 
@@ -458,7 +564,7 @@ namespace InventorySystem.Services.Implementations
                         {
                             row.RelativeItem().Column(c =>
                             {
-                                c.Item().Text("COMPANY / SUPPLIER").FontSize(9).Bold().FontColor(Colors.Grey.Darken2);
+                                c.Item().Text("COMPANY").FontSize(9).Bold().FontColor(Colors.Grey.Darken2);
                                 c.Item().Text(header.CompanyName).FontSize(11).Bold();
                             });
 

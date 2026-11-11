@@ -10,14 +10,6 @@
     </div>
 </div>
 
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
 <!-- FILTER CARD -->
 <div class="card shadow-sm mb-4">
     <div class="card-body">
@@ -31,7 +23,7 @@
                 <input type="text" asp-for="Filter.InvoiceNumber" class="form-control form-control-sm" placeholder="e.g. PUR-00001" />
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold">Company / Supplier</label>
+                <label class="form-label small fw-bold">Company</label>
                 <select asp-for="Filter.CompanyID" asp-items="Model.Companies" class="form-select form-select-sm">
                     <option value="">-- All Companies --</option>
                 </select>
@@ -53,7 +45,7 @@
                     <tr>
                         <th>Return #</th>
                         <th>Purchase Invoice #</th>
-                        <th>Supplier / Company</th>
+                        <th>Company</th>
                         <th>Return Date</th>
                         <th class="text-center">Items</th>
                         <th class="text-end">Net Refund</th>
@@ -75,7 +67,7 @@
                                 <td>@item.CompanyName</td>
                                 <td>@item.ReturnDate.ToString("dd MMM yyyy")</td>
                                 <td class="text-center"><span class="badge bg-secondary">@item.ItemCount</span></td>
-                                <td class="text-end fw-bold text-primary">@item.NetRefundAmount.ToString("C2")</td>
+                                <td class="text-end fw-bold text-primary">PKR @item.NetRefundAmount.ToString("N2")</td>
                                 <td class="text-center">
                                     <a asp-action="PurchaseReturnDetails" asp-route-id="@item.PurchaseReturnID" class="btn btn-xs btn-outline-info" title="View Details">
                                         <i class="bi bi-eye"></i> View

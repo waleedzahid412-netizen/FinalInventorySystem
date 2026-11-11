@@ -29,6 +29,14 @@ namespace InventorySystem.Helpers
         public const string WarehouseUpdateFailed = "Unable to update warehouse. Please try again.";
         public const string WarehouseDeleteFailed = "Unable to delete warehouse. Please try again.";
 
+        public const string AreaCreateFailed = "Unable to create area. Please try again.";
+        public const string AreaUpdateFailed = "Unable to update area. Please try again.";
+        public const string AreaDeleteFailed = "Unable to delete area. Please try again.";
+
+        public const string SubAreaCreateFailed = "Unable to create sub area. Please try again.";
+        public const string SubAreaUpdateFailed = "Unable to update sub area. Please try again.";
+        public const string SubAreaDeleteFailed = "Unable to delete sub area. Please try again.";
+
         public const string CompanyCreateFailed = "Unable to create company. Please try again.";
         public const string CompanyUpdateFailed = "Unable to update company. Please try again.";
         public const string CompanyDeleteFailed = "Unable to delete company. Please try again.";

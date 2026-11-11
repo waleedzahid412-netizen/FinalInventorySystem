@@ -23,6 +23,8 @@ namespace InventorySystem.Mappings
                 BaseSellingPrice = model.BaseSellingPrice,
                 ReorderLevel = model.ReorderLevel,
                 IsActive = model.IsActive,
+                ProductDiscountType = model.ProductDiscountType,
+                ProductDiscountValue = model.ProductDiscountValue,
                 Units = model.Units.Select(u => u.ToDto()).ToList()
             };
         }
@@ -42,6 +44,8 @@ namespace InventorySystem.Mappings
                 BaseSellingPrice = model.BaseSellingPrice,
                 ReorderLevel = model.ReorderLevel,
                 IsActive = model.IsActive,
+                ProductDiscountType = model.ProductDiscountType,
+                ProductDiscountValue = model.ProductDiscountValue,
                 Units = model.Units.Select(u => u.ToDto()).ToList()
             };
         }
@@ -78,6 +82,8 @@ namespace InventorySystem.Mappings
                 AveragePurchaseCost = dto.AveragePurchaseCost,
                 ReorderLevel = dto.ReorderLevel,
                 IsActive = dto.IsActive,
+                ProductDiscountType = dto.ProductDiscountType,
+                ProductDiscountValue = dto.ProductDiscountValue,
                 Units = dto.Units.Select(u => u.ToViewModel()).ToList(),
                 Categories = categories.ToSelectList(dto.CategoryID),
                 Companies = companies.ToSelectList(dto.CompanyID),

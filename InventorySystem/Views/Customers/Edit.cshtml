@@ -63,6 +63,13 @@
                         <input asp-for="TaxID" class="form-control" />
                         <span asp-validation-for="TaxID" class="text-danger small"></span>
                     </div>
+                    <div class="if-field if-field--6">
+                        <label asp-for="Category" class="if-label"></label>
+                        <select asp-for="Category" class="form-select" asp-items="Html.GetEnumSelectList<CustomerCategory>()">
+                            <option value="">-- Select Category --</option>
+                        </select>
+                        <span asp-validation-for="Category" class="text-danger small"></span>
+                    </div>
                 </div>
             </div>
         </section>

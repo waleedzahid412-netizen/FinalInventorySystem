@@ -243,7 +243,9 @@ namespace InventorySystem.Services.Implementations
                     ProductName = p.ProductName,
                     SKU = p.SKU ?? string.Empty,
                     BaseUnitID = p.BaseUnitID,
-                    BaseUnitName = p.BaseUnit != null ? p.BaseUnit.UnitName : string.Empty
+                    BaseUnitName = p.BaseUnit != null ? p.BaseUnit.UnitName : string.Empty,
+                    ProductDiscountType = p.ProductDiscountType,
+                    ProductDiscountValue = p.ProductDiscountValue
                 })
                 .FirstOrDefaultAsync(cancellationToken);
         }

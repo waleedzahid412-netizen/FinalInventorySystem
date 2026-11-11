@@ -273,6 +273,38 @@ namespace InventorySystem.Services.Implementations
                 productId, warehouseId, quantityBase, unitCost, salesReturnItemId, receivedAt, userId, cancellationToken);
         }
 
+        public async Task CreateLayerFromClaimReplacementAsync(
+            int productId,
+            int warehouseId,
+            decimal quantityBase,
+            decimal unitCostInBase,
+            DateTime receivedAt,
+            int userId,
+            CancellationToken cancellationToken = default)
+        {
+            if (quantityBase <= 0)
+            {
+                return;
+            }
+
+            var layer = new InventoryCostLayer
+            {
+                ProductID = productId,
+                WarehouseID = warehouseId,
+                ReceivedAt = receivedAt,
+                SourceType = "CLAIM_REPLACEMENT",
+                OriginalQuantity = quantityBase,
+                RemainingQuantity = quantityBase,
+                UnitCostInBase = unitCostInBase,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = userId,
+                IsDeleted = false
+            };
+
+            await _context.InventoryCostLayers.AddAsync(layer, cancellationToken);
+            await RefreshProductAverageCostAsync(productId, cancellationToken);
+        }
+
         public async Task<decimal> GetInventoryValueAsync(
             int? companyId,
             int? warehouseId,

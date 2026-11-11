@@ -23,7 +23,7 @@ namespace InventorySystem.Models.Entities
 
         public DateTime TransactionDate { get; set; }
 
-        /// <summary>PURCHASE | PAYMENT | ADJUSTMENT</summary>
+        /// <summary>PURCHASE | PAYMENT | ADJUSTMENT | PURCHASE_RETURN | CLAIM_SETTLEMENT</summary>
         [Required]
         [MaxLength(30)]
         public string TransactionType { get; set; } = string.Empty;
@@ -46,6 +46,10 @@ namespace InventorySystem.Models.Entities
         [ForeignKey("PurchaseReturn")]
         public int? PurchaseReturnID { get; set; }
         public virtual PurchaseReturn? PurchaseReturn { get; set; }
+
+        [ForeignKey("DamagedStockClaim")]
+        public int? DamagedStockClaimID { get; set; }
+        public virtual DamagedStockClaim? DamagedStockClaim { get; set; }
 
         [MaxLength(255)]
         public string? Description { get; set; }

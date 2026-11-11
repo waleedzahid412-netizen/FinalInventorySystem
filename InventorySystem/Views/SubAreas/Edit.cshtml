@@ -1,0 +1,67 @@
+@model InventorySystem.ViewModels.SubAreas.EditSubAreaViewModel
+@{
+    ViewData["Title"] = "Edit Sub Area";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-7 col-xl-6">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="h4 fw-bold mb-1"><i class="bi bi-pencil-square text-primary me-2"></i>Edit Sub Area</h1>
+                    <p class="text-muted small mb-0">Update sub area <strong>@Model.SubAreaName</strong>.</p>
+                </div>
+                <a asp-action="Index" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back
+                </a>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <form asp-action="Edit" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="SubAreaID" />
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small" role="alert"></div>
+
+                        @if (Model.IsInUse)
+                        {
+                            <div class="alert alert-info py-2 small" role="alert">
+                                This sub area is linked to customers or sales invoices. You can rename or deactivate it, but it cannot be deleted.
+                            </div>
+                        }
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label asp-for="AreaID" class="form-label fw-semibold"></label>
+                                <select asp-for="AreaID" class="form-select" asp-items="Model.AreaOptions" data-no-select2></select>
+                                <span asp-validation-for="AreaID" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12">
+                                <label asp-for="SubAreaName" class="form-label fw-semibold"></label>
+                                <input asp-for="SubAreaName" class="form-control" />
+                                <span asp-validation-for="SubAreaName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input asp-for="IsActive" class="form-check-input" />
+                                    <label asp-for="IsActive" class="form-check-label"></label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4 pt-2 border-top">
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="bi bi-check-lg me-1"></i>Update Sub Area
+                            </button>
+                            <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+}

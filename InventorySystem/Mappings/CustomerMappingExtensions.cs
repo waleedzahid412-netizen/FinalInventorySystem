@@ -18,6 +18,7 @@ namespace InventorySystem.Mappings
                 TaxID = model.TaxID,
                 CreditLimit = model.CreditLimit,
                 PreferredDiscountPercent = NormalizePreferredDiscount(model.PreferredDiscountPercent),
+                Category = model.Category,
                 IsActive = model.IsActive
             };
         }
@@ -36,6 +37,7 @@ namespace InventorySystem.Mappings
                 TaxID = model.TaxID,
                 CreditLimit = model.CreditLimit,
                 PreferredDiscountPercent = NormalizePreferredDiscount(model.PreferredDiscountPercent),
+                Category = model.Category,
                 IsActive = model.IsActive
             };
         }
@@ -54,6 +56,7 @@ namespace InventorySystem.Mappings
                 TaxID = dto.TaxID,
                 CreditLimit = dto.CreditLimit,
                 PreferredDiscountPercent = dto.PreferredDiscountPercent,
+                Category = dto.Category,
                 IsActive = dto.IsActive
             };
         }

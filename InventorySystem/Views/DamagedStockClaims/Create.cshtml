@@ -1,0 +1,240 @@
+@model InventorySystem.ViewModels.DamagedStockClaims.DamagedStockClaimCreateViewModel
+@{
+    ViewData["Title"] = "New Damaged Stock Claim";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold">
+                <i class="bi bi-plus-circle me-2 text-primary"></i>New Damaged Stock Claim
+            </h1>
+            <p class="text-muted small mb-0">
+                Company:
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">@Model.CompanyName</span>
+            </p>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Back to List</a>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <form method="get" asp-action="Create" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Warehouse</label>
+                    <select name="warehouseId" class="form-select form-select-sm" asp-items="Model.Warehouses">
+                        <option value="">All Warehouses</option>
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label small fw-semibold">Search</label>
+                    <input type="text" name="searchTerm" value="@Model.SearchTerm" class="form-control form-control-sm" placeholder="Product name or SKU" />
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-outline-primary btn-sm w-100">Refresh Damaged Stock</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-header bg-white fw-semibold">Available Damaged Stock</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" id="damagedStockTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th></th>
+                            <th>Product</th>
+                            <th>Warehouse</th>
+                            <th class="text-end">Damaged Qty</th>
+                            <th class="text-end">Claim Pending</th>
+                            <th class="text-end">Suggested Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @if (Model.DamagedStock.Count == 0)
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">No damaged stock available for this company.</td></tr>
+                    }
+                    else
+                    {
+                        foreach (var row in Model.DamagedStock)
+                        {
+                            <tr data-stock-id="@row.InventoryStockID"
+                                data-product="@row.ProductName"
+                                data-sku="@(row.SKU ?? "")"
+                                data-warehouse="@row.WarehouseName"
+                                data-available="@row.DamagedQuantity"
+                                data-cost="@row.SuggestedUnitCost">
+                                <td>
+                                    <button type="button" class="btn btn-outline-primary btn-sm btn-add-line">Add</button>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">@row.ProductName</div>
+                                    <div class="small text-muted">@row.SKU</div>
+                                </td>
+                                <td>@row.WarehouseName</td>
+                                <td class="text-end">@row.DamagedQuantity.ToString("N3")</td>
+                                <td class="text-end">@row.ClaimPendingQuantity.ToString("N3")</td>
+                                <td class="text-end">@row.SuggestedUnitCost.ToString("N4")</td>
+                            </tr>
+                        }
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-header bg-white fw-semibold">Claim Lines</div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Remarks</label>
+                <textarea id="claimRemarks" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle" id="claimLinesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th>Warehouse</th>
+                            <th class="text-end">Available</th>
+                            <th class="text-end">Claim Qty</th>
+                            <th class="text-end">Unit Cost</th>
+                            <th class="text-end">Amount</th>
+                            <th>Reason</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="5" class="text-end fw-semibold">Total Claim Amount</td>
+                            <td class="text-end fw-bold" id="totalClaimAmount">0.00</td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div id="createError" class="alert alert-danger d-none"></div>
+            <div class="d-flex justify-content-end gap-2">
+                <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Cancel</a>
+                <button type="button" id="btnSubmitClaim" class="btn btn-primary btn-sm">
+                    <i class="bi bi-check2 me-1"></i>Create Claim
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const linesBody = document.querySelector('#claimLinesTable tbody');
+    const totalEl = document.getElementById('totalClaimAmount');
+    const errorEl = document.getElementById('createError');
+    const added = new Set();
+
+    function recalc() {
+        let total = 0;
+        linesBody.querySelectorAll('tr').forEach(tr => {
+            const qty = parseFloat(tr.querySelector('.claim-qty').value) || 0;
+            const cost = parseFloat(tr.querySelector('.unit-cost').value) || 0;
+            const amount = Math.round(qty * cost * 100) / 100;
+            tr.querySelector('.line-amount').textContent = amount.toFixed(2);
+            total += amount;
+        });
+        totalEl.textContent = total.toFixed(2);
+    }
+
+    document.querySelectorAll('.btn-add-line').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tr = btn.closest('tr');
+            const stockId = tr.dataset.stockId;
+            if (added.has(stockId)) return;
+            added.add(stockId);
+
+            const available = parseFloat(tr.dataset.available);
+            const cost = parseFloat(tr.dataset.cost) || 0;
+            const row = document.createElement('tr');
+            row.dataset.stockId = stockId;
+            row.innerHTML = `
+                <td>
+                    <div class="fw-semibold">${tr.dataset.product}</div>
+                    <div class="small text-muted">${tr.dataset.sku || ''}</div>
+                </td>
+                <td>${tr.dataset.warehouse}</td>
+                <td class="text-end">${available.toFixed(3)}</td>
+                <td class="text-end" style="min-width:110px">
+                    <input type="number" class="form-control form-control-sm text-end claim-qty" min="0.001" step="0.001" max="${available}" value="${available}" />
+                </td>
+                <td class="text-end" style="min-width:110px">
+                    <input type="number" class="form-control form-control-sm text-end unit-cost" min="0" step="0.0001" value="${cost}" />
+                </td>
+                <td class="text-end line-amount">0.00</td>
+                <td style="min-width:160px"><input type="text" class="form-control form-control-sm damage-reason" maxlength="255" /></td>
+                <td><button type="button" class="btn btn-outline-danger btn-sm btn-remove">&times;</button></td>`;
+            linesBody.appendChild(row);
+            row.querySelector('.claim-qty').addEventListener('input', recalc);
+            row.querySelector('.unit-cost').addEventListener('input', recalc);
+            row.querySelector('.btn-remove').addEventListener('click', () => {
+                added.delete(stockId);
+                row.remove();
+                recalc();
+            });
+            recalc();
+        });
+    });
+
+    document.getElementById('btnSubmitClaim').addEventListener('click', async () => {
+        errorEl.classList.add('d-none');
+        const lines = [];
+        linesBody.querySelectorAll('tr').forEach(tr => {
+            lines.push({
+                inventoryStockID: parseInt(tr.dataset.stockId, 10),
+                claimQuantity: parseFloat(tr.querySelector('.claim-qty').value) || 0,
+                unitClaimCost: parseFloat(tr.querySelector('.unit-cost').value) || 0,
+                damageReason: tr.querySelector('.damage-reason').value || null,
+                remarks: null
+            });
+        });
+
+        if (lines.length === 0) {
+            errorEl.textContent = 'Add at least one claim line.';
+            errorEl.classList.remove('d-none');
+            return;
+        }
+
+        const payload = {
+            remarks: document.getElementById('claimRemarks').value || null,
+            lines
+        };
+
+        const btn = document.getElementById('btnSubmitClaim');
+        btn.disabled = true;
+        try {
+            const res = await fetch('@Url.Action("Create")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg = (data.errors && data.errors.length) ? data.errors.join(' ') : (data.message || 'Failed to create claim.');
+                errorEl.textContent = msg;
+                errorEl.classList.remove('d-none');
+                btn.disabled = false;
+                return;
+            }
+            window.location.href = '@Url.Action("Details")/' + data.claimId;
+        } catch (e) {
+            errorEl.textContent = 'Network error creating claim.';
+            errorEl.classList.remove('d-none');
+            btn.disabled = false;
+        }
+    });
+})();
+</script>
+}

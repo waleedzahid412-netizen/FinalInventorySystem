@@ -22,22 +22,6 @@
         </div>
     </div>
 
-    <!-- Alert Notifications -->
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-    @if (TempData["ErrorMessage"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
     <!-- Search & Filter Card -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body bg-light rounded">
@@ -124,13 +108,13 @@
                                         }
                                     </td>
                                     <td class="text-end fw-semibold">
-                                        Rs. @company.TotalPurchases.ToString("N2")
+                                        PKR @company.TotalPurchases.ToString("N2")
                                     </td>
                                     <td class="text-end">
                                         @if (company.OutstandingPayable > 0)
                                         {
                                             <span class="badge bg-warning text-dark px-2 py-1 fs-6 fw-bold">
-                                                Rs. @company.OutstandingPayable.ToString("N2")
+                                                PKR @company.OutstandingPayable.ToString("N2")
                                             </span>
                                         }
                                         else

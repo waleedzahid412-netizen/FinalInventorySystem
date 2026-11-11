@@ -39,6 +39,13 @@ namespace InventorySystem.Models.Entities
         [MaxLength(200)]
         public string? CustomFreeItemName { get; set; }
 
+        /// <summary>
+        /// Retail value of custom "Other" free gift. Used for return clawback when gift is not returned.
+        /// Null when reward is a real product.
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? CustomFreeItemPrice { get; set; }
+
         public int FreeQuantity { get; set; }
     }
 }

@@ -117,6 +117,7 @@ namespace InventorySystem.Services.Implementations
                                     FreeProductName = $"Other: {customName}",
                                     IsCustomFreeItem = true,
                                     CustomFreeItemName = customName,
+                                    CustomFreeItemPrice = rule.CustomFreeItemPrice ?? 0m,
                                     RuleFreeQuantity = rule.FreeQuantity,
                                     RewardQuantity = freeQty,
                                     FreeUnitID = 0,

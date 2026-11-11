@@ -111,6 +111,7 @@ namespace InventorySystem.Controllers
                         : (r.FreeProduct?.ProductName ?? string.Empty),
                     IsCustomFreeItem = r.IsCustomFreeItem,
                     CustomFreeItemName = r.CustomFreeItemName,
+                    CustomFreeItemPrice = r.CustomFreeItemPrice,
                     FreeQuantity = r.FreeQuantity
                 }).ToList()
             };
@@ -151,6 +152,15 @@ namespace InventorySystem.Controllers
             }
 
             await ValidateRulesAgainstCompanyAsync(model.Rules, _companyContext.CompanyID, cancellationToken);
+
+            if (model.IsActive)
+            {
+                await ValidateNoActiveBuyProductConflictAsync(
+                    model.Rules,
+                    _companyContext.CompanyID,
+                    excludePromotionId: null,
+                    cancellationToken);
+            }
 
             if (!ModelState.IsValid)
             {
@@ -218,6 +228,7 @@ namespace InventorySystem.Controllers
                     FreeProductID = r.FreeProductID,
                     IsCustomFreeItem = r.IsCustomFreeItem,
                     CustomFreeItemName = r.CustomFreeItemName,
+                    CustomFreeItemPrice = r.CustomFreeItemPrice,
                     FreeRewardSelection = r.IsCustomFreeItem
                         ? PromotionRuleInputViewModel.OtherRewardValue
                         : (r.FreeProductID?.ToString() ?? string.Empty),
@@ -264,6 +275,15 @@ namespace InventorySystem.Controllers
             }
 
             await ValidateRulesAgainstCompanyAsync(model.Rules, companyId, cancellationToken);
+
+            if (model.IsActive)
+            {
+                await ValidateNoActiveBuyProductConflictAsync(
+                    model.Rules,
+                    companyId,
+                    excludePromotionId: campaign.PromotionID,
+                    cancellationToken);
+            }
 
             if (!ModelState.IsValid)
             {
@@ -317,11 +337,32 @@ namespace InventorySystem.Controllers
             await _companyContext.TryResolveAsync(cancellationToken);
 
             var campaign = await _context.PromotionCampaigns
+                .Include(c => c.PromotionRules)
                 .FirstOrDefaultAsync(c => c.PromotionID == id && !c.IsDeleted, cancellationToken);
 
             if (campaign == null || CompanyScopeGuards.IsOutOfScope(_companyContext, campaign.CompanyID))
             {
                 return NotFound();
+            }
+
+            bool enabling = !campaign.IsActive;
+            if (enabling)
+            {
+                var buyProductIds = campaign.PromotionRules.Select(r => r.BuyProductID).ToList();
+                var conflict = await PromotionConflictHelper.FindActiveBuyProductConflictAsync(
+                    _context,
+                    campaign.CompanyID,
+                    buyProductIds,
+                    excludePromotionId: campaign.PromotionID,
+                    cancellationToken);
+
+                if (conflict != null)
+                {
+                    TempData["ErrorMessage"] =
+                        $"Cannot enable this campaign. An active promotion already exists for '{conflict.ProductName}' " +
+                        $"(campaign '{conflict.ExistingPromotionName}'). Disable or delete it first.";
+                    return RedirectToAction(nameof(Index));
+                }
             }
 
             campaign.IsActive = !campaign.IsActive;
@@ -404,6 +445,36 @@ namespace InventorySystem.Controllers
             return new SelectList(products, "Id", "Name");
         }
 
+        private async Task ValidateNoActiveBuyProductConflictAsync(
+            IList<PromotionRuleInputViewModel> rules,
+            int companyId,
+            int? excludePromotionId,
+            CancellationToken cancellationToken)
+        {
+            var buyProductIds = rules
+                .Where(r => !r.IsDeleted && r.BuyProductID > 0)
+                .Select(r => r.BuyProductID)
+                .Distinct()
+                .ToList();
+
+            var conflict = await PromotionConflictHelper.FindActiveBuyProductConflictAsync(
+                _context,
+                companyId,
+                buyProductIds,
+                excludePromotionId,
+                cancellationToken);
+
+            if (conflict == null)
+            {
+                return;
+            }
+
+            ModelState.AddModelError(
+                string.Empty,
+                $"An active promotion already exists for '{conflict.ProductName}' " +
+                $"(campaign '{conflict.ExistingPromotionName}'). Disable or delete it before creating another.");
+        }
+
         private static PromotionRule MapRule(PromotionRuleInputViewModel ruleInput) => new PromotionRule
         {
             BuyProductID = ruleInput.BuyProductID,
@@ -411,6 +482,7 @@ namespace InventorySystem.Controllers
             FreeProductID = ruleInput.IsCustomFreeItem ? null : ruleInput.FreeProductID,
             IsCustomFreeItem = ruleInput.IsCustomFreeItem,
             CustomFreeItemName = ruleInput.IsCustomFreeItem ? ruleInput.CustomFreeItemName : null,
+            CustomFreeItemPrice = ruleInput.IsCustomFreeItem ? ruleInput.CustomFreeItemPrice : null,
             FreeQuantity = ruleInput.FreeQuantity
         };
 
@@ -421,6 +493,7 @@ namespace InventorySystem.Controllers
             existingRule.FreeProductID = ruleInput.IsCustomFreeItem ? null : ruleInput.FreeProductID;
             existingRule.IsCustomFreeItem = ruleInput.IsCustomFreeItem;
             existingRule.CustomFreeItemName = ruleInput.IsCustomFreeItem ? ruleInput.CustomFreeItemName : null;
+            existingRule.CustomFreeItemPrice = ruleInput.IsCustomFreeItem ? ruleInput.CustomFreeItemPrice : null;
             existingRule.FreeQuantity = ruleInput.FreeQuantity;
         }
     }

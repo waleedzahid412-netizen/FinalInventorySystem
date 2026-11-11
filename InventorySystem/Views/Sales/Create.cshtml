@@ -48,6 +48,7 @@
         <input type="hidden" asp-for="ManualDiscountType" id="ManualDiscountType" />
         <input type="hidden" asp-for="ManualDiscountValue" id="ManualDiscountValue" />
         <input type="hidden" asp-for="ApplyPromotions" id="ApplyPromotions" />
+        <input type="hidden" asp-for="ApplyProductDiscount" id="ApplyProductDiscount" />
         <input type="hidden" asp-for="SalespersonID" />
 
         <div asp-validation-summary="ModelOnly" class="alert alert-danger shadow-sm" role="alert"></div>
@@ -60,42 +61,56 @@
             <div class="if-card-body">
                 <div class="if-grid">
                     <div class="if-field">
-                        <label asp-for="InvoiceDate" class="if-label"></label>
+                        <label asp-for="InvoiceDate" class="if-label">Invoice Date</label>
                         <input asp-for="InvoiceDate" class="form-control" type="date" required />
                         <div class="invalid-feedback">Please select a valid invoice date.</div>
                     </div>
                     <div class="if-field">
-                        <label asp-for="SupplierID" class="if-label"></label>
+                        <label asp-for="BookerID" class="if-label">Booker</label>
+                        <select asp-for="BookerID" asp-items="Model.Bookers" class="form-select" id="bookerSelect" required>
+                            <option value="">-- Select Booker --</option>
+                        </select>
+                        <span asp-validation-for="BookerID" class="text-danger small"></span>
+                    </div>
+                    <div class="if-field">
+                        <label asp-for="SupplierID" class="if-label">Supplier</label>
                         <select asp-for="SupplierID" asp-items="Model.Suppliers" class="form-select">
                             <option value="">-- Select Supplier (Optional) --</option>
                         </select>
                         <span asp-validation-for="SupplierID" class="text-danger small"></span>
                     </div>
+                    <div class="if-field">
+                        <label asp-for="WarehouseID" class="if-label">Warehouse</label>
+                        <select asp-for="WarehouseID" asp-items="Model.Warehouses" class="form-select" id="warehouseSelect" required>
+                            <option value="">-- Select Warehouse --</option>
+                        </select>
+                        <div class="invalid-feedback">Please select a destination warehouse.</div>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- Customer & Logistics -->
-        <section class="if-card" aria-label="Customer and logistics">
+        <!-- Customer Detail -->
+        <section class="if-card" aria-label="Customer detail">
             <div class="if-card-head">
-                <h2 class="if-card-title"><i class="bi bi-geo-alt"></i> Customer &amp; Logistics</h2>
+                <h2 class="if-card-title"><i class="bi bi-geo-alt"></i> Customer Detail</h2>
             </div>
             <div class="if-card-body">
                 <div class="if-grid">
                     <div class="if-field">
-                        <label asp-for="AreaID" class="if-label"></label>
+                        <label asp-for="AreaID" class="if-label">Area</label>
                         <select asp-for="AreaID" asp-items="Model.Areas" class="form-select" id="areaSelect">
                             <option value="">-- Select Area --</option>
                         </select>
                     </div>
                     <div class="if-field">
-                        <label asp-for="SubAreaID" class="if-label"></label>
+                        <label asp-for="SubAreaID" class="if-label">Sub-Area</label>
                         <select asp-for="SubAreaID" asp-items="Model.SubAreas" class="form-select" id="subAreaSelect">
                             <option value="">-- Select Sub-Area --</option>
                         </select>
                     </div>
                     <div class="if-field">
-                        <label asp-for="CustomerID" class="if-label"></label>
+                        <label asp-for="CustomerID" class="if-label">Customer</label>
                         <select asp-for="CustomerID" asp-items="Model.Customers" class="form-select" id="customerSelect" required>
                             <option value="">-- Select Customer --</option>
                         </select>
@@ -127,20 +142,6 @@
                             <strong>Credit Warning:</strong> Customer balance exceeds credit limit. Sale is permitted.
                         </div>
                     </div>
-                    <div class="if-field">
-                        <label asp-for="BookerID" class="if-label"></label>
-                        <select asp-for="BookerID" asp-items="Model.Bookers" class="form-select" id="bookerSelect" required>
-                            <option value="">-- Select Booker --</option>
-                        </select>
-                        <span asp-validation-for="BookerID" class="text-danger small"></span>
-                    </div>
-                    <div class="if-field">
-                        <label asp-for="WarehouseID" class="if-label"></label>
-                        <select asp-for="WarehouseID" asp-items="Model.Warehouses" class="form-select" id="warehouseSelect" required>
-                            <option value="">-- Select Warehouse --</option>
-                        </select>
-                        <div class="invalid-feedback">Please select a destination warehouse.</div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -158,11 +159,12 @@
                     <table class="table align-middle mb-0" id="itemsTable">
                         <thead>
                             <tr>
-                                <th style="width: 32%;">Product <span class="text-danger">*</span></th>
-                                <th style="width: 22%;">Packaging Unit <span class="text-danger">*</span></th>
-                                <th style="width: 14%;" class="text-end">Quantity <span class="text-danger">*</span></th>
-                                <th style="width: 16%;" class="text-end">Unit Trade Price <span class="text-danger">*</span></th>
-                                <th style="width: 12%;" class="text-end">Total</th>
+                                <th style="width: 28%;">Product <span class="text-danger">*</span></th>
+                                <th style="width: 18%;">Packaging Unit <span class="text-danger">*</span></th>
+                                <th style="width: 12%;" class="text-end">Quantity <span class="text-danger">*</span></th>
+                                <th style="width: 14%;" class="text-end">Unit Trade Price <span class="text-danger">*</span></th>
+                                <th style="width: 14%;" class="text-end">Product Discount</th>
+                                <th style="width: 10%;" class="text-end">Total</th>
                                 <th style="width: 4%;" class="text-center"></th>
                             </tr>
                         </thead>
@@ -177,18 +179,23 @@
                         <span>Subtotal</span>
                         <strong id="lblSubTotal" class="if-summary-value">PKR 0.00</strong>
                     </div>
-                    <div class="if-summary-row if-summary-row--discount">
-                        <span>Applied Discount</span>
-                        <strong id="lblDiscountTotal" class="if-summary-value">PKR 0.00</strong>
+                    <div class="if-summary-row if-summary-row--discount" id="rowProductDiscountSummary">
+                        <span>
+                            Product Discount
+                            <span class="small text-muted d-block" id="lblProductDiscountDetail">—</span>
+                        </span>
+                        <strong id="lblProductDiscountTotal" class="if-summary-value">PKR 0.00</strong>
                     </div>
-                    <div id="appliedDiscountBadgeContainer" class="mb-2 d-none">
-                        <div class="alert alert-success p-2 small d-flex justify-content-between align-items-center mb-0">
-                            <div>
-                                <i class="bi bi-tag-fill me-1"></i> <strong id="lblAppliedDiscountName"></strong>
-                                <span class="badge bg-secondary ms-1" id="lblDiscountModeBadge">Automatic</span>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="btnRemoveDiscount">Remove</button>
-                        </div>
+                    <div class="if-summary-row if-summary-row--discount d-none" id="rowAdditionalDiscountSummary">
+                        <span>
+                            Additional Discount
+                            <span class="small text-muted d-block" id="lblAdditionalDiscountDetail">—</span>
+                        </span>
+                        <strong id="lblAdditionalDiscountTotal" class="if-summary-value">PKR 0.00</strong>
+                    </div>
+                    <div class="if-summary-row if-summary-row--discount">
+                        <span>Total Discount</span>
+                        <strong id="lblDiscountTotal" class="if-summary-value">PKR 0.00</strong>
                     </div>
                     <hr class="if-summary-divider" />
                     <div class="if-summary-row if-summary-row--grand">
@@ -226,6 +233,15 @@
                             <label class="btn" for="applyPromotionsNo">No</label>
                         </div>
                     </div>
+                    <div class="if-control-group">
+                        <span class="if-control-label">Product Discount</span>
+                        <div class="if-segment" role="group" aria-label="Apply product discount toggle">
+                            <input type="radio" class="btn-check" name="applyProductDiscountToggle" id="applyProductDiscountYes" value="true" autocomplete="off" checked>
+                            <label class="btn" for="applyProductDiscountYes">On</label>
+                            <input type="radio" class="btn-check" name="applyProductDiscountToggle" id="applyProductDiscountNo" value="false" autocomplete="off">
+                            <label class="btn" for="applyProductDiscountNo">Off</label>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="if-card-body">
@@ -239,12 +255,22 @@
                                 <option value="FixedAmount">Fixed Amount (PKR)</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="if-label" for="manualDiscountValueInput">Value</label>
+                        <div class="col-md-4" id="manualDiscountPercentWrap">
+                            <label class="if-label" for="manualDiscountPercentSelect">Percent (1–30)</label>
+                            <select id="manualDiscountPercentSelect" class="form-select form-select-sm" data-no-select2="true">
+                                <option value="0">-- Select --</option>
+                                @for (int i = 1; i <= 30; i++)
+                                {
+                                    <option value="@i">@i%</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-none" id="manualDiscountAmountWrap">
+                            <label class="if-label" for="manualDiscountValueInput">Amount (PKR)</label>
                             <input type="number" id="manualDiscountValueInput" class="form-control form-control-sm" min="0" step="0.01" value="0" />
                         </div>
                         <div class="col-md-4">
-                            <div class="small text-muted" id="manualDiscountHint">Enter % off the invoice subtotal. Server allocates to each NORMAL line.</div>
+                            <div class="small text-muted" id="manualDiscountHint">Applied on subtotal after product discounts. Server allocates to each NORMAL line.</div>
                         </div>
                     </div>
                 </div>
@@ -356,15 +382,127 @@
                 }
             }
 
+            function isApplyProductDiscountEnabled() {
+                return document.getElementById('applyProductDiscountYes')?.checked === true;
+            }
+
+            function setApplyProductDiscount(enabled) {
+                const yes = document.getElementById('applyProductDiscountYes');
+                const no = document.getElementById('applyProductDiscountNo');
+                const hidden = document.getElementById('ApplyProductDiscount');
+                if (yes) yes.checked = enabled;
+                if (no) no.checked = !enabled;
+                if (hidden) hidden.value = enabled ? 'true' : 'false';
+            }
+
+            function getSelectValue(el) {
+                if (!el) return '';
+                if (window.jQuery) {
+                    const $el = window.jQuery(el);
+                    if ($el.length) {
+                        const v = $el.val();
+                        return v == null ? '' : String(v);
+                    }
+                }
+                return el.value || '';
+            }
+
+            function getManualDiscountType() {
+                return getSelectValue(document.getElementById('manualDiscountTypeSelect')) || 'Percentage';
+            }
+
+            function getManualDiscountValue() {
+                const type = getManualDiscountType();
+                if (type === 'FixedAmount') {
+                    return parseFloat(document.getElementById('manualDiscountValueInput')?.value) || 0;
+                }
+                return parseFloat(getSelectValue(document.getElementById('manualDiscountPercentSelect'))) || 0;
+            }
+
+            function syncManualDiscountTypeUi() {
+                const type = getManualDiscountType();
+                document.getElementById('manualDiscountPercentWrap')?.classList.toggle('d-none', type !== 'Percentage');
+                document.getElementById('manualDiscountAmountWrap')?.classList.toggle('d-none', type !== 'FixedAmount');
+                const hint = document.getElementById('manualDiscountHint');
+                if (hint) {
+                    hint.textContent = type === 'FixedAmount'
+                        ? 'Fixed PKR off remaining subtotal after product discounts.'
+                        : 'Percent (1–30) off remaining subtotal after product discounts.';
+                }
+            }
+
+            function computeProductDiscountForRow(row) {
+                if (!isApplyProductDiscountEnabled() || row.getAttribute('data-item-type') === 'FREE') return 0;
+                const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
+                const price = parseFloat(row.querySelector('.cost-input')?.value) || 0;
+                const type = row.getAttribute('data-product-discount-type') || '';
+                const value = parseFloat(row.getAttribute('data-product-discount-value')) || 0;
+                const gross = qty * price;
+                if (gross <= 0 || value <= 0 || !type) return 0;
+                let amount = 0;
+                if (type === 'Percentage') {
+                    amount = gross * (value / 100);
+                } else if (type === 'FixedAmount') {
+                    amount = qty * value;
+                }
+                amount = Math.min(gross, Math.round(amount * 100) / 100);
+                return amount > 0 ? amount : 0;
+            }
+
+            function formatProductDiscountCell(row, amount) {
+                if (!amount || amount <= 0) return '—';
+                const type = row.getAttribute('data-product-discount-type') || '';
+                const value = parseFloat(row.getAttribute('data-product-discount-value')) || 0;
+                if (type === 'Percentage') {
+                    return `${value}% (−${amount.toFixed(2)})`;
+                }
+                if (type === 'FixedAmount') {
+                    return `${value.toFixed(2)}/u (−${amount.toFixed(2)})`;
+                }
+                return `−${amount.toFixed(2)}`;
+            }
+
+            function getCartProductDiscountTotal() {
+                let total = 0;
+                document.querySelectorAll('#itemsTableBody tr').forEach(row => {
+                    total += computeProductDiscountForRow(row);
+                });
+                return Math.round(total * 100) / 100;
+            }
+
+            function enforceProductDiscountMutualExclusion() {
+                const productDisc = getCartProductDiscountTotal();
+                const autoRadio = document.getElementById('discountModeAutomatic');
+                const customerRadio = document.getElementById('discountModeCustomer');
+                const blockAutoCustomer = productDisc > 0;
+                if (autoRadio) autoRadio.disabled = blockAutoCustomer;
+                if (customerRadio) {
+                    customerRadio.disabled = blockAutoCustomer || customerPreferredPercent == null;
+                }
+                if (blockAutoCustomer) {
+                    const mode = getDiscountMode();
+                    if (mode === 'Automatic' || mode === 'Customer') {
+                        document.getElementById('discountModeNone').checked = true;
+                        document.getElementById('DiscountMode').value = 'None';
+                        currentAppliedDiscount = null;
+                        document.getElementById('AppliedDiscountRuleID').value = '';
+                    }
+                }
+            }
+
             function syncDiscountHiddenFields(subTotal) {
                 const mode = getDiscountMode();
                 document.getElementById('DiscountMode').value = mode;
 
                 if (mode === 'Manual') {
-                    const type = document.getElementById('manualDiscountTypeSelect').value || 'Percentage';
-                    let value = parseFloat(document.getElementById('manualDiscountValueInput').value) || 0;
-                    if (type === 'Percentage' && value > 100) value = 100;
-                    if (value < 0) value = 0;
+                    const type = getManualDiscountType();
+                    let value = getManualDiscountValue();
+                    if (type === 'Percentage') {
+                        if (value < 0) value = 0;
+                        if (value > 30) value = 30;
+                    } else if (value < 0) {
+                        value = 0;
+                    }
                     document.getElementById('ManualDiscountType').value = type;
                     document.getElementById('ManualDiscountValue').value = value;
                     document.getElementById('AppliedDiscountRuleID').value = '';
@@ -422,16 +560,41 @@
             document.querySelectorAll('input[name="discountModeToggle"]').forEach(el => {
                 el.addEventListener('change', updateDiscountModeUi);
             });
-            document.getElementById('manualDiscountTypeSelect')?.addEventListener('change', function () {
-                const hint = document.getElementById('manualDiscountHint');
-                if (hint) {
-                    hint.textContent = this.value === 'FixedAmount'
-                        ? 'Enter fixed PKR off the invoice subtotal. Server allocates across NORMAL lines.'
-                        : 'Enter % off the invoice subtotal. Server allocates to each NORMAL line.';
+            function bindManualDiscountRecalc() {
+                const typeEl = document.getElementById('manualDiscountTypeSelect');
+                const pctEl = document.getElementById('manualDiscountPercentSelect');
+                const amtEl = document.getElementById('manualDiscountValueInput');
+
+                const onTypeChange = function () {
+                    syncManualDiscountTypeUi();
+                    calculateTotals();
+                };
+
+                if (window.jQuery) {
+                    window.jQuery(typeEl)
+                        .off('change.manualDisc select2:select.manualDisc')
+                        .on('change.manualDisc select2:select.manualDisc', onTypeChange);
+                    window.jQuery(pctEl)
+                        .off('change.manualDisc select2:select.manualDisc')
+                        .on('change.manualDisc select2:select.manualDisc', function () {
+                            calculateTotals();
+                        });
+                } else {
+                    typeEl?.addEventListener('change', onTypeChange);
+                    pctEl?.addEventListener('change', calculateTotals);
                 }
-                calculateTotals();
+                amtEl?.addEventListener('input', calculateTotals);
+            }
+            bindManualDiscountRecalc();
+            syncManualDiscountTypeUi();
+            setApplyProductDiscount(true);
+
+            document.querySelectorAll('input[name="applyProductDiscountToggle"]').forEach(el => {
+                el.addEventListener('change', function () {
+                    setApplyProductDiscount(isApplyProductDiscountEnabled());
+                    calculateTotals();
+                });
             });
-            document.getElementById('manualDiscountValueInput')?.addEventListener('input', calculateTotals);
 
             document.getElementById('btnApplyCustomerPreferredDiscount')?.addEventListener('click', function () {
                 if (customerPreferredPercent == null) return;
@@ -643,11 +806,21 @@
                 if (!element) return true;
                 if (!element.value || element.value === '' || element.value === '0') {
                     element.classList.add('is-invalid');
-                    let feedback = element.nextElementSibling;
-                    if (!feedback || !feedback.classList.contains('invalid-feedback')) {
-                        feedback = document.createElement('div');
-                        feedback.className = 'invalid-feedback';
-                        element.parentNode.appendChild(feedback);
+                    // Prefer an existing .invalid-feedback in the field parent.
+                    // Select2 inserts a container as nextElementSibling, so sibling lookup is unreliable.
+                    const parent = element.parentNode;
+                    let feedback = parent
+                        ? parent.querySelector(':scope > .invalid-feedback')
+                        : null;
+                    if (!feedback) {
+                        feedback = element.nextElementSibling;
+                        if (!feedback || !feedback.classList.contains('invalid-feedback')) {
+                            feedback = document.createElement('div');
+                            feedback.className = 'invalid-feedback';
+                            if (parent) {
+                                parent.appendChild(feedback);
+                            }
+                        }
                     }
                     feedback.textContent = errorMsg;
                     checkGlobalFormValidity();
@@ -698,6 +871,7 @@
                         <td>
                             <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" readonly />
                         </td>
+                        <td class="text-end small text-muted line-product-discount" id="prodDisc_${rowId}">—</td>
                         <td class="text-end fw-bold line-total text-success" id="total_${rowId}">FREE</td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Managed by Apply Promotion toggle">
@@ -726,6 +900,7 @@
                         <td>
                             <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" readonly />
                         </td>
+                        <td class="text-end small text-muted line-product-discount" id="prodDisc_${rowId}">—</td>
                         <td class="text-end fw-bold line-total text-success" id="total_${rowId}">0.00</td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Managed by Apply Promotion toggle">
@@ -756,6 +931,7 @@
                         <td>
                             <input type="number" class="form-control form-control-sm cost-input" data-row-id="${rowId}" min="0" step="any" value="0.00" />
                         </td>
+                        <td class="text-end small fw-semibold text-dark line-product-discount" id="prodDisc_${rowId}">—</td>
                         <td class="text-end fw-bold line-total" id="total_${rowId}">
                             0.00
                         </td>
@@ -977,6 +1153,15 @@
                         });
                         unitSelect.innerHTML = options;
 
+                        if (units.length > 0) {
+                            const first = units[0];
+                            row.setAttribute('data-product-discount-type', first.productDiscountType || '');
+                            row.setAttribute('data-product-discount-value', first.productDiscountValue != null ? first.productDiscountValue : '');
+                        } else {
+                            row.setAttribute('data-product-discount-type', '');
+                            row.setAttribute('data-product-discount-value', '');
+                        }
+
                         if (targetUnitId) {
                             unitSelect.value = targetUnitId;
                         } else if (units.length > 0) {
@@ -1032,59 +1217,111 @@
 
             function calculateTotals() {
                 let subTotal = 0;
+                let productDiscountTotal = 0;
+                const productRateLabels = [];
                 const rows = document.querySelectorAll('#itemsTableBody tr');
 
                 rows.forEach(row => {
                     const rowId = row.id;
-                    const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
-                    const price = parseFloat(row.querySelector('.cost-input').value) || 0;
+                    const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
+                    const price = parseFloat(row.querySelector('.cost-input')?.value) || 0;
                     const isFree = row.getAttribute('data-item-type') === 'FREE';
                     const effectivePrice = isFree ? 0 : price;
 
-                    const lineTotal = qty * effectivePrice;
-                    document.getElementById(`total_${rowId}`).textContent = lineTotal.toFixed(2);
+                    const lineGross = qty * effectivePrice;
+                    const productDisc = isFree ? 0 : computeProductDiscountForRow(row);
+                    const lineNet = Math.max(0, lineGross - productDisc);
+
+                    const discCell = document.getElementById(`prodDisc_${rowId}`);
+                    if (discCell) {
+                        discCell.textContent = isFree ? '—' : formatProductDiscountCell(row, productDisc);
+                        discCell.classList.remove('text-success', 'text-muted');
+                        discCell.classList.add('fw-semibold', 'text-dark');
+                        if (isFree || productDisc <= 0) {
+                            discCell.classList.add('text-muted');
+                            discCell.classList.remove('text-dark');
+                        }
+                    }
+
+                    const totalEl = document.getElementById(`total_${rowId}`);
+                    if (totalEl) {
+                        totalEl.textContent = isFree ? 'FREE' : lineNet.toFixed(2);
+                    }
 
                     if (!isFree) {
-                        subTotal += lineTotal;
+                        subTotal += lineGross;
+                        productDiscountTotal += productDisc;
+                        if (productDisc > 0) {
+                            const type = row.getAttribute('data-product-discount-type') || '';
+                            const value = parseFloat(row.getAttribute('data-product-discount-value')) || 0;
+                            if (type === 'Percentage') {
+                                productRateLabels.push(`${value}%`);
+                            } else if (type === 'FixedAmount') {
+                                productRateLabels.push(`PKR ${value.toFixed(2)}/u`);
+                            }
+                        }
                     }
                     updateConversionPreview(rowId);
                 });
 
+                productDiscountTotal = Math.round(productDiscountTotal * 100) / 100;
+                enforceProductDiscountMutualExclusion();
+
                 document.getElementById('lblSubTotal').textContent = 'PKR ' + subTotal.toFixed(2);
 
-                const mode = getDiscountMode();
-                let discountAmount = syncDiscountHiddenFields(subTotal);
+                const uniqueRates = [...new Set(productRateLabels)];
+                const productDetailEl = document.getElementById('lblProductDiscountDetail');
+                if (productDetailEl) {
+                    productDetailEl.textContent = productDiscountTotal > 0
+                        ? (uniqueRates.length ? uniqueRates.join(', ') : 'Applied')
+                        : (isApplyProductDiscountEnabled() ? 'No product discount on cart lines' : 'Product discount switch is Off');
+                }
+                document.getElementById('lblProductDiscountTotal').textContent = '− PKR ' + productDiscountTotal.toFixed(2);
 
-                // For Automatic, recompute displayed amount from current subtotal if a rule is applied
-                // (server recalculates from rate; UI keeps last suggested amount until re-applied —
-                //  when mode is Automatic and discount applied, refresh from % if we stored rate).
+                const paidAfterProduct = Math.max(0, subTotal - productDiscountTotal);
+                const mode = getDiscountMode();
+                let invoiceDiscountAmount = syncDiscountHiddenFields(paidAfterProduct);
+
                 if (mode === 'Automatic' && currentAppliedDiscount) {
-                    discountAmount = currentAppliedDiscount.amount || 0;
-                    // Cap display if cart shrunk below discount
-                    discountAmount = Math.min(subTotal, discountAmount);
-                    currentAppliedDiscount.amount = discountAmount;
+                    invoiceDiscountAmount = currentAppliedDiscount.amount || 0;
+                    invoiceDiscountAmount = Math.min(paidAfterProduct, invoiceDiscountAmount);
+                    currentAppliedDiscount.amount = invoiceDiscountAmount;
                     document.getElementById('AppliedDiscountRuleID').value = currentAppliedDiscount.id;
                 }
 
-                if (discountAmount > 0) {
-                    document.getElementById('lblDiscountTotal').textContent = 'PKR ' + discountAmount.toFixed(2);
-                    let name = 'Discount';
+                invoiceDiscountAmount = Math.round(invoiceDiscountAmount * 100) / 100;
+                const discountAmount = Math.round((productDiscountTotal + invoiceDiscountAmount) * 100) / 100;
+
+                let additionalLabel = 'None';
+                if (invoiceDiscountAmount > 0) {
                     if (mode === 'Manual') {
-                        name = `Manual ${document.getElementById('manualDiscountTypeSelect').value} ${document.getElementById('manualDiscountValueInput').value}`;
+                        const mType = getManualDiscountType();
+                        const mVal = getManualDiscountValue();
+                        additionalLabel = mType === 'Percentage'
+                            ? `Manual ${mVal}% of PKR ${paidAfterProduct.toFixed(2)}`
+                            : `Manual fixed PKR ${mVal.toFixed(2)}`;
                     } else if (mode === 'Customer') {
-                        name = `Customer Preferred ${customerPreferredPercent != null ? customerPreferredPercent : ''}%`;
-                    } else if (currentAppliedDiscount) {
-                        name = currentAppliedDiscount.name;
+                        additionalLabel = `Customer preferred ${customerPreferredPercent != null ? customerPreferredPercent : ''}%`;
+                    } else if (mode === 'Automatic' && currentAppliedDiscount) {
+                        additionalLabel = currentAppliedDiscount.name || 'Automatic';
+                    } else {
+                        additionalLabel = mode;
                     }
-                    document.getElementById('lblAppliedDiscountName').textContent = name + ` (-PKR ${discountAmount.toFixed(2)})`;
-                    document.getElementById('lblDiscountModeBadge').textContent = mode;
-                    document.getElementById('appliedDiscountBadgeContainer').classList.remove('d-none');
-                } else {
-                    document.getElementById('lblDiscountTotal').textContent = 'PKR 0.00';
-                    document.getElementById('appliedDiscountBadgeContainer').classList.add('d-none');
-                    if (mode !== 'Automatic') {
-                        document.getElementById('AppliedDiscountRuleID').value = '';
-                    }
+                }
+
+                const additionalRow = document.getElementById('rowAdditionalDiscountSummary');
+                if (additionalRow) {
+                    additionalRow.classList.toggle('d-none', invoiceDiscountAmount <= 0 && mode === 'None');
+                }
+                const additionalDetailEl = document.getElementById('lblAdditionalDiscountDetail');
+                if (additionalDetailEl) additionalDetailEl.textContent = additionalLabel;
+                const additionalTotalEl = document.getElementById('lblAdditionalDiscountTotal');
+                if (additionalTotalEl) additionalTotalEl.textContent = '− PKR ' + invoiceDiscountAmount.toFixed(2);
+
+                document.getElementById('lblDiscountTotal').textContent = '− PKR ' + discountAmount.toFixed(2);
+
+                if (discountAmount <= 0 && mode !== 'Automatic') {
+                    document.getElementById('AppliedDiscountRuleID').value = '';
                 }
 
                 const grandTotal = Math.max(0, subTotal - discountAmount);
@@ -1093,21 +1330,8 @@
                 const footerTotal = document.getElementById('lblGrandTotalFooter');
                 if (footerTotal) footerTotal.textContent = grandFormatted;
 
-                // Trigger debounced promotions evaluation
                 triggerPromotionsEvaluation(subTotal);
             }
-
-            // Remove Order Discount button event
-            document.getElementById('btnRemoveDiscount').addEventListener('click', function () {
-                currentAppliedDiscount = null;
-                if (getDiscountMode() === 'Manual') {
-                    document.getElementById('manualDiscountValueInput').value = '0';
-                } else if (getDiscountMode() === 'Automatic' || getDiscountMode() === 'Customer') {
-                    document.getElementById('discountModeNone').checked = true;
-                    document.getElementById('DiscountMode').value = 'None';
-                }
-                calculateTotals();
-            });
 
             // Feature 4: Debounced Promotions & Discounts Evaluation
             function triggerPromotionsEvaluation(subTotal) {

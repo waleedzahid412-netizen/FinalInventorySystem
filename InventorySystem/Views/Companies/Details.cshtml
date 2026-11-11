@@ -33,7 +33,7 @@
                 <div class="card-body p-3">
                     <div class="text-xs fw-bold text-uppercase text-muted mb-1">Outstanding Payable</div>
                     <div class="h5 mb-0 fw-bold @(summary?.OutstandingPayable > 0 ? "text-warning-emphasis" : "text-success")">
-                        Rs. @((summary?.OutstandingPayable ?? 0m).ToString("N2"))
+                        PKR @((summary?.OutstandingPayable ?? 0m).ToString("N2"))
                     </div>
                 </div>
             </div>
@@ -45,7 +45,7 @@
                 <div class="card-body p-3">
                     <div class="text-xs fw-bold text-uppercase text-muted mb-1">Total Purchases</div>
                     <div class="h5 mb-0 fw-bold text-dark">
-                        Rs. @((summary?.TotalPurchases ?? 0m).ToString("N2"))
+                        PKR @((summary?.TotalPurchases ?? 0m).ToString("N2"))
                     </div>
                 </div>
             </div>
@@ -57,7 +57,7 @@
                 <div class="card-body p-3">
                     <div class="text-xs fw-bold text-uppercase text-muted mb-1">Total Payments</div>
                     <div class="h5 mb-0 fw-bold text-dark">
-                        Rs. @((summary?.TotalPaid ?? 0m).ToString("N2"))
+                        PKR @((summary?.TotalPaid ?? 0m).ToString("N2"))
                     </div>
                 </div>
             </div>
@@ -179,9 +179,9 @@
                                     <tr>
                                         <td class="ps-4 fw-bold text-primary">@item.InvoiceNumber</td>
                                         <td>@item.InvoiceDate.ToString("MMM dd, yyyy")</td>
-                                        <td class="text-end fw-semibold">Rs. @item.TotalAmount.ToString("N2")</td>
-                                        <td class="text-end text-success">Rs. @item.PaidAmount.ToString("N2")</td>
-                                        <td class="text-end fw-bold text-danger">Rs. @item.OutstandingAmount.ToString("N2")</td>
+                                        <td class="text-end fw-semibold">PKR @item.TotalAmount.ToString("N2")</td>
+                                        <td class="text-end text-success">PKR @item.PaidAmount.ToString("N2")</td>
+                                        <td class="text-end fw-bold text-danger">PKR @item.OutstandingAmount.ToString("N2")</td>
                                         <td class="text-center pe-4">
                                             <span class="badge @(item.Status == "PAID" ? "bg-success" : (item.Status == "PARTIAL" ? "bg-warning text-dark" : "bg-danger"))">
                                                 @item.Status
@@ -226,7 +226,7 @@
                                         <td class="text-primary">@payment.InvoiceNumber</td>
                                         <td><span class="badge bg-secondary">@payment.PaymentMethod</span></td>
                                         <td>@(payment.ReferenceNumber ?? "-")</td>
-                                        <td class="text-end fw-bold text-success">Rs. @payment.Amount.ToString("N2")</td>
+                                        <td class="text-end fw-bold text-success">PKR @payment.Amount.ToString("N2")</td>
                                         <td class="text-center pe-4">@payment.PaymentDate.ToString("MMM dd, yyyy")</td>
                                     </tr>
                                 }
@@ -266,10 +266,10 @@
                                         <td class="ps-4">@ledger.TransactionDate.ToString("MMM dd, yyyy HH:mm")</td>
                                         <td><span class="badge bg-dark">@ledger.TransactionType</span></td>
                                         <td class="small text-muted">@(ledger.Description ?? "-")</td>
-                                        <td class="text-end text-success fw-semibold">Rs. @ledger.DebitAmount.ToString("N2")</td>
-                                        <td class="text-end text-danger fw-semibold">Rs. @ledger.CreditAmount.ToString("N2")</td>
+                                        <td class="text-end text-success fw-semibold">PKR @ledger.DebitAmount.ToString("N2")</td>
+                                        <td class="text-end text-danger fw-semibold">PKR @ledger.CreditAmount.ToString("N2")</td>
                                         <td class="text-end pe-4 fw-bold @(ledger.NetChange >= 0 ? "text-danger" : "text-success")">
-                                            Rs. @ledger.NetChange.ToString("N2")
+                                            PKR @ledger.NetChange.ToString("N2")
                                         </td>
                                     </tr>
                                 }

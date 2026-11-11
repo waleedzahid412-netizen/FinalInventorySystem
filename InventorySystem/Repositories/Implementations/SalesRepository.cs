@@ -40,6 +40,11 @@ namespace InventorySystem.Repositories.Implementations
                 query = query.Where(si => si.CustomerID == filter.CustomerID.Value);
             }
 
+            if (filter.BookerID.HasValue && filter.BookerID.Value > 0)
+            {
+                query = query.Where(si => si.BookerID == filter.BookerID.Value);
+            }
+
             if (filter.WarehouseID.HasValue && filter.WarehouseID.Value > 0)
             {
                 query = query.Where(si => si.WarehouseID == filter.WarehouseID.Value);
@@ -66,7 +71,12 @@ namespace InventorySystem.Repositories.Implementations
                 query = query.Where(si => si.InvoiceDate <= endOfDay);
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.PaymentStatus))
+            if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any(s => !string.IsNullOrWhiteSpace(s)))
+            {
+                var cleanStatuses = filter.PaymentStatuses.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                query = query.Where(si => cleanStatuses.Contains(si.PaymentStatus));
+            }
+            else if (!string.IsNullOrWhiteSpace(filter.PaymentStatus))
             {
                 query = query.Where(si => si.PaymentStatus == filter.PaymentStatus);
             }
@@ -85,6 +95,8 @@ namespace InventorySystem.Repositories.Implementations
                     InvoiceNumber = si.InvoiceNumber,
                     CustomerID = si.CustomerID,
                     CustomerName = string.IsNullOrWhiteSpace(si.Customer.OwnerName) ? si.Customer.ShopName : $"{si.Customer.ShopName} ({si.Customer.OwnerName})",
+                    BookerID = si.BookerID,
+                    BookerName = si.Booker != null ? si.Booker.Name : null,
                     SupplierName = si.Supplier != null ? si.Supplier.Name : null,
                     InvoiceDate = si.InvoiceDate,
                     SubTotal = si.SubTotal,
@@ -162,6 +174,7 @@ namespace InventorySystem.Repositories.Implementations
                     PaymentStatus = si.PaymentStatus,
                     AppliedDiscountRuleID = si.InvoiceDiscounts.Select(id => (int?)id.DiscountRuleID).FirstOrDefault(),
                     DiscountMode = si.DiscountMode,
+                    ApplyProductDiscount = si.ApplyProductDiscount,
                     IsLocked = si.IsLocked,
                     CreatedByUserName = si.CreatedByUser.FullName ?? si.CreatedByUser.Username,
                     CreatedAt = si.CreatedAt
@@ -207,19 +220,41 @@ namespace InventorySystem.Repositories.Implementations
                     UnitPrice = sii.UnitPrice,
                     DiscountRate = sii.DiscountRate,
                     DiscountAmount = sii.DiscountAmount,
+                    ProductDiscountType = sii.ProductDiscountType,
+                    ProductDiscountValue = sii.ProductDiscountValue,
+                    ProductDiscountAmount = sii.ProductDiscountAmount,
                     ItemType = sii.ItemType,
                     PromotionID = sii.PromotionID,
                     CustomItemName = sii.CustomItemName
                 })
                 .ToListAsync(cancellationToken);
 
+            var discountSnap = await _context.InvoiceDiscounts
+                .AsNoTracking()
+                .Where(d => d.InvoiceID == salesInvoiceId)
+                .OrderByDescending(d => d.InvoiceDiscountID)
+                .Select(d => new { d.DiscountType, d.DiscountValue, d.DiscountAmount, d.DiscountSource })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            decimal productDiscountTotal = items
+                .Where(i => !string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase))
+                .Sum(i => i.ProductDiscountAmount);
+            productDiscountTotal = Math.Round(productDiscountTotal, 2, MidpointRounding.AwayFromZero);
+            decimal additionalDiscountTotal = Math.Max(0m,
+                Math.Round(header.DiscountTotal - productDiscountTotal, 2, MidpointRounding.AwayFromZero));
+
             var financial = new SalesFinancialSummaryDto
             {
                 SubTotal = header.SubTotal,
                 DiscountTotal = header.DiscountTotal,
+                ProductDiscountTotal = productDiscountTotal,
+                AdditionalDiscountTotal = additionalDiscountTotal,
+                DiscountMode = header.DiscountMode ?? "None",
                 TaxTotal = header.TaxTotal,
                 GrandTotal = header.GrandTotal,
-                PaidAmount = header.PaidAmount
+                PaidAmount = header.PaidAmount,
+                DiscountType = discountSnap?.DiscountType,
+                DiscountValue = discountSnap?.DiscountValue
             };
 
             return new SalesDetailsDto
@@ -388,7 +423,15 @@ namespace InventorySystem.Repositories.Implementations
                     DiscountTotal = si.DiscountTotal,
                     TaxTotal = si.TaxTotal,
                     GrandTotal = si.GrandTotal,
-                    PaidAmount = si.PaidAmount
+                    PaidAmount = si.PaidAmount,
+                    DiscountType = si.InvoiceDiscounts
+                        .OrderByDescending(d => d.InvoiceDiscountID)
+                        .Select(d => d.DiscountType)
+                        .FirstOrDefault(),
+                    DiscountValue = si.InvoiceDiscounts
+                        .OrderByDescending(d => d.InvoiceDiscountID)
+                        .Select(d => (decimal?)d.DiscountValue)
+                        .FirstOrDefault()
                 })
                 .FirstOrDefaultAsync(cancellationToken);
         }

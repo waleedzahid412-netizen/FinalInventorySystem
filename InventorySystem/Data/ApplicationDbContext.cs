@@ -88,6 +88,13 @@ namespace InventorySystem.Data
         public DbSet<SalesReturnItem> SalesReturnItems { get; set; }
 
         // =========================================================
+        // DAMAGED STOCK CLAIMS
+        // =========================================================
+        public DbSet<DamagedStockClaim> DamagedStockClaims { get; set; }
+        public DbSet<DamagedStockClaimItem> DamagedStockClaimItems { get; set; }
+        public DbSet<DamagedStockClaimSettlement> DamagedStockClaimSettlements { get; set; }
+
+        // =========================================================
         // AUDIT
         // =========================================================
         public DbSet<AuditLog> AuditLogs { get; set; }
@@ -236,7 +243,6 @@ namespace InventorySystem.Data
             modelBuilder.Entity<Area>(entity =>
             {
                 entity.HasIndex(a => a.AreaName).IsUnique();
-                entity.HasIndex(a => a.Code).IsUnique();
 
                 entity.HasOne(a => a.CreatedByUser)
                     .WithMany(u => u.CreatedAreas)
@@ -399,6 +405,9 @@ namespace InventorySystem.Data
             {
                 entity.HasIndex(p => p.SKU).IsUnique();
                 entity.HasIndex(p => p.Barcode).IsUnique();
+
+                entity.Property(p => p.ProductDiscountType).HasMaxLength(20);
+                entity.Property(p => p.ProductDiscountValue).HasColumnType("decimal(18,2)");
 
                 entity.HasOne(p => p.Category)
                     .WithMany(c => c.Products)
@@ -632,6 +641,8 @@ namespace InventorySystem.Data
             // =============================================================
             modelBuilder.Entity<Quotation>(entity =>
             {
+                entity.Property(q => q.ApplyProductDiscount).HasDefaultValue(true);
+
                 entity.HasOne(q => q.Customer)
                     .WithMany(c => c.Quotations)
                     .HasForeignKey(q => q.CustomerID)
@@ -653,6 +664,10 @@ namespace InventorySystem.Data
             // =============================================================
             modelBuilder.Entity<QuotationItem>(entity =>
             {
+                entity.Property(qi => qi.ProductDiscountType).HasMaxLength(20);
+                entity.Property(qi => qi.ProductDiscountValue).HasColumnType("decimal(18,2)");
+                entity.Property(qi => qi.ProductDiscountAmount).HasColumnType("decimal(18,2)");
+
                 entity.HasOne(qi => qi.Quotation)
                     .WithMany(q => q.Items)
                     .HasForeignKey(qi => qi.QuotationID)
@@ -687,6 +702,7 @@ namespace InventorySystem.Data
                 entity.HasIndex(si => si.InvoiceNumber).IsUnique();
 
                 entity.Property(si => si.DiscountMode).HasMaxLength(20);
+                entity.Property(si => si.ApplyProductDiscount).HasDefaultValue(true);
 
                 entity.HasOne(si => si.Customer)
                     .WithMany(c => c.SalesInvoices)
@@ -754,6 +770,9 @@ namespace InventorySystem.Data
             modelBuilder.Entity<SalesInvoiceItem>(entity =>
             {
                 entity.Property(sii => sii.DiscountRate).HasColumnType("decimal(18,4)");
+                entity.Property(sii => sii.ProductDiscountType).HasMaxLength(20);
+                entity.Property(sii => sii.ProductDiscountValue).HasColumnType("decimal(18,2)");
+                entity.Property(sii => sii.ProductDiscountAmount).HasColumnType("decimal(18,2)");
 
                 entity.HasOne(sii => sii.SalesInvoice)
                     .WithMany(si => si.Items)
@@ -829,6 +848,7 @@ namespace InventorySystem.Data
                     .OnDelete(DeleteBehavior.NoAction);
 
                 entity.Property(pr => pr.CustomFreeItemName).HasMaxLength(200);
+                entity.Property(pr => pr.CustomFreeItemPrice).HasColumnType("decimal(18,2)");
             });
 
             // =============================================================
@@ -1027,6 +1047,123 @@ namespace InventorySystem.Data
                     .HasForeignKey(sri => sri.ProductUnitID)
                     .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // =============================================================
+            // DAMAGED STOCK CLAIMS
+            // =============================================================
+            modelBuilder.Entity<DamagedStockClaim>(entity =>
+            {
+                entity.HasIndex(c => c.ClaimNumber).IsUnique();
+                entity.HasIndex(c => c.CompanyID);
+
+                entity.HasOne(c => c.Company)
+                    .WithMany()
+                    .HasForeignKey(c => c.CompanyID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(c => c.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(c => c.CreatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(c => c.ConfirmedByUser)
+                    .WithMany()
+                    .HasForeignKey(c => c.ConfirmedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(c => c.ClosedByUser)
+                    .WithMany()
+                    .HasForeignKey(c => c.ClosedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(c => c.UpdatedByUser)
+                    .WithMany()
+                    .HasForeignKey(c => c.UpdatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<DamagedStockClaimItem>(entity =>
+            {
+                entity.HasOne(i => i.DamagedStockClaim)
+                    .WithMany(c => c.Items)
+                    .HasForeignKey(i => i.DamagedStockClaimID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(i => i.Product)
+                    .WithMany()
+                    .HasForeignKey(i => i.ProductID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(i => i.Warehouse)
+                    .WithMany()
+                    .HasForeignKey(i => i.WarehouseID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(i => i.InventoryStock)
+                    .WithMany()
+                    .HasForeignKey(i => i.InventoryStockID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(i => i.RejectedDecisionByUser)
+                    .WithMany()
+                    .HasForeignKey(i => i.RejectedDecisionBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<DamagedStockClaimSettlement>(entity =>
+            {
+                entity.HasOne(s => s.DamagedStockClaim)
+                    .WithMany(c => c.Settlements)
+                    .HasForeignKey(s => s.DamagedStockClaimID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(s => s.Product)
+                    .WithMany()
+                    .HasForeignKey(s => s.ProductID)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(s => s.Warehouse)
+                    .WithMany()
+                    .HasForeignKey(s => s.WarehouseID)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(s => s.CompanyLedger)
+                    .WithMany()
+                    .HasForeignKey(s => s.CompanyLedgerID)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(s => s.InventoryTransaction)
+                    .WithMany()
+                    .HasForeignKey(s => s.InventoryTransactionID)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(s => s.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(s => s.CreatedBy)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<CompanyLedger>(entity =>
+            {
+                entity.HasOne(cl => cl.DamagedStockClaim)
+                    .WithMany(c => c.CompanyLedgerEntries)
+                    .HasForeignKey(cl => cl.DamagedStockClaimID)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<InventoryTransaction>(entity =>
+            {
+                entity.HasOne(t => t.DamagedStockClaimItem)
+                    .WithMany(i => i.InventoryTransactions)
+                    .HasForeignKey(t => t.DamagedStockClaimItemID)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.NoAction);
             });
 
             // =============================================================

@@ -239,7 +239,9 @@ namespace InventorySystem.Services.Implementations
                 {
                     foreach (var promoId in promoCampaignIds)
                     {
+                        // Ignore soft-delete filter so historical invoice clawbacks still see original rules.
                         var campaign = await _context.PromotionCampaigns
+                            .IgnoreQueryFilters()
                             .Include(pc => pc.PromotionRules)
                             .AsNoTracking()
                             .FirstOrDefaultAsync(pc => pc.PromotionID == promoId, cancellationToken);
@@ -248,14 +250,29 @@ namespace InventorySystem.Services.Implementations
 
                         foreach (var rule in campaign.PromotionRules)
                         {
-                            // Custom "Other" free gifts have no retail value — skip clawback for this rule
-                            if (rule.IsCustomFreeItem || !rule.FreeProductID.HasValue)
+                            if (!rule.IsCustomFreeItem && !rule.FreeProductID.HasValue)
                             {
                                 continue;
                             }
 
                             var buyItem = invoiceItems.FirstOrDefault(i => i.ProductID == rule.BuyProductID && !string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase));
-                            var freeItem = invoiceItems.FirstOrDefault(i => i.ProductID == rule.FreeProductID && string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase));
+
+                            SalesInvoiceItem? freeItem;
+                            if (rule.IsCustomFreeItem)
+                            {
+                                string ruleCustomName = (rule.CustomFreeItemName ?? string.Empty).Trim();
+                                freeItem = invoiceItems.FirstOrDefault(i =>
+                                    string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase)
+                                    && !i.ProductID.HasValue
+                                    && i.PromotionID == promoId
+                                    && string.Equals((i.CustomItemName ?? string.Empty).Trim(), ruleCustomName, StringComparison.OrdinalIgnoreCase));
+                            }
+                            else
+                            {
+                                freeItem = invoiceItems.FirstOrDefault(i =>
+                                    i.ProductID == rule.FreeProductID
+                                    && string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase));
+                            }
 
                             if (freeItem == null) continue;
 
@@ -284,7 +301,10 @@ namespace InventorySystem.Services.Implementations
                             decimal freeEarnedAfter = Math.Floor(buyRemainingAfterReturn / thresholdBaseQty) * freePerThreshold;
                             decimal freeBaseQtyAtRisk = Math.Max(0m, freeEarnedBefore - freeEarnedAfter);
 
-                            decimal freeConversion = freeItem.ProductUnit?.ConversionToBaseUnit > 0 ? freeItem.ProductUnit.ConversionToBaseUnit : 1m;
+                            // Custom Other gifts have no packaging unit — treat conversion as 1.
+                            decimal freeConversion = rule.IsCustomFreeItem
+                                ? 1m
+                                : (freeItem.ProductUnit?.ConversionToBaseUnit > 0 ? freeItem.ProductUnit.ConversionToBaseUnit : 1m);
                             decimal freeAtRiskDisplayQty = freeBaseQtyAtRisk / freeConversion;
 
                             decimal freePriorReturnedDisplayQty = priorDisplayGrouped.TryGetValue(freeItem.InvoiceItemID, out var fPriorQty) ? fPriorQty : 0m;
@@ -294,7 +314,28 @@ namespace InventorySystem.Services.Implementations
                                 .Where(i => i.InvoiceItemID == freeItem.InvoiceItemID)
                                 .Sum(i => i.PromoPenaltyQuantity);
 
-                            decimal freeItemPrice = freeItem.UnitPrice > 0 ? freeItem.UnitPrice : (freeItem.Product != null && freeItem.Product.BaseSellingPrice > 0 ? freeItem.Product.BaseSellingPrice : 0m);
+                            // Prefer invoice snapshot UnitPrice; fall back to rule price (Other) or live BaseSellingPrice (product free).
+                            decimal freeItemPrice;
+                            if (freeItem.UnitPrice > 0)
+                            {
+                                freeItemPrice = freeItem.UnitPrice;
+                            }
+                            else if (rule.IsCustomFreeItem)
+                            {
+                                freeItemPrice = rule.CustomFreeItemPrice ?? 0m;
+                            }
+                            else
+                            {
+                                freeItemPrice = freeItem.Product != null && freeItem.Product.BaseSellingPrice > 0
+                                    ? freeItem.Product.BaseSellingPrice
+                                    : 0m;
+                            }
+
+                            string freeDisplayName = rule.IsCustomFreeItem
+                                ? (!string.IsNullOrWhiteSpace(freeItem.CustomItemName)
+                                    ? $"Other: {freeItem.CustomItemName}"
+                                    : "Other: Custom Item")
+                                : (freeItem.Product?.ProductName ?? "Free Item");
 
                             decimal priorReturnedChargedUnits = priorItemsList
                                 .Where(i => i.InvoiceItemID == freeItem.InvoiceItemID && i.RefundAmount > 0)
@@ -317,14 +358,14 @@ namespace InventorySystem.Services.Implementations
                             {
                                 if (!ReturnQuantityHelper.TryNormalize(freeInput.Quantity, freeInput.ReturnUnitMode, freeConversion, out selectedFreeReturnQty, out _, out string? freeNormError))
                                 {
-                                    return OperationResult<ClawbackPreviewDto>.Fail($"Free promotional item '{freeItem.Product?.ProductName ?? "Free Item"}': {freeNormError}");
+                                    return OperationResult<ClawbackPreviewDto>.Fail($"Free promotional item '{freeDisplayName}': {freeNormError}");
                                 }
                             }
 
                             // Strict server validation (No silent clamping)
                             if (selectedFreeReturnQty > maxReturnableFreeQty + 0.0001m)
                             {
-                                return OperationResult<ClawbackPreviewDto>.Fail($"Selected return quantity ({selectedFreeReturnQty}) for free promotional item '{freeItem.Product?.ProductName ?? "Free Item"}' exceeds maximum returnable quantity ({maxReturnableFreeQty}).");
+                                return OperationResult<ClawbackPreviewDto>.Fail($"Selected return quantity ({selectedFreeReturnQty}) for free promotional item '{freeDisplayName}' exceeds maximum returnable quantity ({maxReturnableFreeQty}).");
                             }
 
                             // Step 2: ReturnedPreviouslyChargedQty = Math.Min(PreviouslyChargedFreeQty, ReturnedNowQty)
@@ -384,8 +425,7 @@ namespace InventorySystem.Services.Implementations
                             if (promoPenaltyAmount > 0)
                             {
                                 promoPenalty += promoPenaltyAmount;
-                                string freeProdName = freeItem.Product?.ProductName ?? "Free Item";
-                                breakdown.Add($"Promotion '{campaign.Name}': {newlyChargedFreeQty:N2} free unit(s) ('{freeProdName}') newly subject to penalty. Promotional penalty: {promoPenaltyAmount:C}");
+                                breakdown.Add($"Promotion '{campaign.Name}': {newlyChargedFreeQty:N2} free unit(s) ('{freeDisplayName}') newly subject to penalty. Promotional penalty: {promoPenaltyAmount:C}");
                             }
 
                             freePromotions.Add(new FreePromotionClawbackDto
@@ -396,7 +436,7 @@ namespace InventorySystem.Services.Implementations
                                 QualifyingProductName = buyItem?.Product?.ProductName ?? "Qualifying Product",
                                 FreeInvoiceItemId = freeItem.InvoiceItemID,
                                 FreeProductId = freeItem.ProductID ?? 0,
-                                FreeProductName = freeItem.Product?.ProductName ?? "Free Item",
+                                FreeProductName = freeDisplayName,
                                 OriginalFreeQuantity = freeItem.Quantity,
                                 PreviouslyReturnedFreeQuantity = freePriorReturnedDisplayQty,
                                 PreviouslyChargedFreeQuantity = previousPromoPenaltyQuantity,

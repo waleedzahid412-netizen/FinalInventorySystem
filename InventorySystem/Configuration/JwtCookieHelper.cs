@@ -21,7 +21,7 @@ namespace InventorySystem.Configuration
         public static CookieOptions DeleteCookieOptions() => new()
         {
             HttpOnly = true,
-            Secure = true,
+            Secure = true, 
             SameSite = SameSiteMode.Strict,
             Path = "/"
         };

@@ -107,13 +107,16 @@
                                                     <option value="@p.Value">@p.Text</option>
                                                 }
                                             }
-                                            <option value="@PromotionRuleInputViewModel.OtherRewardValue">Other (custom item — no stock / no clawback)</option>
+                                            <option value="@PromotionRuleInputViewModel.OtherRewardValue">Other (custom item — no stock)</option>
                                         </select>
                                         <div class="custom-free-name-wrap mt-2 @(isOther ? "" : "d-none")">
-                                            <label class="form-label small text-muted mb-1">Custom free item name</label>
+                                            <label class="form-label small text-muted mb-1">Custom free item name <span class="text-danger">*</span></label>
                                             <input asp-for="Rules[i].CustomFreeItemName" class="form-control custom-free-name" maxlength="200" placeholder="e.g. Free Mug, Keychain" />
-                                            <div class="form-text">Non-inventory gift. Shown on invoice as "Other: {name}". No price or clawback.</div>
                                             <span asp-validation-for="Rules[i].CustomFreeItemName" class="text-danger small"></span>
+                                            <label class="form-label small text-muted mb-1 mt-2">Price <span class="text-danger">*</span></label>
+                                            <input asp-for="Rules[i].CustomFreeItemPrice" type="number" min="0.01" step="0.01" class="form-control custom-free-price" placeholder="e.g. 150.00" />
+                                            <div class="form-text">Non-inventory gift. Shown on invoice as "Other: {name}". This price is deducted from the return refund if the gift is not returned.</div>
+                                            <span asp-validation-for="Rules[i].CustomFreeItemPrice" class="text-danger small"></span>
                                         </div>
                                     </td>
                                     <td>
@@ -153,9 +156,11 @@
                 if (val === 'OTHER') {
                     $wrap.removeClass('d-none');
                     $row.find('.custom-free-name').attr('required', 'required');
+                    $row.find('.custom-free-price').attr('required', 'required');
                 } else {
                     $wrap.addClass('d-none');
                     $row.find('.custom-free-name').removeAttr('required');
+                    $row.find('.custom-free-price').removeAttr('required');
                 }
             }
 
@@ -163,6 +168,7 @@
                 const $row = $(this).closest('tr.rule-row');
                 if ($(this).val() !== 'OTHER') {
                     $row.find('.custom-free-name').val('');
+                    $row.find('.custom-free-price').val('');
                 }
                 syncCustomFreeNameVisibility($row);
             });
@@ -181,9 +187,10 @@
                     if ($(this).hasClass('is-deleted-flag')) $(this).val('false');
                     else $(this).val('0');
                 });
-                newRow.find('input[type="number"]').val(1);
+                newRow.find('input[type="number"]').not('.custom-free-price').val(1);
                 newRow.find('select').val('');
                 newRow.find('.custom-free-name').val('');
+                newRow.find('.custom-free-price').val('');
                 newRow.find('.custom-free-name-wrap').addClass('d-none');
                 newRow.removeClass('d-none');
                 newRow.find('input, select').each(function () {

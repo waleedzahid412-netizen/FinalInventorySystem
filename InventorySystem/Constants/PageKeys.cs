@@ -20,12 +20,15 @@ namespace InventorySystem.Constants
         public const string Products = "Inventory.Products";
         public const string Categories = "Inventory.Categories";
         public const string CompanyStockReport = "Inventory.StockReport";
+        public const string DamagedStockClaims = "Inventory.DamagedStockClaims";
 
         public const string Companies = "Masters.Companies";
         public const string Bookers = "Masters.Bookers";
         public const string Suppliers = "Masters.Suppliers";
         public const string Units = "Masters.Units";
         public const string Warehouses = "Masters.Warehouses";
+        public const string Areas = "Masters.Areas";
+        public const string SubAreas = "Masters.SubAreas";
 
         public const string Promotions = "Promotions.Campaigns";
         public const string DiscountRules = "Promotions.DiscountRules";

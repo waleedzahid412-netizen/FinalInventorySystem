@@ -53,6 +53,14 @@ namespace InventorySystem.ViewModels.Products
         [Display(Name = "Active Status")]
         public bool IsActive { get; set; } = true;
 
+        /// <summary>Optional. Percentage | FixedAmount | empty</summary>
+        [Display(Name = "Product Discount Type")]
+        [MaxLength(20)]
+        public string? ProductDiscountType { get; set; }
+
+        [Display(Name = "Product Discount Value")]
+        public decimal? ProductDiscountValue { get; set; }
+
         public List<ProductUnitInputViewModel> Units { get; set; } = new List<ProductUnitInputViewModel>();
 
         // Dropdowns for UI binding

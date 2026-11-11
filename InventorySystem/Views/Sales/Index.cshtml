@@ -23,22 +23,6 @@
         </div>
     </div>
 
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
-    @if (TempData["ErrorMessage"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
     <!-- Search & Filter Card -->
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-body">
@@ -53,25 +37,30 @@
                         <option value="">-- All Customers --</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-3">
+                    <label asp-for="Filter.BookerID" class="form-label small fw-semibold">Booker</label>
+                    <select asp-for="Filter.BookerID" asp-items="Model.Bookers" class="form-select form-select-sm">
+                        <option value="">-- All Bookers --</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Payment Status</label>
+                    <select name="Filter.PaymentStatuses" asp-items="Model.PaymentStatuses" class="form-select form-select-sm" multiple data-placeholder="Select statuses...">
+                    </select>
+                </div>
+
+                <div class="col-md-3">
                     <label asp-for="Filter.WarehouseID" class="form-label small fw-semibold"></label>
                     <select asp-for="Filter.WarehouseID" asp-items="Model.Warehouses" class="form-select form-select-sm">
                         <option value="">-- All Warehouses --</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-3">
                     <label asp-for="Filter.SupplierID" class="form-label small fw-semibold"></label>
                     <select asp-for="Filter.SupplierID" asp-items="Model.Suppliers" class="form-select form-select-sm">
                         <option value="">-- All Suppliers --</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <label asp-for="Filter.PaymentStatus" class="form-label small fw-semibold"></label>
-                    <select asp-for="Filter.PaymentStatus" asp-items="Model.PaymentStatuses" class="form-select form-select-sm" data-no-select2>
-                        <option value="">-- All Payment Statuses --</option>
-                    </select>
-                </div>
-
                 <div class="col-md-3">
                     <label asp-for="Filter.DateFrom" class="form-label small fw-semibold"></label>
                     <input asp-for="Filter.DateFrom" class="form-control form-control-sm" />
@@ -81,8 +70,8 @@
                     <input asp-for="Filter.DateTo" class="form-control form-control-sm" />
                 </div>
 
-                <div class="col-md-6 d-flex align-items-end justify-content-end gap-2">
-                    <button type="submit" class="btn btn-sm btn-primary px-3">
+                <div class="col-12 d-flex align-items-center justify-content-end gap-2 pt-2 border-top">
+                    <button type="submit" class="btn btn-sm btn-primary px-3 fw-semibold">
                         <i class="bi bi-search me-1"></i> Filter
                     </button>
                     <a asp-action="Index" class="btn btn-sm btn-outline-secondary px-3">Clear</a>
@@ -104,6 +93,7 @@
                             <th>Invoice #</th>
                             <th>Date</th>
                             <th>Customer</th>
+                            <th>Booker</th>
                             <th>Supplier</th>
                             <th class="text-end">Grand Total</th>
                             <th class="text-end">Paid</th>
@@ -126,6 +116,7 @@
                                     </td>
                                     <td>@item.InvoiceDate.ToString("yyyy-MM-dd")</td>
                                     <td class="fw-semibold text-dark">@item.CustomerName</td>
+                                    <td>@(item.BookerName ?? "—")</td>
                                     <td>@(item.SupplierName ?? "Unassigned")</td>
                                     <td class="text-end fw-bold">@item.GrandTotal.ToString("N2")</td>
                                     <td class="text-end text-success">@item.PaidAmount.ToString("N2")</td>
@@ -156,7 +147,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-4 text-muted">
+                                <td colspan="11" class="text-center py-4 text-muted">
                                     <i class="bi bi-inbox fs-3 d-block mb-2"></i>
                                     No sales invoices found matching your criteria.
                                 </td>
@@ -181,8 +172,8 @@
                                asp-route-PageSize="@Model.Items.PageSize"
                                asp-route-InvoiceNumber="@Model.Filter.InvoiceNumber"
                                asp-route-CustomerID="@Model.Filter.CustomerID"
-                               asp-route-WarehouseID="@Model.Filter.WarehouseID"
-                               asp-route-PaymentStatus="@Model.Filter.PaymentStatus">Previous</a>
+                               asp-route-BookerID="@Model.Filter.BookerID"
+                               asp-route-WarehouseID="@Model.Filter.WarehouseID">Previous</a>
                         </li>
                         @for (int i = 1; i <= Model.Items.TotalPages; i++)
                         {
@@ -192,8 +183,8 @@
                                    asp-route-PageSize="@Model.Items.PageSize"
                                    asp-route-InvoiceNumber="@Model.Filter.InvoiceNumber"
                                    asp-route-CustomerID="@Model.Filter.CustomerID"
-                                   asp-route-WarehouseID="@Model.Filter.WarehouseID"
-                                   asp-route-PaymentStatus="@Model.Filter.PaymentStatus">@i</a>
+                                   asp-route-BookerID="@Model.Filter.BookerID"
+                                   asp-route-WarehouseID="@Model.Filter.WarehouseID">@i</a>
                             </li>
                         }
                         <li class="page-item @(!Model.Items.HasNextPage ? "disabled" : "")">
@@ -202,8 +193,8 @@
                                asp-route-PageSize="@Model.Items.PageSize"
                                asp-route-InvoiceNumber="@Model.Filter.InvoiceNumber"
                                asp-route-CustomerID="@Model.Filter.CustomerID"
-                               asp-route-WarehouseID="@Model.Filter.WarehouseID"
-                               asp-route-PaymentStatus="@Model.Filter.PaymentStatus">Next</a>
+                               asp-route-BookerID="@Model.Filter.BookerID"
+                               asp-route-WarehouseID="@Model.Filter.WarehouseID">Next</a>
                         </li>
                     </ul>
                 </nav>

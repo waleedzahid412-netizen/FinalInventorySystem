@@ -86,6 +86,12 @@ namespace InventorySystem.Models.Entities
         [MaxLength(20)]
         public string DiscountMode { get; set; } = "None";
 
+        /// <summary>
+        /// When true, NORMAL lines use each product's ProductDiscountType/Value snapshotted at sale.
+        /// Mutually exclusive with Automatic/Customer when any line receives a product discount; Manual remains allowed.
+        /// </summary>
+        public bool ApplyProductDiscount { get; set; } = true;
+
         [Column(TypeName = "decimal(18,2)")]
         public decimal TaxTotal { get; set; } = 0;
 

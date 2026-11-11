@@ -51,18 +51,30 @@ namespace InventorySystem.Models.Entities
         public decimal UnitPrice { get; set; }
 
         /// <summary>
-        /// Discount percentage rate allocated to this line at sale (0 when FixedAmount or no discount).
-        /// Historical snapshot for returns — never re-read from live DiscountRules.
+        /// Discount percentage rate allocated to this line at sale from invoice-level discount
+        /// (0 when FixedAmount or no invoice discount). Historical snapshot for returns.
         /// </summary>
         [Column(TypeName = "decimal(18,4)")]
         public decimal DiscountRate { get; set; } = 0;
 
         /// <summary>
-        /// Monetary discount allocated to this line at sale (server-allocated from invoice-level Automatic/Manual discount).
+        /// Total monetary discount on this line at sale (product discount + allocated invoice-level share).
         /// Historical snapshot used when releasing discount on returns.
         /// </summary>
         [Column(TypeName = "decimal(18,2)")]
         public decimal DiscountAmount { get; set; } = 0;
+
+        /// <summary>Snapshot of product discount type at sale (Percentage | FixedAmount). Null when none.</summary>
+        [MaxLength(20)]
+        public string? ProductDiscountType { get; set; }
+
+        /// <summary>Snapshot of product discount value at sale (% or PKR per packaging unit).</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? ProductDiscountValue { get; set; }
+
+        /// <summary>Monetary product-level discount on this line at sale (receipt Discount column).</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal ProductDiscountAmount { get; set; } = 0;
 
         /// <summary>
         /// Total FIFO cost of goods sold for this line (base units × layer costs). Set at sale finalize.

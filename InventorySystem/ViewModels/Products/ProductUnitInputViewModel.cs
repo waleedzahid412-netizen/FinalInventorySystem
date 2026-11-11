@@ -12,7 +12,7 @@ namespace InventorySystem.ViewModels.Products
         public string UnitName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Conversion factor is required.")]
-        [Range(0.0001, 1000000, ErrorMessage = "Conversion factor must be greater than 0.")]
+        [Range(1, 1000000, ErrorMessage = "Conversion factor must be a whole number of at least 1.")]
         public decimal ConversionToBaseUnit { get; set; } = 1m;
 
         [Range(0, 100000000, ErrorMessage = "Purchase price cannot be negative.")]

@@ -32,9 +32,17 @@ namespace InventorySystem.Models.Entities
         /// <summary>
         /// Damaged / non-sellable on-hand quantity in base units.
         /// This quantity must never be available for sale.
+        /// Claimable via Damaged Stock Claims.
         /// </summary>
         [Column(TypeName = "decimal(18,3)")]
         public decimal DamagedQuantity { get; set; } = 0;
+
+        /// <summary>
+        /// Damaged quantity currently reserved on open supplier claims (base units).
+        /// Moved from DamagedQuantity on claim create; never sellable.
+        /// </summary>
+        [Column(TypeName = "decimal(18,3)")]
+        public decimal ClaimPendingQuantity { get; set; } = 0;
 
         public bool IsActive { get; set; } = true;
 

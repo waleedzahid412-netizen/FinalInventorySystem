@@ -39,6 +39,7 @@ namespace InventorySystem.DTOs.Companies
         public string? Address { get; set; }
         public string? TaxID { get; set; }
         public decimal CreditLimit { get; set; }
+        public decimal? CompanyPercentage { get; set; }
     }
 
     public class CompanyDetailsDto

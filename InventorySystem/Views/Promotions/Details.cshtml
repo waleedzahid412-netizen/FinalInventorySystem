@@ -97,6 +97,7 @@
                             <th>Trigger (Buy) Product</th>
                             <th class="text-center">Required Buy Base Qty</th>
                             <th>Reward (Free) Product</th>
+                            <th class="text-end">Gift Price</th>
                             <th class="text-center">Free Reward Base Qty</th>
                         </tr>
                     </thead>
@@ -104,7 +105,7 @@
                         @if (!Model.Rules.Any())
                         {
                             <tr>
-                                <td colspan="5" class="text-center py-4 text-muted">No rules configured for this promotion.</td>
+                                <td colspan="6" class="text-center py-4 text-muted">No rules configured for this promotion.</td>
                             </tr>
                         }
                         else
@@ -121,6 +122,16 @@
                                     </td>
                                     <td>
                                         <span class="fw-semibold text-success">@rule.FreeProductName</span>
+                                    </td>
+                                    <td class="text-end">
+                                        @if (rule.IsCustomFreeItem && rule.CustomFreeItemPrice.HasValue)
+                                        {
+                                            <span class="fw-semibold">PKR @rule.CustomFreeItemPrice.Value.ToString("N2")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
                                     </td>
                                     <td class="text-center">
                                         <span class="badge bg-success px-3 py-2 fs-6">Get @rule.FreeQuantity Free</span>

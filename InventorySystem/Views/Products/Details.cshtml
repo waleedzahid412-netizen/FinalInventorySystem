@@ -32,15 +32,6 @@
         </div>
     </div>
 
-    <!-- Alert Messages -->
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
     <!-- Header Summary KPI Cards -->
     <div class="row g-3 mb-4">
         <div class="col-md-3">
@@ -62,7 +53,7 @@
                 <div class="card-body py-3">
                     <div class="text-muted small fw-semibold text-uppercase">Base Selling Price</div>
                     <div class="fs-4 fw-bold text-success mt-1">
-                        $@Model.Product.BaseSellingPrice.ToString("N2")
+                        PKR @Model.Product.BaseSellingPrice.ToString("N2")
                     </div>
                     <span class="text-muted small">Per @Model.Product.BaseUnitName</span>
                 </div>
@@ -73,7 +64,7 @@
                 <div class="card-body py-3">
                     <div class="text-muted small fw-semibold text-uppercase">Average Cost</div>
                     <div class="fs-4 fw-bold text-info mt-1">
-                        $@Model.Product.AveragePurchaseCost.ToString("N2")
+                        PKR @Model.Product.AveragePurchaseCost.ToString("N2")
                     </div>
                     <span class="text-muted small">Weighted Acquisition Cost</span>
                 </div>
@@ -115,6 +106,22 @@
 
                         <dt class="col-sm-4 text-muted">Date Created</dt>
                         <dd class="col-sm-8">@Model.Product.CreatedAt.ToString("MMM dd, yyyy HH:mm")</dd>
+
+                        <dt class="col-sm-4 text-muted">Product Discount</dt>
+                        <dd class="col-sm-8">
+                            @if (string.IsNullOrWhiteSpace(Model.Product.ProductDiscountType) || !Model.Product.ProductDiscountValue.HasValue)
+                            {
+                                <span class="text-muted">None</span>
+                            }
+                            else if (string.Equals(Model.Product.ProductDiscountType, "Percentage", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">@Model.Product.ProductDiscountValue.Value.ToString("0")% off</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">PKR @Model.Product.ProductDiscountValue.Value.ToString("N2") / unit</span>
+                            }
+                        </dd>
                     </dl>
                 </div>
             </div>
@@ -141,8 +148,8 @@
                                 {
                                     <tr>
                                         <td class="ps-3 fw-semibold">@unit.UnitName</td>
-                                        <td class="text-center"><span class="badge bg-secondary">1 = @unit.ConversionToBaseUnit @Model.Product.BaseUnitName</span></td>
-                                        <td class="text-end fw-semibold">@(unit.SellingPrice.HasValue ? "$" + unit.SellingPrice.Value.ToString("N2") : "-")</td>
+                                        <td class="text-center"><span class="badge bg-secondary">1 = @unit.ConversionToBaseUnit.ToString("0") @Model.Product.BaseUnitName</span></td>
+                                        <td class="text-end fw-semibold">@(unit.SellingPrice.HasValue ? "PKR " + unit.SellingPrice.Value.ToString("N2") : "-")</td>
                                         <td class="text-center">
                                             @if (unit.IsDefaultPurchaseUnit)
                                             {
@@ -242,7 +249,7 @@
                             <tr>
                                 <th>Invoice Date</th>
                                 <th>Invoice #</th>
-                                <th>Supplier / Company</th>
+                                <th>Company</th>
                                 <th>Packaging Unit</th>
                                 <th class="text-end">Invoice Qty</th>
                                 <th class="text-end">Converted Qty (@Model.Product.BaseUnitName)</th>
@@ -262,8 +269,8 @@
                                         <td><span class="badge bg-light text-dark border">@ph.UnitName</span></td>
                                         <td class="text-end">@ph.Quantity.ToString("N0")</td>
                                         <td class="text-end fw-bold">@ph.ConvertedQuantity.ToString("N0")</td>
-                                        <td class="text-end">$@ph.UnitCost.ToString("N2")</td>
-                                        <td class="text-end fw-semibold text-success">$@ph.TotalCost.ToString("N2")</td>
+                                        <td class="text-end">PKR @ph.UnitCost.ToString("N2")</td>
+                                        <td class="text-end fw-semibold text-success">PKR @ph.TotalCost.ToString("N2")</td>
                                     </tr>
                                 }
                             }
@@ -307,8 +314,8 @@
                                         <td><span class="badge bg-light text-dark border">@sh.UnitName</span></td>
                                         <td class="text-end">@sh.Quantity.ToString("N0")</td>
                                         <td class="text-end fw-bold">@sh.ConvertedQuantity.ToString("N0")</td>
-                                        <td class="text-end">$@sh.UnitPrice.ToString("N2")</td>
-                                        <td class="text-end fw-semibold text-success">$@sh.TotalPrice.ToString("N2")</td>
+                                        <td class="text-end">PKR @sh.UnitPrice.ToString("N2")</td>
+                                        <td class="text-end fw-semibold text-success">PKR @sh.TotalPrice.ToString("N2")</td>
                                     </tr>
                                 }
                             }

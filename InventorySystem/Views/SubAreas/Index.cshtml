@@ -1,0 +1,98 @@
+@model InventorySystem.ViewModels.SubAreas.SubAreaListViewModel
+@{
+    ViewData["Title"] = "Sub Areas";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold"><i class="bi bi-pin-map me-2 text-primary"></i> Sub Areas</h1>
+            <p class="text-muted small mb-0">Localized delivery routes linked to a parent area.</p>
+        </div>
+        <a asp-action="Create" class="btn btn-primary shadow-sm"><i class="bi bi-plus-lg me-1"></i> Add Sub Area</a>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body bg-light">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <input type="text" name="SearchTerm" value="@Model.Filter.SearchTerm" class="form-control" placeholder="Search by name or area..." />
+                </div>
+                <div class="col-md-3">
+                    <select name="AreaID" class="form-select" asp-items="Model.AreaOptions" data-no-select2></select>
+                </div>
+                <div class="col-md-2">
+                    <select name="IsActive" class="form-select" data-no-select2>
+                        <option value="">All statuses</option>
+                        <option value="true" selected="@(Model.Filter.IsActive == true)">Active</option>
+                        <option value="false" selected="@(Model.Filter.IsActive == false)">Inactive</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Name</th>
+                        <th>Area</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.SubAreas.Items.Any())
+                    {
+                        <tr><td colspan="4" class="text-center text-muted py-4">No sub areas found.</td></tr>
+                    }
+                    @foreach (var subArea in Model.SubAreas.Items)
+                    {
+                        <tr>
+                            <td class="ps-4 fw-semibold">@subArea.SubAreaName</td>
+                            <td>@subArea.AreaName</td>
+                            <td><span class="badge @(subArea.IsActive ? "bg-success" : "bg-secondary")">@(subArea.IsActive ? "Active" : "Inactive")</span></td>
+                            <td class="text-end pe-4">
+                                <a asp-action="Edit" asp-route-id="@subArea.SubAreaID" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                <form asp-action="Delete" asp-route-id="@subArea.SubAreaID" method="post" class="d-inline" onsubmit="return confirm('Delete this sub area?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.SubAreas.TotalPages > 1)
+        {
+            <div class="card-footer bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                <span class="small text-muted">
+                    Showing @(((Model.SubAreas.PageNumber - 1) * Model.SubAreas.PageSize) + 1) to @(Math.Min(Model.SubAreas.PageNumber * Model.SubAreas.PageSize, Model.SubAreas.TotalCount)) of @Model.SubAreas.TotalCount sub areas
+                </span>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(!Model.SubAreas.HasPreviousPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-PageNumber="@(Model.SubAreas.PageNumber - 1)" asp-route-SearchTerm="@Model.Filter.SearchTerm" asp-route-AreaID="@Model.Filter.AreaID" asp-route-IsActive="@Model.Filter.IsActive">Previous</a>
+                        </li>
+                        @for (int i = 1; i <= Model.SubAreas.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == Model.SubAreas.PageNumber ? "active" : "")">
+                                <a class="page-link" asp-action="Index" asp-route-PageNumber="@i" asp-route-SearchTerm="@Model.Filter.SearchTerm" asp-route-AreaID="@Model.Filter.AreaID" asp-route-IsActive="@Model.Filter.IsActive">@i</a>
+                            </li>
+                        }
+                        <li class="page-item @(!Model.SubAreas.HasNextPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-PageNumber="@(Model.SubAreas.PageNumber + 1)" asp-route-SearchTerm="@Model.Filter.SearchTerm" asp-route-AreaID="@Model.Filter.AreaID" asp-route-IsActive="@Model.Filter.IsActive">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>

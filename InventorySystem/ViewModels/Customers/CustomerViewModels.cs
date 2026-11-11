@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using InventorySystem.DTOs.Common;
 using InventorySystem.DTOs.Customers;
+using InventorySystem.Enums;
 
 namespace InventorySystem.ViewModels.Customers
 {
@@ -54,6 +55,9 @@ namespace InventorySystem.ViewModels.Customers
         [Display(Name = "Active Status")]
         public bool IsActive { get; set; } = true;
 
+        [Display(Name = "Customer Category")]
+        public CustomerCategory? Category { get; set; }
+
         public List<SelectListItem> Areas { get; set; } = new List<SelectListItem>();
         public List<SelectListItem> SubAreas { get; set; } = new List<SelectListItem>();
     }
@@ -99,6 +103,9 @@ namespace InventorySystem.ViewModels.Customers
 
         [Display(Name = "Active Status")]
         public bool IsActive { get; set; } = true;
+
+        [Display(Name = "Customer Category")]
+        public CustomerCategory? Category { get; set; }
 
         public List<SelectListItem> Areas { get; set; } = new List<SelectListItem>();
         public List<SelectListItem> SubAreas { get; set; } = new List<SelectListItem>();

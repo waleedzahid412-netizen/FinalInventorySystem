@@ -35,6 +35,8 @@ namespace InventorySystem.DTOs.Sales
         public string FreeProductName { get; set; } = string.Empty;
         public bool IsCustomFreeItem { get; set; }
         public string? CustomFreeItemName { get; set; }
+        /// <summary>Retail value of custom Other gift; snapshotted onto invoice FREE line UnitPrice.</summary>
+        public decimal CustomFreeItemPrice { get; set; }
         public int RuleFreeQuantity { get; set; }
         public int RewardQuantity { get; set; }
         public int FreeUnitID { get; set; }

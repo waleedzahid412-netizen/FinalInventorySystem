@@ -33,6 +33,9 @@ namespace InventorySystem.Models.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal TotalAmount { get; set; }
 
+        /// <summary>When true, quotation lines apply each product's catalog product discount.</summary>
+        public bool ApplyProductDiscount { get; set; } = true;
+
         public bool IsActive { get; set; } = true;
 
         // ===== AUDIT FIELDS =====

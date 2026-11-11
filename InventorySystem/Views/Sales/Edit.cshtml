@@ -49,6 +49,7 @@
         <input type="hidden" asp-for="ManualDiscountType" id="ManualDiscountType" />
         <input type="hidden" asp-for="ManualDiscountValue" id="ManualDiscountValue" />
         <input type="hidden" asp-for="ApplyPromotions" id="ApplyPromotions" />
+        <input type="hidden" asp-for="ApplyProductDiscount" id="ApplyProductDiscount" />
 
         <!-- Header Card (Immutable Fields Read-Only) -->
         <div class="card border-0 shadow-sm rounded-3 mb-4">
@@ -166,6 +167,13 @@
                         <input type="radio" class="btn-check" name="applyPromotionsToggle" id="applyPromotionsNo" value="false" autocomplete="off" @(!Model.ApplyPromotions ? "checked" : "")>
                         <label class="btn btn-outline-secondary" for="applyPromotionsNo">No</label>
                     </div>
+                    <span class="fw-semibold small text-muted mb-0">Product Discount:</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Apply product discount toggle">
+                        <input type="radio" class="btn-check" name="applyProductDiscountToggle" id="applyProductDiscountYes" value="true" autocomplete="off" @(Model.ApplyProductDiscount ? "checked" : "")>
+                        <label class="btn btn-outline-success" for="applyProductDiscountYes">On</label>
+                        <input type="radio" class="btn-check" name="applyProductDiscountToggle" id="applyProductDiscountNo" value="false" autocomplete="off" @(!Model.ApplyProductDiscount ? "checked" : "")>
+                        <label class="btn btn-outline-secondary" for="applyProductDiscountNo">Off</label>
+                    </div>
                     <span class="badge bg-primary fs-6" id="summaryHeaderGrandTotal">Total: PKR 0.00</span>
                 </div>
             </div>
@@ -176,12 +184,29 @@
                         <div class="col-md-4">
                             <label class="form-label small fw-semibold mb-1">Type</label>
                             <select id="manualDiscountTypeSelect" class="form-select form-select-sm">
-                                <option value="Percentage" selected>Percentage (%)</option>
+                                <option value="Percentage" selected>Percentage (1–30%)</option>
                                 <option value="FixedAmount">Fixed Amount (PKR)</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold mb-1">Value</label>
+                        <div class="col-md-4" id="manualDiscountPercentWrap">
+                            <label class="form-label small fw-semibold mb-1">Percent</label>
+                            <select id="manualDiscountPercentSelect" class="form-select form-select-sm">
+                                <option value="0">-- Select --</option>
+                                @for (int i = 1; i <= 30; i++)
+                                {
+                                    if (Model.ManualDiscountType != "FixedAmount" && Model.ManualDiscountValue == i)
+                                    {
+                                        <option value="@i" selected>@i%</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@i">@i%</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-none" id="manualDiscountAmountWrap">
+                            <label class="form-label small fw-semibold mb-1">Amount</label>
                             <input type="number" id="manualDiscountValueInput" class="form-control form-control-sm" min="0" step="0.01" value="@(Model.ManualDiscountValue)" />
                         </div>
                     </div>
@@ -269,6 +294,16 @@
             $('#ApplyPromotions').val(enabled ? 'true' : 'false');
         }
 
+        function isApplyProductDiscountEnabled() {
+            return $('#applyProductDiscountYes').is(':checked');
+        }
+
+        function setApplyProductDiscount(enabled) {
+            $('#applyProductDiscountYes').prop('checked', enabled);
+            $('#applyProductDiscountNo').prop('checked', !enabled);
+            $('#ApplyProductDiscount').val(enabled ? 'true' : 'false');
+        }
+
         function clearFreePromoRows() {
             $('#itemsTbody tr[data-item-type="FREE"]').remove();
             recalculateInvoiceSummary();
@@ -276,6 +311,18 @@
 
         $(document.body).ready(async function () {
             setApplyPromotions(@(Model.ApplyPromotions ? "true" : "false"));
+            setApplyProductDiscount(@(Model.ApplyProductDiscount ? "true" : "false"));
+            $('input[name="applyProductDiscountToggle"]').on('change', function () {
+                setApplyProductDiscount(isApplyProductDiscountEnabled());
+                if (typeof recalculateInvoiceSummary === 'function') recalculateInvoiceSummary();
+            });
+            function syncManualTypeUi() {
+                const type = $('#manualDiscountTypeSelect').val() || 'Percentage';
+                $('#manualDiscountPercentWrap').toggleClass('d-none', type !== 'Percentage');
+                $('#manualDiscountAmountWrap').toggleClass('d-none', type !== 'FixedAmount');
+            }
+            $('#manualDiscountTypeSelect').on('change', syncManualTypeUi);
+            syncManualTypeUi();
 
             $('#applyPromotionsYes').on('change', function () {
                 if (this.checked) {
@@ -495,9 +542,15 @@
             $('#DiscountMode').val(mode);
             if (mode === 'Manual') {
                 const type = $('#manualDiscountTypeSelect').val() || 'Percentage';
-                let value = parseFloat($('#manualDiscountValueInput').val()) || 0;
-                if (type === 'Percentage' && value > 100) value = 100;
-                if (value < 0) value = 0;
+                let value = type === 'FixedAmount'
+                    ? (parseFloat($('#manualDiscountValueInput').val()) || 0)
+                    : (parseFloat($('#manualDiscountPercentSelect').val()) || 0);
+                if (type === 'Percentage') {
+                    if (value < 0) value = 0;
+                    if (value > 30) value = 30;
+                } else if (value < 0) {
+                    value = 0;
+                }
                 $('#ManualDiscountType').val(type);
                 $('#ManualDiscountValue').val(value);
                 $('#AppliedDiscountRuleID').val('');

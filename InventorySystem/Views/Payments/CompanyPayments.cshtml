@@ -8,7 +8,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-wallet2 me-2 text-primary"></i> Company Payments</h1>
-            <p class="text-muted small mb-0">View all vendor disbursements and payment vouchers to suppliers.</p>
+            <p class="text-muted small mb-0">View all company disbursements and payment vouchers.</p>
         </div>
         <div>
             <button type="button" class="btn btn-success shadow-sm" id="btnOpenRecordCompanyModal">
@@ -22,7 +22,7 @@
         <div class="card-body py-3">
             <form method="get" asp-action="CompanyPayments" class="row g-2 align-items-end">
                 <div class="col-md-3">
-                    <label class="form-label small fw-semibold">Company / Supplier</label>
+                    <label class="form-label small fw-semibold">Company</label>
                     <select name="CompanyID" class="form-select form-select-sm" asp-for="Filter.CompanyID" asp-items="Model.Companies">
                         <option value="">-- All Companies --</option>
                     </select>
@@ -65,7 +65,7 @@
                         <tr>
                             <th>Voucher #</th>
                             <th>Payment Date</th>
-                            <th>Company / Supplier</th>
+                            <th>Company</th>
                             <th>Target Invoice</th>
                             <th>Method</th>
                             <th>Reference #</th>
@@ -112,7 +112,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-4 text-muted">No vendor payments recorded yet.</td>
+                                <td colspan="9" class="text-center py-4 text-muted">No company payments recorded yet.</td>
                             </tr>
                         }
                     </tbody>
@@ -142,7 +142,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title h6" id="recordCompanyPaymentModalLabel"><i class="bi bi-cash-stack me-2"></i> Record Vendor / Company Payment</h5>
+                <h5 class="modal-title h6" id="recordCompanyPaymentModalLabel"><i class="bi bi-cash-stack me-2"></i> Record Company Payment</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="recordCompanyPaymentForm">
@@ -151,7 +151,7 @@
                     <div id="companyPaymentModalAlert" class="alert alert-danger p-2 small d-none mb-3"></div>
 
                     <div class="mb-3">
-                        <label for="modalCompanyID" class="form-label fw-semibold">Company / Supplier <span class="text-danger">*</span></label>
+                        <label for="modalCompanyID" class="form-label fw-semibold">Company <span class="text-danger">*</span></label>
                         <select class="form-select" id="modalCompanyID" required>
                             <option value="">-- Select Company --</option>
                             @foreach (var comp in Model.Companies)
@@ -312,7 +312,7 @@
                 const chequeDate = document.getElementById('modalCompanyChequeDate').value;
 
                 if (companyId <= 0) {
-                    alertBox.textContent = 'Please select a company/supplier.';
+                    alertBox.textContent = 'Please select a company.';
                     alertBox.classList.remove('d-none');
                     return;
                 }

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using InventorySystem.DTOs.Products;
+using InventorySystem.Helpers;
 using InventorySystem.ViewModels.Products;
 
 namespace InventorySystem.Validators.Products
@@ -36,6 +36,7 @@ namespace InventorySystem.Validators.Products
                 errors.Add("Reorder Level cannot be negative.");
             }
 
+            ValidateProductDiscount(model.ProductDiscountType, model.ProductDiscountValue, errors);
             ValidateUnitInputList(model.BaseUnitID, model.Units, errors);
 
             return errors;
@@ -65,9 +66,19 @@ namespace InventorySystem.Validators.Products
                 errors.Add("Reorder Level cannot be negative.");
             }
 
+            ValidateProductDiscount(model.ProductDiscountType, model.ProductDiscountValue, errors);
             ValidateUnitInputList(model.BaseUnitID, model.Units, errors);
 
             return errors;
+        }
+
+        private static void ValidateProductDiscount(string? type, decimal? value, List<string> errors)
+        {
+            var normalized = ProductDiscountHelper.NormalizeCatalogDiscount(type, value);
+            if (!normalized.Success && !string.IsNullOrWhiteSpace(normalized.Error))
+            {
+                errors.Add(normalized.Error!);
+            }
         }
 
         private static void ValidateUnitInputList(int baseUnitId, List<ProductUnitInputViewModel> units, List<string> errors)

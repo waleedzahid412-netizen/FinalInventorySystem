@@ -32,7 +32,7 @@
                         </a>
                     </div>
                     <div class="col-md-4">
-                        <span class="text-muted small d-block">Company / Supplier</span>
+                        <span class="text-muted small d-block">Company</span>
                         <span class="fw-bold">@header.CompanyName</span>
                     </div>
                     <div class="col-md-4">
@@ -88,8 +88,8 @@
                                             </span>
                                         </td>
                                         <td>@(string.IsNullOrWhiteSpace(item.Reason) ? "-" : item.Reason)</td>
-                                        <td class="text-end">@item.RefundUnitCost.ToString("C2")</td>
-                                        <td class="text-end fw-semibold">@item.RefundAmount.ToString("C2")</td>
+                                        <td class="text-end">PKR @item.RefundUnitCost.ToString("N2")</td>
+                                        <td class="text-end fw-semibold">PKR @item.RefundAmount.ToString("N2")</td>
                                     </tr>
                                 }
                             }
@@ -109,12 +109,12 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Gross Return Value:</span>
-                    <span class="fw-bold">@header.GrossAmount.ToString("C2")</span>
+                    <span class="fw-bold">PKR @header.GrossAmount.ToString("N2")</span>
                 </div>
                 <hr />
                 <div class="p-3 bg-light rounded border text-center">
                     <span class="text-muted small d-block">NET COMPANY LEDGER DEBIT</span>
-                    <span class="fs-3 fw-bold text-primary">@header.NetRefundAmount.ToString("C2")</span>
+                    <span class="fs-3 fw-bold text-primary">PKR @header.NetRefundAmount.ToString("N2")</span>
                 </div>
             </div>
         </div>

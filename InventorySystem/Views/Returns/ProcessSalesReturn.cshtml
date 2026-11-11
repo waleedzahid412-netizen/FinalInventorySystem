@@ -84,6 +84,8 @@
                                 <th class="text-center">Sold Qty</th>
                                 <th class="text-center">Already Returned</th>
                                 <th class="text-center" style="min-width: 220px;">Return Qty</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Line Amount</th>
                                 <th>Reason</th>
                                 <th>Condition</th>
                             </tr>
@@ -160,6 +162,12 @@
                                                     Max: @FormatDualQty(item.RemainingReturnableQuantity, item.RemainingReturnableConvertedQuantity, packagingLabel, baseLabel, item.ConversionToBaseUnit)
                                                 </span>
                                             }
+                                        </td>
+                                        <td class="text-end fw-semibold small text-nowrap">
+                                            PKR @item.UnitPriceOrCost.ToString("N2")
+                                        </td>
+                                        <td class="text-end fw-semibold small text-nowrap">
+                                            <span class="line-amount">PKR 0.00</span>
                                         </td>
                                         <td style="width: 160px;">
                                             <select class="form-select form-select-sm item-reason" @(isFullyReturned ? "disabled" : "")>
@@ -261,22 +269,22 @@
 
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Gross Return Value:</span>
-                    <span class="fw-bold" id="lblGrossReturn">$0.00</span>
+                    <span class="fw-bold" id="lblGrossReturn">PKR 0.00</span>
                 </div>
 
                 <div class="d-flex justify-content-between mb-2 text-danger">
                     <span class="text-muted">Item Discount Released:</span>
-                    <span class="fw-bold" id="lblItemDiscountReleased">-$0.00</span>
+                    <span class="fw-bold" id="lblItemDiscountReleased">-PKR 0.00</span>
                 </div>
 
                 <div class="d-flex justify-content-between mb-2 text-danger">
                     <span class="text-muted">Threshold Discount Adjustment:</span>
-                    <span class="fw-bold" id="lblClawbackPenalty">-$0.00</span>
+                    <span class="fw-bold" id="lblClawbackPenalty">-PKR 0.00</span>
                 </div>
 
                 <div class="d-flex justify-content-between mb-2 text-danger">
                     <span class="text-muted">Promo Free Item Penalty:</span>
-                    <span class="fw-bold" id="lblPromoPenalty">-$0.00</span>
+                    <span class="fw-bold" id="lblPromoPenalty">-PKR 0.00</span>
                 </div>
 
                 <div class="small text-muted mb-2" id="lblRemainingState">
@@ -286,7 +294,7 @@
                 <div class="p-3 bg-light rounded border mb-4">
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="fw-bold fs-6" id="lblNetRefundLabel">NET REFUND AMOUNT:</span>
-                        <span class="fw-bold fs-4 text-success" id="lblNetRefund">$0.00</span>
+                        <span class="fw-bold fs-4 text-success" id="lblNetRefund">PKR 0.00</span>
                     </div>
                 </div>
 
@@ -346,9 +354,42 @@
                 return 'Max: ' + remPack + ' ' + unitName + ' (' + remBase + ' ' + baseName + ')';
             }
 
+            function formatMoney(amount) {
+                return 'PKR ' + (isNaN(amount) ? 0 : amount).toFixed(2);
+            }
+
+            function updateLineAmount($row) {
+                const $amount = $row.find('.line-amount');
+                if ($amount.length === 0) {
+                    return;
+                }
+
+                const $input = $row.find('.return-qty');
+                let qty = parseFloat($input.val());
+                if (isNaN(qty) || qty < 0 || $input.prop('disabled')) {
+                    qty = 0;
+                }
+
+                const unitPrice = parseFloat($row.data('unit-price')) || 0;
+                const conversion = parseFloat($row.data('conversion')) || 1;
+                const mode = getRowMode($row);
+
+                let lineAmount = 0;
+                if (qty > 0 && unitPrice > 0) {
+                    if (mode === 'Base' && conversion > 1.0001) {
+                        lineAmount = unitPrice * (qty / conversion);
+                    } else {
+                        lineAmount = unitPrice * qty;
+                    }
+                }
+
+                $amount.text(formatMoney(lineAmount));
+            }
+
             function applyRowModeLimits($row) {
                 const $input = $row.find('.return-qty');
                 if ($input.length === 0 || $input.prop('disabled')) {
+                    updateLineAmount($row);
                     return;
                 }
 
@@ -369,6 +410,7 @@
                 $input.val(val);
 
                 $row.find('.return-max-label').text(formatMaxLabel($row));
+                updateLineAmount($row);
             }
 
             $('#returnItemsTable tbody tr').each(function () {
@@ -418,11 +460,11 @@
 
                 const hasActiveReturn = items.some(i => i.quantity > 0);
                 if (!hasActiveReturn) {
-                    $('#lblGrossReturn').text('$0.00');
-                    $('#lblItemDiscountReleased').text('-$0.00');
-                    $('#lblClawbackPenalty').text('-$0.00');
-                    $('#lblPromoPenalty').text('-$0.00');
-                    $('#lblNetRefund').text('$0.00').removeClass('text-danger').addClass('text-success');
+                    $('#lblGrossReturn').text('PKR 0.00');
+                    $('#lblItemDiscountReleased').text('-PKR 0.00');
+                    $('#lblClawbackPenalty').text('-PKR 0.00');
+                    $('#lblPromoPenalty').text('-PKR 0.00');
+                    $('#lblNetRefund').text('PKR 0.00').removeClass('text-danger').addClass('text-success');
                     $('#lblNetRefundLabel').text('NET REFUND AMOUNT:');
                     $('#lblRemainingState').text('Remaining after return: —');
                     $('#breakdownAlert').addClass('d-none');
@@ -448,31 +490,31 @@
                         $btn.prop('disabled', false).html('<i class="bi bi-arrow-repeat me-1"></i> Calculate / Preview Refund');
                         if (res.success && res.data) {
                             const data = res.data;
-                            $('#lblGrossReturn').text('$' + data.grossReturnedValue.toFixed(2));
-                            $('#lblItemDiscountReleased').text('-$' + (data.itemDiscountReleased || 0).toFixed(2));
-                            $('#lblClawbackPenalty').text('-$' + data.discountClawback.toFixed(2));
-                            $('#lblPromoPenalty').text('-$' + data.promoPenalty.toFixed(2));
+                            $('#lblGrossReturn').text('PKR ' +  data.grossReturnedValue.toFixed(2));
+                            $('#lblItemDiscountReleased').text('-PKR ' +  (data.itemDiscountReleased || 0).toFixed(2));
+                            $('#lblClawbackPenalty').text('-PKR ' +  data.discountClawback.toFixed(2));
+                            $('#lblPromoPenalty').text('-PKR ' +  data.promoPenalty.toFixed(2));
                             $('#lblRemainingState').text(
-                                'Remaining after return: Subtotal $' + (data.nextRemainingSubtotal || 0).toFixed(2) +
-                                ' | Discount $' + (data.nextRemainingDiscount || 0).toFixed(2) +
-                                ' | Net $' + (data.nextRemainingNet || 0).toFixed(2)
+                                'Remaining after return: Subtotal PKR ' + (data.nextRemainingSubtotal || 0).toFixed(2) +
+                                ' | Discount PKR ' + (data.nextRemainingDiscount || 0).toFixed(2) +
+                                ' | Net PKR ' + (data.nextRemainingNet || 0).toFixed(2)
                             );
 
                             if (data.netRefundAmount < 0) {
                                 $('#lblNetRefundLabel').text('ADDITIONAL AMOUNT DUE:');
-                                $('#lblNetRefund').text('$' + Math.abs(data.netRefundAmount).toFixed(2))
+                                $('#lblNetRefund').text('PKR ' +  Math.abs(data.netRefundAmount).toFixed(2))
                                     .removeClass('text-success').addClass('text-danger');
                             } else {
                                 $('#lblNetRefundLabel').text('NET REFUND AMOUNT:');
-                                $('#lblNetRefund').text('$' + data.netRefundAmount.toFixed(2))
+                                $('#lblNetRefund').text('PKR ' +  data.netRefundAmount.toFixed(2))
                                     .removeClass('text-danger').addClass('text-success');
                             }
 
                             if (data.freePromotions && data.freePromotions.length > 0) {
                                 let promoHtml = '';
                                 data.freePromotions.forEach(function (fp) {
-                                    const chargedBadge = fp.isPreviouslyCharged ? `<span class="badge bg-warning text-dark ms-2"><i class="bi bi-currency-dollar me-1"></i> ${fp.unreturnedChargedFreeQuantity} Previously Charged ($${fp.unitValue.toFixed(2)}/unit)</span>` : '';
-                                    const statusNote = fp.isPreviouslyCharged ? `<div class="alert alert-info py-1 px-2 small mb-2"><i class="bi bi-info-circle-fill me-1"></i> Physical remaining: <strong>${fp.maxReturnableFreeQuantity}</strong> (${fp.unreturnedChargedFreeQuantity} previously charged + ${fp.maxReturnableFreeQuantity - fp.unreturnedChargedFreeQuantity} uncharged). Returning charged units refunds $${fp.unitValue.toFixed(2)}/unit.</div>` : '';
+                                    const chargedBadge = fp.isPreviouslyCharged ? `<span class="badge bg-warning text-dark ms-2"><i class="bi bi-cash me-1"></i> ${fp.unreturnedChargedFreeQuantity} Previously Charged (PKR ${fp.unitValue.toFixed(2)}/unit)</span>` : '';
+                                    const statusNote = fp.isPreviouslyCharged ? `<div class="alert alert-info py-1 px-2 small mb-2"><i class="bi bi-info-circle-fill me-1"></i> Physical remaining: <strong>${fp.maxReturnableFreeQuantity}</strong> (${fp.unreturnedChargedFreeQuantity} previously charged + ${fp.maxReturnableFreeQuantity - fp.unreturnedChargedFreeQuantity} uncharged). Returning charged units refunds PKR ${fp.unitValue.toFixed(2)}/unit.</div>` : '';
                                     promoHtml += `
                                         <div class="p-3 border rounded bg-white mb-3 shadow-sm promo-card" data-free-item-id="${fp.freeInvoiceItemId}">
                                             <div class="fw-bold text-dark mb-1"><i class="bi bi-gift-fill text-primary me-1"></i> Promotion: ${fp.promotionName} ${chargedBadge}</div>
@@ -496,8 +538,8 @@
                                                     <span class="fw-bold text-dark">${fp.retainedFreeQuantityAfterCurrentReturn}</span>
                                                 </div>
                                                 <div class="col-md-4 text-end">
-                                                    <span class="small text-muted d-block">Retained Penalty ($${fp.unitValue.toFixed(2)}/unit):</span>
-                                                    <span class="fw-bold text-danger">-$${fp.retainedValue.toFixed(2)}</span>
+                                                    <span class="small text-muted d-block">Retained Penalty (PKR ${fp.unitValue.toFixed(2)}/unit):</span>
+                                                    <span class="fw-bold text-danger">-PKR ${fp.retainedValue.toFixed(2)}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -550,6 +592,7 @@
                     $input.val(max);
                 }
 
+                updateLineAmount($input.closest('tr'));
                 previewClawback(false);
             });
 

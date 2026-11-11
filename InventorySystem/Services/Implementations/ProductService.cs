@@ -98,6 +98,8 @@ namespace InventorySystem.Services.Implementations
                 ReorderLevel = product.ReorderLevel,
                 IsActive = product.IsActive,
                 CreatedAt = product.CreatedAt,
+                ProductDiscountType = product.ProductDiscountType,
+                ProductDiscountValue = product.ProductDiscountValue,
                 InventorySummary = inventorySummary,
                 WarehouseStocks = warehouseStocks,
                 ProductUnits = productUnits
@@ -123,6 +125,8 @@ namespace InventorySystem.Services.Implementations
                 AveragePurchaseCost = product.AveragePurchaseCost,
                 ReorderLevel = product.ReorderLevel,
                 IsActive = product.IsActive,
+                ProductDiscountType = product.ProductDiscountType,
+                ProductDiscountValue = product.ProductDiscountValue,
                 Units = product.ProductUnits
                     .Where(pu => !pu.IsDeleted)
                     .Select(pu => new ProductUnitDto
@@ -148,6 +152,12 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult<int>.Fail(validationErrors);
             }
 
+            var discountNorm = ProductDiscountHelper.NormalizeCatalogDiscount(dto.ProductDiscountType, dto.ProductDiscountValue);
+            if (!discountNorm.Success)
+            {
+                return OperationResult<int>.Fail(discountNorm.Error!);
+            }
+
             using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
             try
             {
@@ -165,6 +175,8 @@ namespace InventorySystem.Services.Implementations
                     AveragePurchaseCost = 0m,
                     ReorderLevel = dto.ReorderLevel,
                     IsActive = dto.IsActive,
+                    ProductDiscountType = discountNorm.Type,
+                    ProductDiscountValue = discountNorm.Value,
                     CreatedAt = now,
                     CreatedBy = userId,
                     IsDeleted = false
@@ -215,6 +227,12 @@ namespace InventorySystem.Services.Implementations
                 return OperationResult.Fail(validationErrors);
             }
 
+            var discountNorm = ProductDiscountHelper.NormalizeCatalogDiscount(dto.ProductDiscountType, dto.ProductDiscountValue);
+            if (!discountNorm.Success)
+            {
+                return OperationResult.Fail(discountNorm.Error!);
+            }
+
             var product = await _productRepository.GetByIdWithUnitsAsync(dto.ProductID, cancellationToken);
             if (product == null)
             {
@@ -234,6 +252,8 @@ namespace InventorySystem.Services.Implementations
                 product.BaseSellingPrice = dto.BaseSellingPrice;
                 product.ReorderLevel = dto.ReorderLevel;
                 product.IsActive = dto.IsActive;
+                product.ProductDiscountType = discountNorm.Type;
+                product.ProductDiscountValue = discountNorm.Value;
                 product.UpdatedAt = now;
                 product.UpdatedBy = userId;
 
@@ -416,6 +436,12 @@ namespace InventorySystem.Services.Implementations
 
             ValidateProductUnits(dto.BaseUnitID, dto.Units, errors);
 
+            var discountNorm = ProductDiscountHelper.NormalizeCatalogDiscount(dto.ProductDiscountType, dto.ProductDiscountValue);
+            if (!discountNorm.Success && !string.IsNullOrWhiteSpace(discountNorm.Error))
+            {
+                errors.Add(discountNorm.Error!);
+            }
+
             return errors;
         }
 
@@ -480,6 +506,12 @@ namespace InventorySystem.Services.Implementations
 
             ValidateProductUnits(dto.BaseUnitID, dto.Units, errors);
 
+            var discountNorm = ProductDiscountHelper.NormalizeCatalogDiscount(dto.ProductDiscountType, dto.ProductDiscountValue);
+            if (!discountNorm.Success && !string.IsNullOrWhiteSpace(discountNorm.Error))
+            {
+                errors.Add(discountNorm.Error!);
+            }
+
             return errors;
         }
 
@@ -516,10 +548,10 @@ namespace InventorySystem.Services.Implementations
                 errors.Add("Duplicate packaging units are not allowed.");
             }
 
-            // Conversion factor validation
-            if (units.Any(u => u.ConversionToBaseUnit <= 0))
+            // Conversion factor validation — whole numbers only (1 carton = 24 pieces)
+            if (units.Any(u => u.ConversionToBaseUnit < 1 || decimal.Remainder(u.ConversionToBaseUnit, 1m) != 0))
             {
-                errors.Add("Unit conversion factors must be greater than zero.");
+                errors.Add("Unit conversion factors must be whole numbers of at least 1.");
             }
 
             // Base Unit conversion validation

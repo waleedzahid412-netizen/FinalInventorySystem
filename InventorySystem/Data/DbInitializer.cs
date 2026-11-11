@@ -712,13 +712,13 @@ namespace InventorySystem.Data
 
             var areaDefs = new[]
             {
-                new { Name = "Karachi Central", Code = "KHI-CEN", SubAreas = new[] { "Gulberg", "North Nazimabad", "Federal B Area", "Buffer Zone" } },
-                new { Name = "Karachi South", Code = "KHI-STH", SubAreas = new[] { "Clifton", "Saddar", "Defense (DHA)", "Tariq Road" } },
-                new { Name = "Lahore Gulberg", Code = "LHR-GLB", SubAreas = new[] { "Main Market", "Liberty Market", "MM Alam Road", "Model Town" } },
-                new { Name = "Lahore Johar Town", Code = "LHR-JHR", SubAreas = new[] { "Doctor Hospital Chowk", "G1 Market", "Wapda Town", "Cavalry Ground" } },
-                new { Name = "Islamabad I-8", Code = "ISB-I8", SubAreas = new[] { "I-8 Markaz", "F-6 Markaz", "F-7 Markaz", "G-9 Markaz" } },
-                new { Name = "Rawalpindi Saddar", Code = "RWP-SDR", SubAreas = new[] { "Bank Road", "Commercial Market", "Satellite Town", "Raja Bazar" } },
-                new { Name = "Faisalabad Clock Tower", Code = "FSD-CT", SubAreas = new[] { "D-Ground", "Batala Colony", "Peoples Colony", "Gulberg FSD" } }
+                new { Name = "Karachi Central", SubAreas = new[] { "Gulberg", "North Nazimabad", "Federal B Area", "Buffer Zone" } },
+                new { Name = "Karachi South", SubAreas = new[] { "Clifton", "Saddar", "Defense (DHA)", "Tariq Road" } },
+                new { Name = "Lahore Gulberg", SubAreas = new[] { "Main Market", "Liberty Market", "MM Alam Road", "Model Town" } },
+                new { Name = "Lahore Johar Town", SubAreas = new[] { "Doctor Hospital Chowk", "G1 Market", "Wapda Town", "Cavalry Ground" } },
+                new { Name = "Islamabad I-8", SubAreas = new[] { "I-8 Markaz", "F-6 Markaz", "F-7 Markaz", "G-9 Markaz" } },
+                new { Name = "Rawalpindi Saddar", SubAreas = new[] { "Bank Road", "Commercial Market", "Satellite Town", "Raja Bazar" } },
+                new { Name = "Faisalabad Clock Tower", SubAreas = new[] { "D-Ground", "Batala Colony", "Peoples Colony", "Gulberg FSD" } }
             };
 
             var areasDict = new Dictionary<string, Area>();
@@ -729,7 +729,6 @@ namespace InventorySystem.Data
                 var area = new Area
                 {
                     AreaName = def.Name,
-                    Code = def.Code,
                     IsActive = true,
                     IsDeleted = false,
                     CreatedAt = now
@@ -745,7 +744,6 @@ namespace InventorySystem.Data
                     {
                         AreaID = area.AreaID,
                         SubAreaName = saName,
-                        Code = $"{def.Code}-{saName.Substring(0, Math.Min(3, saName.Length)).ToUpper()}",
                         IsActive = true,
                         IsDeleted = false,
                         CreatedAt = now

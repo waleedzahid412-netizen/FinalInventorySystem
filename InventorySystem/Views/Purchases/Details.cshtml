@@ -249,7 +249,7 @@
                             <strong>#@header.InvoiceNumber</strong>
                         </div>
                         <div class="sd-summary-row">
-                            <span class="text-muted">Company (Supplier)</span>
+                            <span class="text-muted">Company</span>
                             <strong>@header.CompanyName</strong>
                         </div>
                         <div class="sd-summary-row">
@@ -468,23 +468,26 @@
                     if (data.success) {
                         paymentModal.hide();
 
-                        currentPaid += amount;
-                        currentOutstanding = Math.max(0, grandTotal - currentPaid);
+                        // Cheque stays "Received" until admin Clear — do not touch Paid/Outstanding KPIs.
+                        if (method !== 'Cheque') {
+                            currentPaid += amount;
+                            currentOutstanding = Math.max(0, grandTotal - currentPaid);
 
-                        document.getElementById('kpiCompanyPaidAmount').textContent = 'PKR ' + currentPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        document.getElementById('kpiCompanyOutstanding').textContent = 'PKR ' + currentOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        document.getElementById('payCompanyModalAlreadyPaid').textContent = 'PKR ' + currentPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        document.getElementById('payCompanyModalOutstanding').textContent = 'PKR ' + currentOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            document.getElementById('kpiCompanyPaidAmount').textContent = 'PKR ' + currentPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            document.getElementById('kpiCompanyOutstanding').textContent = 'PKR ' + currentOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            document.getElementById('payCompanyModalAlreadyPaid').textContent = 'PKR ' + currentPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            document.getElementById('payCompanyModalOutstanding').textContent = 'PKR ' + currentOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-                        const statusElem = document.getElementById('kpiCompanyPaymentStatus');
-                        if (currentOutstanding <= 0.001) {
-                            statusElem.innerHTML = '<span class="sd-status sd-status--paid"><i class="bi bi-check-circle"></i> Paid</span>';
-                            if (btnOpenModal) btnOpenModal.classList.add('d-none');
-                        } else {
-                            statusElem.innerHTML = '<span class="sd-status sd-status--partial"><i class="bi bi-clock-history"></i> Partial</span>';
+                            const statusElem = document.getElementById('kpiCompanyPaymentStatus');
+                            if (currentOutstanding <= 0.001) {
+                                statusElem.innerHTML = '<span class="sd-status sd-status--paid"><i class="bi bi-check-circle"></i> Paid</span>';
+                                if (btnOpenModal) btnOpenModal.classList.add('d-none');
+                            } else {
+                                statusElem.innerHTML = '<span class="sd-status sd-status--partial"><i class="bi bi-clock-history"></i> Partial</span>';
+                            }
+
+                            document.getElementById('lockedCompanyInvoiceBanner').classList.remove('d-none');
                         }
-
-                        document.getElementById('lockedCompanyInvoiceBanner').classList.remove('d-none');
 
                         loadPaymentsTab(1);
                         if (ledgerLoaded) loadLedgerTab(1);

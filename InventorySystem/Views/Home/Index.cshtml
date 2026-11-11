@@ -57,8 +57,8 @@
                 <span class="kpi-label">Net sales this month</span>
                 <span class="kpi-icon"><i class="bi bi-receipt"></i></span>
             </div>
-            <p class="kpi-value">@Model.NetSalesThisMonth.ToString("C2")</p>
-            <div class="kpi-meta">Today <strong>@Model.NetSalesToday.ToString("C2")</strong></div>
+            <p class="kpi-value">PKR @Model.NetSalesThisMonth.ToString("N2")</p>
+            <div class="kpi-meta">Today <strong>PKR @Model.NetSalesToday.ToString("N2")</strong></div>
         </a>
 
         <a asp-controller="Purchases" asp-action="Index" class="kpi kpi--purchases">
@@ -66,8 +66,8 @@
                 <span class="kpi-label">Purchases this month</span>
                 <span class="kpi-icon"><i class="bi bi-cart-check"></i></span>
             </div>
-            <p class="kpi-value">@Model.TotalPurchasesThisMonth.ToString("C2")</p>
-            <div class="kpi-meta">Today <strong>@Model.TotalPurchasesToday.ToString("C2")</strong></div>
+            <p class="kpi-value">PKR @Model.TotalPurchasesThisMonth.ToString("N2")</p>
+            <div class="kpi-meta">Today <strong>PKR @Model.TotalPurchasesToday.ToString("N2")</strong></div>
         </a>
 
         <a asp-controller="Customers" asp-action="Index" class="kpi kpi--receivables">
@@ -75,7 +75,7 @@
                 <span class="kpi-label">Customer receivables</span>
                 <span class="kpi-icon"><i class="bi bi-wallet2"></i></span>
             </div>
-            <p class="kpi-value">@Model.CustomerReceivables.ToString("C2")</p>
+            <p class="kpi-value">PKR @Model.CustomerReceivables.ToString("N2")</p>
             <div class="kpi-meta">Outstanding customer balances</div>
         </a>
 
@@ -83,22 +83,22 @@
         {
             <a asp-controller="Companies" asp-action="Details" asp-route-id="@Model.ScopedCompanyId" class="kpi kpi--payables">
                 <div class="kpi-top">
-                    <span class="kpi-label">Supplier payables</span>
+                    <span class="kpi-label">Company</span>
                     <span class="kpi-icon"><i class="bi bi-credit-card"></i></span>
                 </div>
-                <p class="kpi-value">@Model.SupplierPayables.ToString("C2")</p>
-                <div class="kpi-meta">Outstanding supplier debts</div>
+                <p class="kpi-value">PKR @Model.SupplierPayables.ToString("N2")</p>
+                <div class="kpi-meta">Outstanding company debts</div>
             </a>
         }
         else
         {
             <a asp-controller="Companies" asp-action="Index" class="kpi kpi--payables">
                 <div class="kpi-top">
-                    <span class="kpi-label">Supplier payables</span>
+                    <span class="kpi-label">Company</span>
                     <span class="kpi-icon"><i class="bi bi-credit-card"></i></span>
                 </div>
-                <p class="kpi-value">@Model.SupplierPayables.ToString("C2")</p>
-                <div class="kpi-meta">Outstanding supplier debts</div>
+                <p class="kpi-value">PKR @Model.SupplierPayables.ToString("N2")</p>
+                <div class="kpi-meta">Outstanding company debts</div>
             </a>
         }
 
@@ -107,7 +107,7 @@
                 <span class="kpi-label">Inventory value</span>
                 <span class="kpi-icon"><i class="bi bi-box-seam"></i></span>
             </div>
-            <p class="kpi-value">@Model.InventoryValue.ToString("C2")</p>
+            <p class="kpi-value">PKR @Model.InventoryValue.ToString("N2")</p>
             <div class="kpi-meta">Base-unit stock at average cost</div>
         </a>
 
@@ -173,7 +173,7 @@
                                         </td>
                                         <td>@sale.CustomerName</td>
                                         <td>@sale.InvoiceDate.ToString("dd MMM yyyy")</td>
-                                        <td class="text-end"><span class="money pos">@sale.TotalAmount.ToString("C2")</span></td>
+                                        <td class="text-end"><span class="money pos">PKR @sale.TotalAmount.ToString("N2")</span></td>
                                         <td class="text-center">
                                             <span class="status-pill @(sale.PaymentStatus == "PAID" ? "paid" : sale.PaymentStatus == "PARTIAL" ? "partial" : "unpaid")">
                                                 @sale.PaymentStatus
@@ -211,7 +211,7 @@
                             <thead>
                                 <tr>
                                     <th>Invoice</th>
-                                    <th>Supplier</th>
+                                    <th>Company</th>
                                     <th>Date</th>
                                     <th class="text-end">Amount</th>
                                     <th class="text-center">Status</th>
@@ -228,7 +228,7 @@
                                         </td>
                                         <td>@pur.SupplierName</td>
                                         <td>@pur.InvoiceDate.ToString("dd MMM yyyy")</td>
-                                        <td class="text-end"><span class="money">@pur.TotalAmount.ToString("C2")</span></td>
+                                        <td class="text-end"><span class="money">PKR @pur.TotalAmount.ToString("N2")</span></td>
                                         <td class="text-center">
                                             <span class="status-pill @(pur.PaymentStatus == "PAID" ? "paid" : pur.PaymentStatus == "PARTIAL" ? "partial" : "unpaid")">
                                                 @pur.PaymentStatus
@@ -290,7 +290,7 @@
                                                 @ret.ReturnType
                                             </span>
                                         </td>
-                                        <td class="text-end"><span class="money neg">@ret.NetRefundAmount.ToString("C2")</span></td>
+                                        <td class="text-end"><span class="money neg">PKR @ret.NetRefundAmount.ToString("N2")</span></td>
                                     </tr>
                                 }
                             </tbody>

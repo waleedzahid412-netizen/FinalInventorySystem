@@ -156,6 +156,19 @@
                             : "Not set")
                     </div>
                 </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Customer Category</div>
+                    <div class="fw-semibold">
+                        @if (info.Category.HasValue)
+                        {
+                            <span class="badge bg-primary">Category @info.Category.Value</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">Not assigned</span>
+                        }
+                    </div>
+                </div>
                 <div class="col-md-12">
                     <div class="text-muted small">Delivery Address</div>
                     <div class="fw-semibold">@(info.Address ?? "No address registered.")</div>

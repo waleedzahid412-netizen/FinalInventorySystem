@@ -912,4 +912,14 @@ select.is-invalid + .select2-container .select2-selection {
   }
 }
 
+/* ASP.NET Core validation summary helpers */
+.validation-summary-valid {
+  display: none !important;
+}
+
+.validation-summary-errors ul {
+  margin-bottom: 0;
+  padding-left: 1.25rem;
+}
+
 /* Purchase/Sales create form styles live in ~/css/invoice-form.css */

@@ -1,4 +1,5 @@
 using System;
+using InventorySystem.Enums;
 
 namespace InventorySystem.DTOs.Customers
 {
@@ -29,6 +30,7 @@ namespace InventorySystem.DTOs.Customers
         public string? TaxID { get; set; }
         public decimal CreditLimit { get; set; }
         public decimal? PreferredDiscountPercent { get; set; }
+        public CustomerCategory? Category { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

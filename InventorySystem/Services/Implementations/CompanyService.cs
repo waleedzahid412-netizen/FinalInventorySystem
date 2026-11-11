@@ -88,7 +88,8 @@ namespace InventorySystem.Services.Implementations
                 Email = company.Email,
                 Address = company.Address,
                 TaxID = company.TaxID,
-                CreditLimit = company.CreditLimit
+                CreditLimit = company.CreditLimit,
+                CompanyPercentage = company.CompanyPercentage
             };
         }
 
@@ -154,6 +155,7 @@ namespace InventorySystem.Services.Implementations
                 company.Address = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim();
                 company.TaxID = string.IsNullOrWhiteSpace(dto.TaxID) ? null : dto.TaxID.Trim();
                 company.CreditLimit = dto.CreditLimit;
+                company.CompanyPercentage = dto.CompanyPercentage;
                 company.UpdatedAt = now;
                 company.UpdatedBy = userId;
 

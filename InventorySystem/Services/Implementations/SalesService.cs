@@ -272,13 +272,23 @@ namespace InventorySystem.Services.Implementations
                 productRequiredBaseQty[itemDto.ProductID] = (currentReq.ProductName, currentReq.RequiredQty + convertedQty);
             }
 
-            // ===== RESOLVE DISCOUNT MODE + ALLOCATE ONTO NORMAL ITEMS =====
+            // ===== PRODUCT DISCOUNTS THEN INVOICE-LEVEL DISCOUNT =====
+            await ApplyProductDiscountsToItemsAsync(authoritativeItems, dto.ApplyProductDiscount, cancellationToken);
+            decimal productDiscountTotal = authoritativeItems.Sum(i => i.ProductDiscountAmount);
+            decimal paidSubTotalAfterProduct = Math.Max(0m, invoiceSubTotal - productDiscountTotal);
+
+            var mutualExclusionError = ValidateProductVsInvoiceDiscountModes(productDiscountTotal, dto.DiscountMode, dto.AppliedDiscountRuleID);
+            if (mutualExclusionError != null)
+            {
+                return OperationResult<int>.Fail(mutualExclusionError);
+            }
+
             var discountResolution = await ResolveInvoiceDiscountAsync(
                 dto.DiscountMode,
                 dto.AppliedDiscountRuleID,
                 dto.ManualDiscountType,
                 dto.ManualDiscountValue,
-                invoiceSubTotal,
+                paidSubTotalAfterProduct,
                 dto.CustomerID,
                 autoPickFirstEligibleRule: false,
                 cancellationToken);
@@ -290,7 +300,7 @@ namespace InventorySystem.Services.Implementations
 
             ApplyDiscountAllocationToItems(authoritativeItems, discountResolution.HeaderDiscountAmount, discountResolution.DiscountType, discountResolution.DiscountValue);
 
-            decimal invoiceDiscountTotal = discountResolution.HeaderDiscountAmount;
+            decimal invoiceDiscountTotal = productDiscountTotal + discountResolution.HeaderDiscountAmount;
             decimal invoiceGrandTotal = Math.Max(0m, invoiceSubTotal - invoiceDiscountTotal);
 
             // ===== ATOMIC TRANSACTION EXECUTION =====
@@ -345,6 +355,7 @@ namespace InventorySystem.Services.Implementations
                     SubTotal = invoiceSubTotal,
                     DiscountTotal = invoiceDiscountTotal,
                     DiscountMode = discountResolution.DiscountMode,
+                    ApplyProductDiscount = dto.ApplyProductDiscount,
                     TaxTotal = 0m,
                     GrandTotal = invoiceGrandTotal,
                     PaidAmount = 0m,
@@ -364,7 +375,10 @@ namespace InventorySystem.Services.Implementations
                 {
                     bool isFree = string.Equals(pItem.Dto.ItemType, "FREE", StringComparison.OrdinalIgnoreCase);
                     bool isCustomFree = isFree && pItem.Dto.IsCustomFreeItem;
-                    decimal itemUnitPrice = isFree ? 0m : pItem.Dto.UnitPrice;
+                    // Product FREE lines stay at 0; custom Other gifts snapshot their promo price for return clawback.
+                    decimal itemUnitPrice = isCustomFree
+                        ? Math.Max(0m, pItem.Dto.UnitPrice)
+                        : (isFree ? 0m : pItem.Dto.UnitPrice);
 
                     var invoiceItem = new SalesInvoiceItem
                     {
@@ -377,6 +391,9 @@ namespace InventorySystem.Services.Implementations
                         UnitPrice = itemUnitPrice,
                         DiscountRate = isFree ? 0m : pItem.Dto.DiscountRate,
                         DiscountAmount = isFree ? 0m : pItem.Dto.DiscountAmount,
+                        ProductDiscountType = isFree ? null : pItem.Dto.ProductDiscountType,
+                        ProductDiscountValue = isFree ? null : pItem.Dto.ProductDiscountValue,
+                        ProductDiscountAmount = isFree ? 0m : pItem.Dto.ProductDiscountAmount,
                         ItemType = isFree ? "FREE" : "NORMAL",
                         PromotionID = pItem.Dto.PromotionID,
                         IsActive = true,
@@ -707,7 +724,17 @@ namespace InventorySystem.Services.Implementations
                 newProductRequiredBaseQty[itemDto.ProductID] = (curr.ProductName, curr.RequiredQty + convertedQty);
             }
 
-            // 5. Resolve discount mode + allocate onto NORMAL items (same model as Create)
+            // 5. Product discounts then invoice-level discount (same model as Create)
+            await ApplyProductDiscountsToItemsAsync(authoritativeItems, dto.ApplyProductDiscount, cancellationToken);
+            decimal productDiscountTotal = authoritativeItems.Sum(i => i.ProductDiscountAmount);
+            decimal paidSubTotalAfterProduct = Math.Max(0m, newSubTotal - productDiscountTotal);
+
+            var mutualExclusionError = ValidateProductVsInvoiceDiscountModes(productDiscountTotal, dto.DiscountMode, dto.AppliedDiscountRuleID);
+            if (mutualExclusionError != null)
+            {
+                return OperationResult<int>.Fail(mutualExclusionError);
+            }
+
             int? autoPickRuleId = null;
             if ((!dto.AppliedDiscountRuleID.HasValue || dto.AppliedDiscountRuleID.Value <= 0)
                 && string.Equals(NormalizeDiscountMode(dto.DiscountMode, dto.AppliedDiscountRuleID), "Automatic", StringComparison.OrdinalIgnoreCase))
@@ -720,7 +747,7 @@ namespace InventorySystem.Services.Implementations
                 dto.AppliedDiscountRuleID ?? autoPickRuleId,
                 dto.ManualDiscountType,
                 dto.ManualDiscountValue,
-                newSubTotal,
+                paidSubTotalAfterProduct,
                 invoice.CustomerID,
                 autoPickFirstEligibleRule: false,
                 cancellationToken);
@@ -732,7 +759,7 @@ namespace InventorySystem.Services.Implementations
 
             ApplyDiscountAllocationToItems(authoritativeItems, discountResolution.HeaderDiscountAmount, discountResolution.DiscountType, discountResolution.DiscountValue);
 
-            decimal newDiscountTotal = discountResolution.HeaderDiscountAmount;
+            decimal newDiscountTotal = productDiscountTotal + discountResolution.HeaderDiscountAmount;
 
             decimal oldSubTotal = invoice.SubTotal;
             decimal oldDiscountTotal = invoice.DiscountTotal;
@@ -821,6 +848,9 @@ namespace InventorySystem.Services.Implementations
                 {
                     bool isFree = string.Equals(itemTuple.Dto.ItemType, "FREE", StringComparison.OrdinalIgnoreCase);
                     bool isCustomFree = isFree && itemTuple.Dto.IsCustomFreeItem;
+                    decimal editUnitPrice = isCustomFree
+                        ? Math.Max(0m, itemTuple.Dto.UnitPrice)
+                        : (isFree ? 0m : itemTuple.Dto.UnitPrice);
 
                     var newInvoiceItem = new SalesInvoiceItem
                     {
@@ -830,9 +860,12 @@ namespace InventorySystem.Services.Implementations
                         CustomItemName = isCustomFree ? itemTuple.Dto.CustomFreeItemName : null,
                         Quantity = itemTuple.Dto.Quantity,
                         ConvertedQuantity = itemTuple.ConvertedQty,
-                        UnitPrice = isFree ? 0m : itemTuple.Dto.UnitPrice,
+                        UnitPrice = editUnitPrice,
                         DiscountRate = isFree ? 0m : itemTuple.Dto.DiscountRate,
                         DiscountAmount = isFree ? 0m : itemTuple.Dto.DiscountAmount,
+                        ProductDiscountType = isFree ? null : itemTuple.Dto.ProductDiscountType,
+                        ProductDiscountValue = isFree ? null : itemTuple.Dto.ProductDiscountValue,
+                        ProductDiscountAmount = isFree ? 0m : itemTuple.Dto.ProductDiscountAmount,
                         ItemType = itemTuple.Dto.ItemType,
                         PromotionID = itemTuple.Dto.PromotionID,
                         IsDeleted = false
@@ -885,6 +918,7 @@ namespace InventorySystem.Services.Implementations
                 invoice.SubTotal = newSubTotal;
                 invoice.DiscountTotal = newDiscountTotal;
                 invoice.DiscountMode = discountResolution.DiscountMode;
+                invoice.ApplyProductDiscount = dto.ApplyProductDiscount;
                 invoice.GrandTotal = newGrandTotal;
                 invoice.Version += 1;
                 invoice.UpdatedAt = now;
@@ -1036,9 +1070,14 @@ namespace InventorySystem.Services.Implementations
                     return new InvoiceDiscountResolution { Success = false, ErrorMessage = "Manual discount value cannot be negative." };
                 }
 
-                if (string.Equals(type, "Percentage", StringComparison.OrdinalIgnoreCase) && manualDiscountValue > 100m)
+                if (string.Equals(type, "Percentage", StringComparison.OrdinalIgnoreCase)
+                    && !ProductDiscountHelper.IsValidManualPercentage(manualDiscountValue))
                 {
-                    return new InvoiceDiscountResolution { Success = false, ErrorMessage = "Manual discount percentage cannot exceed 100." };
+                    return new InvoiceDiscountResolution
+                    {
+                        Success = false,
+                        ErrorMessage = $"Manual discount percentage must be a whole number from {ProductDiscountHelper.MinPercentage} to {ProductDiscountHelper.MaxPercentage}."
+                    };
                 }
 
                 decimal headerAmount = DiscountAllocationHelper.ComputeHeaderDiscount(type, manualDiscountValue, paidSubTotal);
@@ -1137,6 +1176,80 @@ namespace InventorySystem.Services.Implementations
             };
         }
 
+        private async Task ApplyProductDiscountsToItemsAsync(
+            List<CreateSalesItemDto> items,
+            bool applyProductDiscount,
+            CancellationToken cancellationToken)
+        {
+            var productIds = items
+                .Where(i => !string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase) && i.ProductID > 0)
+                .Select(i => i.ProductID)
+                .Distinct()
+                .ToList();
+
+            var catalog = productIds.Count == 0
+                ? new Dictionary<int, (string? Type, decimal? Value)>()
+                : await _context.Products
+                    .AsNoTracking()
+                    .Where(p => productIds.Contains(p.ProductID) && !p.IsDeleted)
+                    .Select(p => new { p.ProductID, p.ProductDiscountType, p.ProductDiscountValue })
+                    .ToDictionaryAsync(
+                        p => p.ProductID,
+                        p => (Type: p.ProductDiscountType, Value: p.ProductDiscountValue),
+                        cancellationToken);
+
+            foreach (var item in items)
+            {
+                if (string.Equals(item.ItemType, "FREE", StringComparison.OrdinalIgnoreCase))
+                {
+                    item.ProductDiscountType = null;
+                    item.ProductDiscountValue = null;
+                    item.ProductDiscountAmount = 0m;
+                    item.DiscountAmount = 0m;
+                    item.DiscountRate = 0m;
+                    continue;
+                }
+
+                catalog.TryGetValue(item.ProductID, out var disc);
+                var snap = ProductDiscountHelper.ComputeLineDiscount(
+                    applyProductDiscount,
+                    disc.Type,
+                    disc.Value,
+                    item.Quantity,
+                    item.UnitPrice);
+
+                item.ProductDiscountType = snap.Type;
+                item.ProductDiscountValue = snap.Value;
+                item.ProductDiscountAmount = snap.Amount;
+                item.DiscountAmount = snap.Amount;
+                item.DiscountRate = 0m;
+            }
+        }
+
+        private static string? ValidateProductVsInvoiceDiscountModes(
+            decimal productDiscountTotal,
+            string? discountMode,
+            int? appliedDiscountRuleId)
+        {
+            if (productDiscountTotal <= 0m)
+            {
+                return null;
+            }
+
+            string mode = NormalizeDiscountMode(discountMode, appliedDiscountRuleId);
+            if (string.Equals(mode, "Automatic", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(mode, "Customer", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Product-level discount cannot be combined with Automatic or Customer invoice discount. Use Manual discount or turn off product discount.";
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Allocates invoice-level discount across NORMAL line nets (after product discount).
+        /// Sets DiscountAmount = ProductDiscountAmount + allocated invoice share.
+        /// </summary>
         private static void ApplyDiscountAllocationToItems(
             List<CreateSalesItemDto> items,
             decimal headerDiscount,
@@ -1151,21 +1264,27 @@ namespace InventorySystem.Services.Implementations
                 {
                     item.DiscountAmount = 0m;
                     item.DiscountRate = 0m;
+                    item.ProductDiscountAmount = 0m;
+                    item.ProductDiscountType = null;
+                    item.ProductDiscountValue = null;
                     continue;
                 }
 
+                decimal gross = item.Quantity * item.UnitPrice;
+                decimal net = Math.Max(0m, gross - item.ProductDiscountAmount);
                 normalIndexes.Add(new DiscountAllocationHelper.LineGross
                 {
                     Index = i,
-                    Gross = item.Quantity * item.UnitPrice
+                    Gross = net
                 });
             }
 
             var allocations = DiscountAllocationHelper.Allocate(normalIndexes, headerDiscount, discountType, discountValue);
             foreach (var alloc in allocations)
             {
-                items[alloc.Index].DiscountAmount = alloc.DiscountAmount;
-                items[alloc.Index].DiscountRate = alloc.DiscountRate;
+                var item = items[alloc.Index];
+                item.DiscountAmount = item.ProductDiscountAmount + alloc.DiscountAmount;
+                item.DiscountRate = alloc.DiscountRate;
             }
         }
 
@@ -1191,7 +1310,7 @@ namespace InventorySystem.Services.Implementations
                     ProductID = 0,
                     ProductUnitID = 0,
                     Quantity = promo.RewardQuantity,
-                    UnitPrice = 0m,
+                    UnitPrice = promo.CustomFreeItemPrice > 0m ? promo.CustomFreeItemPrice : 0m,
                     DiscountAmount = 0m,
                     ItemType = "FREE",
                     PromotionID = promo.PromotionID,

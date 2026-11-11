@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using InventorySystem.DTOs.Common;
 
 namespace InventorySystem.DTOs.Sales
@@ -7,6 +8,7 @@ namespace InventorySystem.DTOs.Sales
     {
         public string? InvoiceNumber { get; set; }
         public int? CustomerID { get; set; }
+        public int? BookerID { get; set; }
         public int? WarehouseID { get; set; }
         public int? SupplierID { get; set; }
         /// <summary>When set (&gt; 0), restricts results to that company. Null/0 = all companies.</summary>
@@ -14,6 +16,7 @@ namespace InventorySystem.DTOs.Sales
         public DateTime? DateFrom { get; set; }
         public DateTime? DateTo { get; set; }
         public string? PaymentStatus { get; set; }
+        public List<string>? PaymentStatuses { get; set; }
         public string? DeliveryStatus { get; set; }
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;
@@ -25,6 +28,8 @@ namespace InventorySystem.DTOs.Sales
         public string InvoiceNumber { get; set; } = string.Empty;
         public int CustomerID { get; set; }
         public string CustomerName { get; set; } = string.Empty;
+        public int? BookerID { get; set; }
+        public string? BookerName { get; set; }
         public string? SupplierName { get; set; }
         public DateTime InvoiceDate { get; set; }
         public decimal SubTotal { get; set; }

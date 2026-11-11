@@ -1,0 +1,95 @@
+@model InventorySystem.ViewModels.Areas.AreaListViewModel
+@{
+    ViewData["Title"] = "Areas";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold"><i class="bi bi-geo-alt me-2 text-primary"></i> Areas</h1>
+            <p class="text-muted small mb-0">Main delivery territories used by customers and sales invoices.</p>
+        </div>
+        <a asp-action="Create" class="btn btn-primary shadow-sm"><i class="bi bi-plus-lg me-1"></i> Add Area</a>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body bg-light">
+            <form method="get" class="row g-3">
+                <div class="col-md-5">
+                    <input type="text" name="SearchTerm" value="@Model.Filter.SearchTerm" class="form-control" placeholder="Search by name..." />
+                </div>
+                <div class="col-md-3">
+                    <select name="IsActive" class="form-select" data-no-select2>
+                        <option value="">All statuses</option>
+                        <option value="true" selected="@(Model.Filter.IsActive == true)">Active</option>
+                        <option value="false" selected="@(Model.Filter.IsActive == false)">Inactive</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Name</th>
+                        <th>Sub Areas</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Areas.Items.Any())
+                    {
+                        <tr><td colspan="4" class="text-center text-muted py-4">No areas found.</td></tr>
+                    }
+                    @foreach (var area in Model.Areas.Items)
+                    {
+                        <tr>
+                            <td class="ps-4 fw-semibold">@area.AreaName</td>
+                            <td>@area.SubAreaCount</td>
+                            <td><span class="badge @(area.IsActive ? "bg-success" : "bg-secondary")">@(area.IsActive ? "Active" : "Inactive")</span></td>
+                            <td class="text-end pe-4">
+                                <a asp-action="Edit" asp-route-id="@area.AreaID" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                <form asp-action="Delete" asp-route-id="@area.AreaID" method="post" class="d-inline" onsubmit="return confirm('Delete this area?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.Areas.TotalPages > 1)
+        {
+            <div class="card-footer bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                <span class="small text-muted">
+                    Showing @(((Model.Areas.PageNumber - 1) * Model.Areas.PageSize) + 1) to @(Math.Min(Model.Areas.PageNumber * Model.Areas.PageSize, Model.Areas.TotalCount)) of @Model.Areas.TotalCount areas
+                </span>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(!Model.Areas.HasPreviousPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-PageNumber="@(Model.Areas.PageNumber - 1)" asp-route-SearchTerm="@Model.Filter.SearchTerm" asp-route-IsActive="@Model.Filter.IsActive">Previous</a>
+                        </li>
+                        @for (int i = 1; i <= Model.Areas.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == Model.Areas.PageNumber ? "active" : "")">
+                                <a class="page-link" asp-action="Index" asp-route-PageNumber="@i" asp-route-SearchTerm="@Model.Filter.SearchTerm" asp-route-IsActive="@Model.Filter.IsActive">@i</a>
+                            </li>
+                        }
+                        <li class="page-item @(!Model.Areas.HasNextPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-PageNumber="@(Model.Areas.PageNumber + 1)" asp-route-SearchTerm="@Model.Filter.SearchTerm" asp-route-IsActive="@Model.Filter.IsActive">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>

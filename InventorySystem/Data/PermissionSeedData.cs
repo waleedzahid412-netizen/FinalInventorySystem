@@ -35,7 +35,8 @@ namespace InventorySystem.Data
                 {
                     (PageKeys.Products, "Products", "Products", "Index", 1),
                     (PageKeys.Categories, "Categories", "Categories", "Index", 2),
-                    (PageKeys.CompanyStockReport, "Company Stock Report", "CompanyStockReport", "Index", 3)
+                    (PageKeys.CompanyStockReport, "Company Stock Report", "CompanyStockReport", "Index", 3),
+                    (PageKeys.DamagedStockClaims, "Damaged Stock Claims", "DamagedStockClaims", "Index", 4)
                 }),
                 ("Masters", "Masters", 5, new List<(string, string, string?, string?, int)>
                 {
@@ -43,7 +44,9 @@ namespace InventorySystem.Data
                     (PageKeys.Bookers, "Bookers", "Bookers", "Index", 2),
                     (PageKeys.Suppliers, "Suppliers", "Suppliers", "Index", 3),
                     (PageKeys.Units, "Units", "Units", "Index", 4),
-                    (PageKeys.Warehouses, "Warehouses", "Warehouses", "Index", 5)
+                    (PageKeys.Warehouses, "Warehouses", "Warehouses", "Index", 5),
+                    (PageKeys.Areas, "Areas", "Areas", "Index", 6),
+                    (PageKeys.SubAreas, "Sub Areas", "SubAreas", "Index", 7)
                 }),
                 ("Promotions", "Promotions", 6, new List<(string, string, string?, string?, int)>
                 {

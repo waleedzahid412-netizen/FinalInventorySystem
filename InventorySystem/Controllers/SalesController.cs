@@ -68,22 +68,35 @@ namespace InventorySystem.Controllers
             var pagedResult = await _salesService.GetPagedSalesAsync(filterDto, cancellationToken);
 
             var customers = await _lookupService.GetCustomersAsync(cancellationToken);
+            var bookers = await _lookupService.GetBookersAsync(filter.CompanyID, cancellationToken);
             var warehouses = await _lookupService.GetWarehousesAsync(cancellationToken);
             var Suppliers = await _lookupService.GetSuppliersAsync(cancellationToken);
+
+            var statusItems = new[]
+            {
+                new { Value = "UNPAID", Text = "Unpaid" },
+                new { Value = "PARTIAL", Text = "Partially Paid" },
+                new { Value = "PAID", Text = "Paid" }
+            };
+
+            var selectedStatuses = filter.PaymentStatuses != null && filter.PaymentStatuses.Any()
+                ? filter.PaymentStatuses
+                : (!string.IsNullOrWhiteSpace(filter.PaymentStatus) ? new List<string> { filter.PaymentStatus } : new List<string>());
 
             var viewModel = new SalesListViewModel
             {
                 Items = pagedResult,
                 Filter = filter,
                 Customers = new SelectList(customers, "Id", "Name", filter.CustomerID),
+                Bookers = new SelectList(bookers, "Id", "Name", filter.BookerID),
                 Warehouses = new SelectList(warehouses, "Id", "Name", filter.WarehouseID),
                 Suppliers = new SelectList(Suppliers, "Id", "Name", filter.SupplierID),
-                PaymentStatuses = new SelectList(new[]
+                PaymentStatuses = statusItems.Select(s => new SelectListItem
                 {
-                    new { Value = "UNPAID", Text = "Unpaid" },
-                    new { Value = "PARTIAL", Text = "Partially Paid" },
-                    new { Value = "PAID", Text = "Paid" }
-                }, "Value", "Text", filter.PaymentStatus)
+                    Value = s.Value,
+                    Text = s.Text,
+                    Selected = selectedStatuses.Contains(s.Value)
+                }).ToList()
             };
 
             return View(viewModel);
@@ -304,7 +317,9 @@ namespace InventorySystem.Controllers
                         salePrice = pu.SellingPrice ?? (pu.Product != null ? pu.Product.BaseSellingPrice * pu.ConversionToBaseUnit : 0m),
                         sellingPrice = pu.SellingPrice ?? (pu.Product != null ? pu.Product.BaseSellingPrice * pu.ConversionToBaseUnit : 0m),
                         conversionFactor = pu.ConversionToBaseUnit,
-                        conversionToBaseUnit = pu.ConversionToBaseUnit
+                        conversionToBaseUnit = pu.ConversionToBaseUnit,
+                        productDiscountType = pu.Product != null ? pu.Product.ProductDiscountType : null,
+                        productDiscountValue = pu.Product != null ? pu.Product.ProductDiscountValue : null
                     })
                     .ToListAsync(cancellationToken);
 
@@ -417,6 +432,7 @@ namespace InventorySystem.Controllers
                 AppliedDiscountRuleID = details.Header.AppliedDiscountRuleID,
                 DiscountMode = string.IsNullOrWhiteSpace(details.Header.DiscountMode) ? "None" : details.Header.DiscountMode,
                 ApplyPromotions = initialItems.Any(i => string.Equals(i.ItemType, "FREE", StringComparison.OrdinalIgnoreCase)),
+                ApplyProductDiscount = details.Header.ApplyProductDiscount,
                 ItemsJson = JsonSerializer.Serialize(initialItems)
             };
 
@@ -475,6 +491,7 @@ namespace InventorySystem.Controllers
                 ManualDiscountType = model.ManualDiscountType,
                 ManualDiscountValue = model.ManualDiscountValue,
                 ApplyPromotions = model.ApplyPromotions,
+                ApplyProductDiscount = model.ApplyProductDiscount,
                 EditReason = model.EditReason,
                 Items = items
             };

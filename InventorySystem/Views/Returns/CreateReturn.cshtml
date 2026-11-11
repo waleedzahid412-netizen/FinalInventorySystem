@@ -197,7 +197,7 @@
                         }
 
                         rows.forEach(function (inv) {
-                            var label = inv.invoiceNumber + ' (' + inv.invoiceDate + ') — Total: $' +
+                            var label = inv.invoiceNumber + ' (' + inv.invoiceDate + ') — Total: PKR ' +
                                 Number(inv.grandTotal).toFixed(2);
                             $sel.append($('<option></option>').val(inv.invoiceId).text(label)
                                 .attr('data-number', inv.invoiceNumber)
@@ -230,8 +230,8 @@
                 $('#summaryInvoiceNumber').text($opt.data('number') || ('Invoice #' + selectedInvoiceId));
                 $('#summaryInvoiceMeta').text(
                     'Date: ' + ($opt.data('date') || '—') +
-                    ' · Total: $' + Number($opt.data('total') || 0).toFixed(2) +
-                    ' · Balance: $' + Number($opt.data('balance') || 0).toFixed(2)
+                    ' · Total: PKR ' + Number($opt.data('total') || 0).toFixed(2) +
+                    ' · Balance: PKR ' + Number($opt.data('balance') || 0).toFixed(2)
                 );
                 $('#selectedInvoiceSummary').removeClass('d-none');
                 $('#btnContinueProcessReturn').prop('disabled', false);

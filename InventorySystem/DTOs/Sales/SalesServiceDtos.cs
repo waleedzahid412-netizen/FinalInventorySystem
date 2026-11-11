@@ -9,10 +9,14 @@ namespace InventorySystem.DTOs.Sales
         public int ProductUnitID { get; set; }
         public decimal Quantity { get; set; }
         public decimal UnitPrice { get; set; }
-        /// <summary>Client-supplied value is ignored; server allocates invoice-level discount.</summary>
+        /// <summary>Client-supplied value is ignored; server sets total line discount (product + invoice share).</summary>
         public decimal DiscountAmount { get; set; } = 0;
-        /// <summary>Server-set discount rate snapshot for this line (percentage) or 0 for fixed.</summary>
+        /// <summary>Server-set invoice-level discount rate snapshot for this line (percentage) or 0 for fixed.</summary>
         public decimal DiscountRate { get; set; } = 0;
+        /// <summary>Server-set product discount snapshot; client values ignored.</summary>
+        public string? ProductDiscountType { get; set; }
+        public decimal? ProductDiscountValue { get; set; }
+        public decimal ProductDiscountAmount { get; set; } = 0;
         public string ItemType { get; set; } = "NORMAL";
         public int? PromotionID { get; set; }
         public bool IsCustomFreeItem { get; set; }
@@ -46,6 +50,9 @@ namespace InventorySystem.DTOs.Sales
         /// </summary>
         public bool ApplyPromotions { get; set; } = true;
 
+        /// <summary>When true (default), apply each product's catalog discount onto NORMAL lines.</summary>
+        public bool ApplyProductDiscount { get; set; } = true;
+
         public List<CreateSalesItemDto> Items { get; set; } = new List<CreateSalesItemDto>();
     }
 
@@ -74,6 +81,9 @@ namespace InventorySystem.DTOs.Sales
         /// When false, FREE lines are omitted (client FREE lines are still discarded).
         /// </summary>
         public bool ApplyPromotions { get; set; } = true;
+
+        /// <summary>When true (default), apply each product's catalog discount onto NORMAL lines.</summary>
+        public bool ApplyProductDiscount { get; set; } = true;
 
         public List<CreateSalesItemDto> Items { get; set; } = new List<CreateSalesItemDto>();
     }
@@ -116,6 +126,7 @@ namespace InventorySystem.DTOs.Sales
         public int? AppliedDiscountRuleID { get; set; }
         /// <summary>None | Automatic | Manual</summary>
         public string DiscountMode { get; set; } = "None";
+        public bool ApplyProductDiscount { get; set; } = true;
         public bool IsLocked { get; set; }
         public string CreatedByUserName { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
@@ -136,7 +147,12 @@ namespace InventorySystem.DTOs.Sales
         public decimal UnitPrice { get; set; }
         public decimal DiscountRate { get; set; }
         public decimal DiscountAmount { get; set; }
+        public string? ProductDiscountType { get; set; }
+        public decimal? ProductDiscountValue { get; set; }
+        public decimal ProductDiscountAmount { get; set; }
         public decimal LineTotal => (Quantity * UnitPrice) - DiscountAmount;
+        /// <summary>Line amount after product discount only (before invoice-level Manual/Automatic share).</summary>
+        public decimal AmountAfterProductDiscount => (Quantity * UnitPrice) - ProductDiscountAmount;
         public string ItemType { get; set; } = "NORMAL";
         public int? PromotionID { get; set; }
         public string? CustomItemName { get; set; }
@@ -150,6 +166,21 @@ namespace InventorySystem.DTOs.Sales
         public decimal GrandTotal { get; set; }
         public decimal PaidAmount { get; set; }
         public decimal OutstandingBalance => GrandTotal - PaidAmount;
+
+        /// <summary>Sum of line ProductDiscountAmount (catalog product discounts).</summary>
+        public decimal ProductDiscountTotal { get; set; }
+
+        /// <summary>Invoice-level Manual/Automatic/Customer amount (DiscountTotal − ProductDiscountTotal).</summary>
+        public decimal AdditionalDiscountTotal { get; set; }
+
+        /// <summary>None | Automatic | Manual | Customer — from invoice header.</summary>
+        public string DiscountMode { get; set; } = "None";
+
+        /// <summary>Snapshot from InvoiceDiscounts (Percentage / FixedAmount). Null when no invoice-level discount.</summary>
+        public string? DiscountType { get; set; }
+
+        /// <summary>Snapshot rate/value from InvoiceDiscounts. For Percentage this is the % to print on invoices.</summary>
+        public decimal? DiscountValue { get; set; }
     }
 
     public class SalesDetailsDto

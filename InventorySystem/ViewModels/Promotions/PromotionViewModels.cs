@@ -28,6 +28,7 @@ namespace InventorySystem.ViewModels.Promotions
         public string FreeProductName { get; set; } = string.Empty;
         public bool IsCustomFreeItem { get; set; }
         public string? CustomFreeItemName { get; set; }
+        public decimal? CustomFreeItemPrice { get; set; }
         public int FreeQuantity { get; set; }
     }
 
@@ -65,6 +66,10 @@ namespace InventorySystem.ViewModels.Promotions
         [StringLength(200, ErrorMessage = "Custom free item name cannot exceed 200 characters.")]
         public string? CustomFreeItemName { get; set; }
 
+        /// <summary>Required when Other is selected. Used for return clawback valuation.</summary>
+        [Range(0.01, 999999999.99, ErrorMessage = "Custom free item price must be greater than zero.")]
+        public decimal? CustomFreeItemPrice { get; set; }
+
         [Range(1, int.MaxValue, ErrorMessage = "Free quantity must be at least 1.")]
         public int FreeQuantity { get; set; } = 1;
 
@@ -83,11 +88,13 @@ namespace InventorySystem.ViewModels.Promotions
                 IsCustomFreeItem = false;
                 FreeProductID = productId;
                 CustomFreeItemName = null;
+                CustomFreeItemPrice = null;
             }
             else
             {
                 IsCustomFreeItem = false;
                 FreeProductID = null;
+                CustomFreeItemPrice = null;
             }
         }
 
@@ -105,6 +112,13 @@ namespace InventorySystem.ViewModels.Promotions
                 if (string.IsNullOrWhiteSpace(CustomFreeItemName))
                 {
                     yield return new ValidationResult("Enter a name for the custom free item.", new[] { nameof(CustomFreeItemName) });
+                }
+
+                if (!CustomFreeItemPrice.HasValue || CustomFreeItemPrice.Value <= 0m)
+                {
+                    yield return new ValidationResult(
+                        "Enter a price greater than zero for the custom free item.",
+                        new[] { nameof(CustomFreeItemPrice) });
                 }
 
                 yield break;

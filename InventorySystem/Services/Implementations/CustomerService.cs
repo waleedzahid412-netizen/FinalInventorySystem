@@ -48,6 +48,7 @@ namespace InventorySystem.Services.Implementations
                     SubAreaName = c.SubArea?.SubAreaName,
                     TaxID = c.TaxID,
                     CreditLimit = c.CreditLimit,
+                    Category = c.Category,
                     IsActive = c.IsActive,
                     OutstandingReceivable = summary?.OutstandingReceivable ?? 0m,
                     CreatedAt = c.CreatedAt
@@ -76,6 +77,7 @@ namespace InventorySystem.Services.Implementations
                 TaxID = c.TaxID,
                 CreditLimit = c.CreditLimit,
                 PreferredDiscountPercent = c.PreferredDiscountPercent,
+                Category = c.Category,
                 IsActive = c.IsActive,
                 CreatedAt = c.CreatedAt,
                 UpdatedAt = c.UpdatedAt
@@ -99,6 +101,7 @@ namespace InventorySystem.Services.Implementations
                 TaxID = c.TaxID,
                 CreditLimit = c.CreditLimit,
                 PreferredDiscountPercent = c.PreferredDiscountPercent,
+                Category = c.Category,
                 IsActive = c.IsActive
             };
         }
@@ -159,6 +162,7 @@ namespace InventorySystem.Services.Implementations
                 TaxID = dto.TaxID?.Trim(),
                 CreditLimit = dto.CreditLimit < 0 ? 0m : dto.CreditLimit,
                 PreferredDiscountPercent = preferredResult.Data,
+                Category = dto.Category,
                 IsActive = dto.IsActive,
                 CreatedBy = userId,
                 CreatedAt = DateTime.UtcNow,
@@ -209,6 +213,7 @@ namespace InventorySystem.Services.Implementations
             customer.TaxID = dto.TaxID?.Trim();
             customer.CreditLimit = dto.CreditLimit < 0 ? 0m : dto.CreditLimit;
             customer.PreferredDiscountPercent = preferredResult.Data;
+            customer.Category = dto.Category;
             customer.IsActive = dto.IsActive;
             customer.UpdatedBy = userId;
 

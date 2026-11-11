@@ -24,5 +24,7 @@ namespace InventorySystem.DTOs.Purchases
         public string SKU { get; set; } = string.Empty;
         public int BaseUnitID { get; set; }
         public string BaseUnitName { get; set; } = string.Empty;
+        public string? ProductDiscountType { get; set; }
+        public decimal? ProductDiscountValue { get; set; }
     }
 }

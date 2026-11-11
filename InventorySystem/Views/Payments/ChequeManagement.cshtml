@@ -179,6 +179,37 @@
     </div>
 </div>
 
+<!-- Clear Confirmation Modal -->
+<div class="modal fade" id="clearChequeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title h6"><i class="bi bi-check-circle me-2"></i> Clear Cheque Confirmation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3">
+                <input type="hidden" id="clearPaymentID" />
+                <input type="hidden" id="clearPaymentType" />
+
+                <div id="clearModalAlert" class="alert alert-danger p-2 small d-none mb-3"></div>
+
+                <div class="alert alert-warning border-warning mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    This will immediately update the invoice paid balance and post to the ledger.
+                </div>
+                <p id="clearPromptText" class="fw-semibold text-dark mb-0"></p>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success px-4" id="btnConfirmClearCheque">
+                    <span id="clearSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                    <i id="clearIcon" class="bi bi-check-lg me-1"></i> Confirm Clear
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Bounce / Cancel Modal -->
 <div class="modal fade" id="chequeActionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -213,50 +244,81 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const actionModal = new bootstrap.Modal(document.getElementById('chequeActionModal'));
+            const clearModal = new bootstrap.Modal(document.getElementById('clearChequeModal'));
             const antiForgeryToken = '@Html.AntiForgeryToken()';
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = antiForgeryToken;
             const tokenValue = tempDiv.querySelector('input[name="__RequestVerificationToken"]').value;
 
-            // Clear Cheque direct trigger
+            function showToast(message, type) {
+                if (window.WimsToast) {
+                    window.WimsToast.show(message, type || 'danger');
+                }
+            }
+
+            // Clear Cheque — open styled confirmation modal
             document.querySelectorAll('.btnClearCheque').forEach(btn => {
                 btn.addEventListener('click', function () {
-                    const id = parseInt(this.getAttribute('data-id'));
+                    const id = this.getAttribute('data-id');
                     const type = this.getAttribute('data-type');
                     const number = this.getAttribute('data-number');
                     const amount = parseFloat(this.getAttribute('data-amount')).toFixed(2);
 
-                    if (confirm(`Are you sure you want to CLEAR Cheque #${number} (PKR ${amount})? This will immediately update invoice paid balance and post to the ledger.`)) {
-                        btn.disabled = true;
+                    document.getElementById('clearPaymentID').value = id;
+                    document.getElementById('clearPaymentType').value = type;
+                    document.getElementById('clearPromptText').textContent =
+                        `Are you sure you want to CLEAR Cheque #${number} (PKR ${amount})?`;
+                    document.getElementById('clearModalAlert').classList.add('d-none');
+                    clearModal.show();
+                });
+            });
 
-                        fetch('/Payments/UpdateChequeStatus', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'RequestVerificationToken': tokenValue
-                            },
-                            body: JSON.stringify({
-                                PaymentID: id,
-                                PaymentType: type,
-                                NewStatus: 'Cleared',
-                                Remarks: 'Cleared by administrator'
-                            })
-                        })
-                        .then(res => res.json())
-                        .then(data => {
-                            btn.disabled = false;
-                            if (data.success) {
-                                alert(data.message);
-                                window.location.reload();
-                            } else {
-                                alert('Error: ' + data.message);
-                            }
-                        })
-                        .catch(err => {
-                            btn.disabled = false;
-                            alert('An error occurred while clearing cheque.');
-                        });
+            document.getElementById('btnConfirmClearCheque').addEventListener('click', function () {
+                const alertBox = document.getElementById('clearModalAlert');
+                alertBox.classList.add('d-none');
+
+                const id = parseInt(document.getElementById('clearPaymentID').value);
+                const type = document.getElementById('clearPaymentType').value;
+                const btn = this;
+
+                btn.disabled = true;
+                document.getElementById('clearSpinner').classList.remove('d-none');
+                document.getElementById('clearIcon').classList.add('d-none');
+
+                fetch('/Payments/UpdateChequeStatus', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': tokenValue
+                    },
+                    body: JSON.stringify({
+                        PaymentID: id,
+                        PaymentType: type,
+                        NewStatus: 'Cleared',
+                        Remarks: 'Cleared by administrator'
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    document.getElementById('clearSpinner').classList.add('d-none');
+                    document.getElementById('clearIcon').classList.remove('d-none');
+
+                    if (data.success) {
+                        clearModal.hide();
+                        showToast(data.message || 'Cheque cleared successfully.', 'success');
+                        window.location.reload();
+                    } else {
+                        alertBox.textContent = data.message || 'Failed to clear cheque.';
+                        alertBox.classList.remove('d-none');
                     }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    document.getElementById('clearSpinner').classList.add('d-none');
+                    document.getElementById('clearIcon').classList.remove('d-none');
+                    alertBox.textContent = 'An error occurred while clearing cheque.';
+                    alertBox.classList.remove('d-none');
                 });
             });
 

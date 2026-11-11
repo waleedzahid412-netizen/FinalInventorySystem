@@ -110,8 +110,8 @@
                                         <th style="width: 30%;">Product</th>
                                         <th style="width: 20%;">Unit</th>
                                         <th style="width: 15%;" class="text-center">Qty</th>
-                                        <th style="width: 15%;" class="text-end">Return Price ($)</th>
-                                        <th style="width: 15%;" class="text-end">Line Total ($)</th>
+                                        <th style="width: 15%;" class="text-end">Return Price (PKR)</th>
+                                        <th style="width: 15%;" class="text-end">Line Total (PKR)</th>
                                         <th style="width: 5%;" class="text-center">Action</th>
                                     </tr>
                                 </thead>
@@ -133,17 +133,17 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between mb-2">
                             <span class="text-muted">Gross Return Value:</span>
-                            <span class="fw-bold" id="lblGrossReturn">$0.00</span>
+                            <span class="fw-bold" id="lblGrossReturn">PKR 0.00</span>
                         </div>
 
                         <div class="d-flex justify-content-between mb-2 text-muted">
                             <span>Discount Clawback:</span>
-                            <span>$0.00</span>
+                            <span>PKR 0.00</span>
                         </div>
 
                         <div class="d-flex justify-content-between mb-3 text-muted">
                             <span>Promo Free Item Penalty:</span>
-                            <span>$0.00</span>
+                            <span>PKR 0.00</span>
                         </div>
 
                         <hr />
@@ -151,7 +151,7 @@
                         <div class="p-3 bg-light rounded border mb-4">
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="fw-bold fs-6">NET REFUND AMOUNT:</span>
-                                <span class="fw-bold fs-4 text-success" id="lblNetRefund">$0.00</span>
+                                <span class="fw-bold fs-4 text-success" id="lblNetRefund">PKR 0.00</span>
                             </div>
                             <div id="lblSettlementSummary" class="small text-muted mt-2 fw-semibold">
                                 <i class="bi bi-info-circle me-1"></i> Will post Credit to Customer Account
@@ -194,7 +194,7 @@
                         <td>
                             <input type="number" min="0" step="0.01" class="form-control form-control-sm text-end input-price" value="0.00" />
                         </td>
-                        <td class="text-end fw-bold line-total">$0.00</td>
+                        <td class="text-end fw-bold line-total">PKR 0.00</td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-outline-danger btn-remove-row" title="Remove Line">
                                 <i class="bi bi-trash"></i>
@@ -246,12 +246,12 @@
                     const qty = parseFloat($row.find('.input-qty').val()) || 0;
                     const price = parseFloat($row.find('.input-price').val()) || 0;
                     const lineTotal = Math.round(qty * price * 100) / 100;
-                    $row.find('.line-total').text('$' + lineTotal.toFixed(2));
+                    $row.find('.line-total').text('PKR ' +  lineTotal.toFixed(2));
                     grossTotal += lineTotal;
                 });
 
-                $('#lblGrossReturn').text('$' + grossTotal.toFixed(2));
-                $('#lblNetRefund').text('$' + grossTotal.toFixed(2));
+                $('#lblGrossReturn').text('PKR ' +  grossTotal.toFixed(2));
+                $('#lblNetRefund').text('PKR ' +  grossTotal.toFixed(2));
             }
 
             $(document).on('input change', '.input-qty, .input-price', function () {

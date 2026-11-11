@@ -32,7 +32,7 @@ namespace InventorySystem.Models.Entities
         /// <summary>When stock was received — drives FIFO ordering.</summary>
         public DateTime ReceivedAt { get; set; }
 
-        /// <summary>PURCHASE | OPENING_BALANCE | RETURN</summary>
+        /// <summary>PURCHASE | OPENING_BALANCE | RETURN | CLAIM_REPLACEMENT</summary>
         [Required]
         [MaxLength(30)]
         public string SourceType { get; set; } = "PURCHASE";

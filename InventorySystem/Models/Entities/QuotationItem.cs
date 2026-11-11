@@ -32,6 +32,15 @@ namespace InventorySystem.Models.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal DiscountAmount { get; set; } = 0;
 
+        [MaxLength(20)]
+        public string? ProductDiscountType { get; set; }
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? ProductDiscountValue { get; set; }
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal ProductDiscountAmount { get; set; } = 0;
+
         public bool IsActive { get; set; } = true;
 
         // ===== AUDIT FIELDS =====

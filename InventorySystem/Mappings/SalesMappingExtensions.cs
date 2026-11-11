@@ -25,6 +25,7 @@ namespace InventorySystem.Mappings
                 ManualDiscountType = model.ManualDiscountType,
                 ManualDiscountValue = model.ManualDiscountValue,
                 ApplyPromotions = model.ApplyPromotions,
+                ApplyProductDiscount = model.ApplyProductDiscount,
                 Items = new List<CreateSalesItemDto>()
             };
 

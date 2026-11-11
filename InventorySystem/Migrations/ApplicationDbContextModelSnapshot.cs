@@ -112,10 +112,6 @@ namespace InventorySystem.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("Code")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -141,10 +137,6 @@ namespace InventorySystem.Migrations
 
                     b.HasIndex("AreaName")
                         .IsUnique();
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasFilter("[Code] IS NOT NULL");
 
                     b.HasIndex("CreatedBy");
 
@@ -452,6 +444,9 @@ namespace InventorySystem.Migrations
                     b.Property<decimal>("CreditAmount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("DamagedStockClaimID")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("DebitAmount")
                         .HasColumnType("decimal(18,2)");
 
@@ -482,6 +477,8 @@ namespace InventorySystem.Migrations
                         .HasFilter("[CompanyPaymentID] IS NOT NULL");
 
                     b.HasIndex("CreatedBy");
+
+                    b.HasIndex("DamagedStockClaimID");
 
                     b.HasIndex("PurchaseInvoiceID");
 
@@ -587,6 +584,9 @@ namespace InventorySystem.Migrations
                         .HasColumnType("nvarchar(255)");
 
                     b.Property<int?>("AreaID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Category")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
@@ -799,6 +799,275 @@ namespace InventorySystem.Migrations
                     b.ToTable("CustomerPayments", "dbo");
                 });
 
+            modelBuilder.Entity("InventorySystem.Models.Entities.DamagedStockClaim", b =>
+                {
+                    b.Property<int>("DamagedStockClaimID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DamagedStockClaimID"));
+
+                    b.Property<DateTime>("ClaimDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClaimNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ClaimStatus")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ClosedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompanyID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ConfirmedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("SettlementStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("SupplierResponseNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("TotalAcceptedQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("TotalClaimAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalClaimedQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("TotalRejectedQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("TotalSettledAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("DamagedStockClaimID");
+
+                    b.HasIndex("ClaimNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ClosedBy");
+
+                    b.HasIndex("CompanyID");
+
+                    b.HasIndex("ConfirmedBy");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("UpdatedBy");
+
+                    b.ToTable("DamagedStockClaims", "dbo");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.DamagedStockClaimItem", b =>
+                {
+                    b.Property<int>("DamagedStockClaimItemID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DamagedStockClaimItemID"));
+
+                    b.Property<decimal?>("AcceptedQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("ClaimedQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("DamageReason")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<decimal>("DamagedQuantityAvailableAtClaim")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int>("DamagedStockClaimID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("InventoryStockID")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("LineClaimAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ProductID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RejectedDecision")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("RejectedDecisionAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("RejectedDecisionBy")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("RejectedQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("UnitClaimCost")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("WarehouseID")
+                        .HasColumnType("int");
+
+                    b.HasKey("DamagedStockClaimItemID");
+
+                    b.HasIndex("DamagedStockClaimID");
+
+                    b.HasIndex("InventoryStockID");
+
+                    b.HasIndex("ProductID");
+
+                    b.HasIndex("RejectedDecisionBy");
+
+                    b.HasIndex("WarehouseID");
+
+                    b.ToTable("DamagedStockClaimItems", "dbo");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.DamagedStockClaimSettlement", b =>
+                {
+                    b.Property<int>("DamagedStockClaimSettlementID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DamagedStockClaimSettlementID"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("CompanyLedgerID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DamagedStockClaimID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("InventoryTransactionID")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPosted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsVerifiedReceived")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PaymentMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("ProductID")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("ReceivedQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("SettlementDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SettlementMethod")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal?>("UnitCostInBase")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int?>("WarehouseID")
+                        .HasColumnType("int");
+
+                    b.HasKey("DamagedStockClaimSettlementID");
+
+                    b.HasIndex("CompanyLedgerID");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("DamagedStockClaimID");
+
+                    b.HasIndex("InventoryTransactionID");
+
+                    b.HasIndex("ProductID");
+
+                    b.HasIndex("WarehouseID");
+
+                    b.ToTable("DamagedStockClaimSettlements", "dbo");
+                });
+
             modelBuilder.Entity("InventorySystem.Models.Entities.DiscountRule", b =>
                 {
                     b.Property<int>("DiscountRuleID")
@@ -985,6 +1254,9 @@ namespace InventorySystem.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("InventoryStockID"));
 
+                    b.Property<decimal>("ClaimPendingQuantity")
+                        .HasColumnType("decimal(18,3)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1046,6 +1318,9 @@ namespace InventorySystem.Migrations
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
 
+                    b.Property<int?>("DamagedStockClaimItemID")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
@@ -1094,6 +1369,8 @@ namespace InventorySystem.Migrations
                     b.HasKey("TransactionID");
 
                     b.HasIndex("CreatedBy");
+
+                    b.HasIndex("DamagedStockClaimItemID");
 
                     b.HasIndex("ProductID");
 
@@ -1308,6 +1585,13 @@ namespace InventorySystem.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("ProductDiscountType")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("ProductDiscountValue")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("ProductName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -1472,6 +1756,9 @@ namespace InventorySystem.Migrations
                     b.Property<string>("CustomFreeItemName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("CustomFreeItemPrice")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int?>("FreeProductID")
                         .HasColumnType("int");
@@ -1772,6 +2059,11 @@ namespace InventorySystem.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("QuotationID"));
 
+                    b.Property<bool>("ApplyProductDiscount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1846,6 +2138,16 @@ namespace InventorySystem.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<decimal>("ProductDiscountAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ProductDiscountType")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("ProductDiscountValue")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("ProductID")
                         .HasColumnType("int");
@@ -1979,6 +2281,11 @@ namespace InventorySystem.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("InvoiceID"));
+
+                    b.Property<bool>("ApplyProductDiscount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<int?>("AreaID")
                         .HasColumnType("int");
@@ -2146,6 +2453,16 @@ namespace InventorySystem.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("ProductDiscountAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ProductDiscountType")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("ProductDiscountValue")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int?>("ProductID")
                         .HasColumnType("int");
@@ -2340,10 +2657,6 @@ namespace InventorySystem.Migrations
 
                     b.Property<int>("AreaID")
                         .HasColumnType("int");
-
-                    b.Property<string>("Code")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -2784,6 +3097,11 @@ namespace InventorySystem.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
+                    b.HasOne("InventorySystem.Models.Entities.DamagedStockClaim", "DamagedStockClaim")
+                        .WithMany("CompanyLedgerEntries")
+                        .HasForeignKey("DamagedStockClaimID")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("InventorySystem.Models.Entities.PurchaseInvoice", "PurchaseInvoice")
                         .WithMany("CompanyLedgerEntries")
                         .HasForeignKey("PurchaseInvoiceID")
@@ -2798,6 +3116,8 @@ namespace InventorySystem.Migrations
                     b.Navigation("CompanyPayment");
 
                     b.Navigation("CreatedByUser");
+
+                    b.Navigation("DamagedStockClaim");
 
                     b.Navigation("PurchaseInvoice");
 
@@ -2929,6 +3249,135 @@ namespace InventorySystem.Migrations
                     b.Navigation("SalesInvoice");
                 });
 
+            modelBuilder.Entity("InventorySystem.Models.Entities.DamagedStockClaim", b =>
+                {
+                    b.HasOne("InventorySystem.Models.Entities.User", "ClosedByUser")
+                        .WithMany()
+                        .HasForeignKey("ClosedBy")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("InventorySystem.Models.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.User", "ConfirmedByUser")
+                        .WithMany()
+                        .HasForeignKey("ConfirmedBy")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("InventorySystem.Models.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedBy")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ClosedByUser");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("ConfirmedByUser");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.DamagedStockClaimItem", b =>
+                {
+                    b.HasOne("InventorySystem.Models.Entities.DamagedStockClaim", "DamagedStockClaim")
+                        .WithMany("Items")
+                        .HasForeignKey("DamagedStockClaimID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.InventoryStock", "InventoryStock")
+                        .WithMany()
+                        .HasForeignKey("InventoryStockID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.User", "RejectedDecisionByUser")
+                        .WithMany()
+                        .HasForeignKey("RejectedDecisionBy")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("InventorySystem.Models.Entities.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DamagedStockClaim");
+
+                    b.Navigation("InventoryStock");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("RejectedDecisionByUser");
+
+                    b.Navigation("Warehouse");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.DamagedStockClaimSettlement", b =>
+                {
+                    b.HasOne("InventorySystem.Models.Entities.CompanyLedger", "CompanyLedger")
+                        .WithMany()
+                        .HasForeignKey("CompanyLedgerID")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("InventorySystem.Models.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.DamagedStockClaim", "DamagedStockClaim")
+                        .WithMany("Settlements")
+                        .HasForeignKey("DamagedStockClaimID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InventorySystem.Models.Entities.InventoryTransaction", "InventoryTransaction")
+                        .WithMany()
+                        .HasForeignKey("InventoryTransactionID")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("InventorySystem.Models.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("InventorySystem.Models.Entities.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CompanyLedger");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("DamagedStockClaim");
+
+                    b.Navigation("InventoryTransaction");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Warehouse");
+                });
+
             modelBuilder.Entity("InventorySystem.Models.Entities.DiscountRule", b =>
                 {
                     b.HasOne("InventorySystem.Models.Entities.Company", "Company")
@@ -3055,6 +3504,11 @@ namespace InventorySystem.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
+                    b.HasOne("InventorySystem.Models.Entities.DamagedStockClaimItem", "DamagedStockClaimItem")
+                        .WithMany("InventoryTransactions")
+                        .HasForeignKey("DamagedStockClaimItemID")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("InventorySystem.Models.Entities.Product", "Product")
                         .WithMany("InventoryTransactions")
                         .HasForeignKey("ProductID")
@@ -3092,6 +3546,8 @@ namespace InventorySystem.Migrations
                         .IsRequired();
 
                     b.Navigation("CreatedByUser");
+
+                    b.Navigation("DamagedStockClaimItem");
 
                     b.Navigation("Product");
 
@@ -3937,6 +4393,20 @@ namespace InventorySystem.Migrations
             modelBuilder.Entity("InventorySystem.Models.Entities.CustomerPayment", b =>
                 {
                     b.Navigation("CustomerLedgerEntry");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.DamagedStockClaim", b =>
+                {
+                    b.Navigation("CompanyLedgerEntries");
+
+                    b.Navigation("Items");
+
+                    b.Navigation("Settlements");
+                });
+
+            modelBuilder.Entity("InventorySystem.Models.Entities.DamagedStockClaimItem", b =>
+                {
+                    b.Navigation("InventoryTransactions");
                 });
 
             modelBuilder.Entity("InventorySystem.Models.Entities.DiscountRule", b =>
